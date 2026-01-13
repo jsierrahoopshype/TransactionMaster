@@ -631,34 +631,6 @@
       font-weight: 600;
       text-transform: uppercase;
       cursor: help;
-      position: relative;
-    }
-
-    .ntc-badge::after, .restriction-badge::after, .na-badge::after, .pp-badge::after, .min-badge::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 400;
-      text-transform: none;
-      white-space: nowrap;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.15s, visibility 0.15s;
-      z-index: 1000;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    .ntc-badge:hover::after, .restriction-badge:hover::after, .na-badge:hover::after, .pp-badge:hover::after, .min-badge:hover::after {
-      opacity: 1;
-      visibility: visible;
     }
 
     .ntc-badge {
@@ -1150,11 +1122,11 @@
                     <div class="player-chip-info">
                       <div class="player-chip-name">
                         ${p.player}
-                        ${p.noTradeClause ? '<span class="ntc-badge" data-tooltip="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
-                        ${p.notAggregated ? '<span class="na-badge" data-tooltip="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
-                        ${p.poisonPill > 0 ? '<span class="pp-badge" data-tooltip="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
-                        ${p.isMinimum ? '<span class="min-badge" data-tooltip="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
-                        ${p.tradeAvailable ? '<span class="restriction-badge" data-tooltip="Trade Restriction: Check availability date">!</span>' : ''}
+                        ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
+                        ${p.notAggregated ? '<span class="na-badge" title="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
+                        ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
+                        ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                        ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction: Check availability date">!</span>' : ''}
                       </div>
                       <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                     </div>
@@ -1191,8 +1163,8 @@
                       <div class="player-chip-info">
                         <div class="player-chip-name">
                           ${p.player}
-                          ${p.poisonPill > 0 ? '<span class="pp-badge" data-tooltip="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
-                          ${p.isMinimum ? '<span class="min-badge" data-tooltip="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
                         </div>
                         <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${p.isMinimum ? '#22c55e' : '#ec4899'}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
                       </div>
@@ -1280,11 +1252,11 @@
                       <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
                         <span class="player-roster-name">
                           ${p.player}
-                          ${p.noTradeClause ? '<span class="ntc-badge" data-tooltip="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
-                          ${p.notAggregated ? '<span class="na-badge" data-tooltip="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
-                          ${p.poisonPill > 0 ? '<span class="pp-badge" data-tooltip="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
-                          ${p.isMinimum ? '<span class="min-badge" data-tooltip="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
-                          ${p.tradeAvailable ? '<span class="restriction-badge" data-tooltip="Trade Restriction: Check availability date">!</span>' : ''}
+                          ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
+                          ${p.notAggregated ? '<span class="na-badge" title="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                          ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction: Check availability date">!</span>' : ''}
                         </span>
                         <span class="player-roster-salary">${formatSalary(p.salary)}</span>
                       </div>
