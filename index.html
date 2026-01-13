@@ -218,7 +218,8 @@
       justify-content: space-between;
       align-items: center;
       padding: 0.5rem 0.75rem;
-      background: var(--surface-hover);
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: 6px;
       font-size: 0.8125rem;
       flex-wrap: wrap;
@@ -554,6 +555,12 @@
       background: var(--surface-hover);
       border-radius: 6px;
       border: 1px dashed var(--border);
+    }
+
+    .trade-separator {
+      border-top: 2px dashed var(--border);
+      margin: 1rem 0 0.75rem 0;
+      padding-top: 0.75rem;
     }
 
     .tpe-section-header {
@@ -1210,6 +1217,7 @@
             ` : ''}
               
             ${tradeTeam.teamName ? `
+              <div class="trade-separator"></div>
               ${(() => {
                 const teamTPEs = getTeamTPEs(tradeTeam.teamName);
                 if (teamTPEs.length === 0) return '';
@@ -1747,10 +1755,14 @@
               console.log('CSV Headers:', Object.keys(results.data[0]));
             }
             
-            // Initialize with 2 empty team slots
+            // Initialize with 2 random team slots
+            const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+            const randomTeam1 = shuffledTeams[0] || '';
+            const randomTeam2 = shuffledTeams[1] || '';
+            
             tradeTeams = [
-              { teamName: '', playersOut: [], playersIn: [], tpeUsed: null },
-              { teamName: '', playersOut: [], playersIn: [], tpeUsed: null }
+              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null },
+              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null }
             ];
 
             loadingState.style.display = 'none';
