@@ -1122,11 +1122,11 @@
                     <div class="player-chip-info">
                       <div class="player-chip-name">
                         ${p.player}
-                        ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
-                        ${p.notAggregated ? '<span class="na-badge" title="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
-                        ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
-                        ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
-                        ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction: Check availability date">!</span>' : ''}
+                        ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
+                        ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
+                        ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                        ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                        ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                       </div>
                       <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                     </div>
@@ -1163,8 +1163,8 @@
                       <div class="player-chip-info">
                         <div class="player-chip-name">
                           ${p.player}
-                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
-                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                         </div>
                         <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${p.isMinimum ? '#22c55e' : '#ec4899'}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
                       </div>
@@ -1252,11 +1252,11 @@
                       <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
                         <span class="player-roster-name">
                           ${p.player}
-                          ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
-                          ${p.notAggregated ? '<span class="na-badge" title="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
-                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
-                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
-                          ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction: Check availability date">!</span>' : ''}
+                          ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
+                          ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                          ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                         </span>
                         <span class="player-roster-salary">${formatSalary(p.salary)}</span>
                       </div>
