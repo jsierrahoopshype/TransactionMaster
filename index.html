@@ -1181,41 +1181,6 @@
               </div>
             ` : ''}
             
-            ${tradeTeam.teamName ? `
-              ${(() => {
-                const teamTPEs = getTeamTPEs(tradeTeam.teamName);
-                if (teamTPEs.length === 0) return '';
-                return `
-                  <div class="tpe-section">
-                    <div class="tpe-section-header">
-                      <span class="tpe-label">Trade Exceptions</span>
-                      ${tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
-                    </div>
-                    <div class="tpe-list">
-                      ${teamTPEs.map((tpe, tpeIndex) => {
-                        const isSelected = tradeTeam.tpeUsed && tradeTeam.tpeUsed.value === tpe.value && tradeTeam.tpeUsed.expirationDate === tpe.expirationDate;
-                        const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && t.tpeUsed && t.tpeUsed.value === tpe.value && t.tpeUsed.team === tpe.team);
-                        return `
-                          <div class="tpe-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
-                               data-team="${index}" 
-                               data-tpe-index="${tpeIndex}"
-                               data-tpe-value="${tpe.value}"
-                               data-tpe-date="${tpe.expirationDate}"
-                               ${isUsedElsewhere ? 'data-disabled="true"' : ''}>
-                            <div>
-                              <span class="tpe-value">${formatSalary(tpe.value)}</span>
-                              ${tpe.expirationDate ? `<span class="tpe-expiry">expires ${tpe.expirationDate}</span>` : ''}
-                            </div>
-                            ${isSelected ? '<span style="color: var(--green);">✓</span>' : ''}
-                          </div>
-                        `;
-                      }).join('')}
-                    </div>
-                  </div>
-                `;
-              })()}
-            ` : ''}
-            
             ${tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) ? `
               <div class="team-footer">
                 <div class="salary-summary">
@@ -1274,6 +1239,38 @@
                     `;
                   }).join('')}
               </div>
+              ${(() => {
+                const teamTPEs = getTeamTPEs(tradeTeam.teamName);
+                if (teamTPEs.length === 0) return '';
+                return `
+                  <div class="tpe-section">
+                    <div class="tpe-section-header">
+                      <span class="tpe-label">Trade Exceptions</span>
+                      ${tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
+                    </div>
+                    <div class="tpe-list">
+                      ${teamTPEs.map((tpe, tpeIndex) => {
+                        const isSelected = tradeTeam.tpeUsed && tradeTeam.tpeUsed.value === tpe.value && tradeTeam.tpeUsed.expirationDate === tpe.expirationDate;
+                        const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && t.tpeUsed && t.tpeUsed.value === tpe.value && t.tpeUsed.team === tpe.team);
+                        return `
+                          <div class="tpe-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                               data-team="${index}" 
+                               data-tpe-index="${tpeIndex}"
+                               data-tpe-value="${tpe.value}"
+                               data-tpe-date="${tpe.expirationDate}"
+                               ${isUsedElsewhere ? 'data-disabled="true"' : ''}>
+                            <div>
+                              <span class="tpe-value">${formatSalary(tpe.value)}</span>
+                              ${tpe.expirationDate ? `<span class="tpe-expiry">expires ${tpe.expirationDate}</span>` : ''}
+                            </div>
+                            ${isSelected ? '<span style="color: var(--green);">✓</span>' : ''}
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                `;
+              })()}
             ` : ''}
           </div>
         </div>
