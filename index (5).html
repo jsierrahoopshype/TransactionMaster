@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBA Trade Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0b;
+      --surface: #141416;
+      --surface-hover: #1a1a1d;
+      --border: #2a2a2e;
+      --text: #f5f5f7;
+      --text-secondary: #8e8e93;
+      --accent: #3b82f6;
+      --accent-dim: rgba(59, 130, 246, 0.15);
+      --green: #34c759;
+      --green-dim: rgba(52, 199, 89, 0.15);
+      --orange: #ff9f0a;
+      --orange-dim: rgba(255, 159, 10, 0.15);
+      --red: #ff453a;
+      --red-dim: rgba(255, 69, 58, 0.15);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      padding: 0.625rem 1.25rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface-hover);
+    }
+
+    .btn-danger {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid transparent;
+    }
+
+    .btn-danger:hover {
+      background: var(--red);
+      color: white;
+    }
+
+    .trade-container {
+      display: flex;
+      gap: 1rem;
+      overflow-x: auto;
+      padding-bottom: 1rem;
+    }
+
+    .team-card {
+      flex: 1;
+      min-width: 280px;
+      max-width: 320px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .team-card.valid {
+      border-color: var(--green);
+    }
+
+    .team-card.invalid {
+      border-color: var(--red);
+    }
+
+    .team-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .team-select {
+      flex: 1;
+      padding: 0.5rem;
+      font-size: 0.9375rem;
+      font-family: inherit;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .team-select option {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .remove-team-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0.25rem;
+      font-size: 1.25rem;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+
+    .remove-team-btn:hover {
+      color: var(--red);
+    }
+
+    .team-status {
+      padding: 0.5rem 1rem;
+      background: var(--surface-hover);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .team-status-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .team-body {
+      padding: 1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-height: 200px;
+    }
+
+    .section-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .players-out, .players-in {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .player-chip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      background: var(--surface-hover);
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+    }
+
+    .player-chip-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .player-chip-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .player-chip-name {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .player-chip-salary {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .player-chip-remove {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.25rem;
+      line-height: 1;
+    }
+
+    .player-chip-remove:hover {
+      color: var(--red);
+    }
+
+    .player-destination {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.6875rem;
+      color: var(--text-secondary);
+    }
+
+    .player-destination-label {
+      white-space: nowrap;
+    }
+
+    .player-destination-select {
+      flex: 1;
+      padding: 0.25rem 0.375rem;
+      font-size: 0.6875rem;
+      font-family: inherit;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .player-destination-select option {
+      background: var(--surface);
+    }
+
+    .player-chip.incoming {
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+    }
+
+    .player-chip.incoming .player-chip-remove {
+      display: none;
+    }
+
+    .add-player-container {
+      position: relative;
+      margin-top: auto;
+    }
+
+    .add-player-input {
+      width: 100%;
+      padding: 0.625rem 0.75rem;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      outline: none;
+    }
+
+    .add-player-input:focus {
+      border-color: var(--accent);
+    }
+
+    .add-player-input::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .player-dropdown {
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+
+    .player-dropdown.active {
+      display: block;
+    }
+
+    .player-dropdown-item {
+      padding: 0.625rem 0.75rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+
+    .player-dropdown-item:last-child {
+      border-bottom: none;
+    }
+
+    .player-dropdown-item:hover {
+      background: var(--surface-hover);
+    }
+
+    .player-dropdown-item-salary {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .team-footer {
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      background: var(--surface-hover);
+      border-radius: 8px;
+    }
+
+    .salary-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+      font-size: 0.8125rem;
+    }
+
+    .salary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .salary-label {
+      color: var(--text-secondary);
+    }
+
+    .salary-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+    }
+
+    .salary-value.negative {
+      color: var(--red);
+    }
+
+    .salary-value.positive {
+      color: var(--green);
+    }
+
+    .salary-row.total {
+      padding-top: 0.375rem;
+      margin-top: 0.375rem;
+      border-top: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .trade-status {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .trade-status.valid {
+      background: var(--green-dim);
+      border: 1px solid var(--green);
+    }
+
+    .trade-status.pending {
+      background: var(--green-dim);
+      border: 1px solid var(--green);
+    }
+
+    .trade-status.pending .trade-status-message {
+      color: var(--orange);
+    }
+
+    .trade-status.invalid {
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+    }
+
+    .trade-status.warning {
+      background: var(--orange-dim);
+      border: 1px solid var(--orange);
+    }
+
+    .trade-status-icon {
+      font-size: 1.5rem;
+    }
+
+    .trade-status-text {
+      flex: 1;
+    }
+
+    .trade-status-title {
+      font-weight: 600;
+      font-size: 0.9375rem;
+    }
+
+    .trade-status-message {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      margin-top: 0.125rem;
+    }
+
+    .add-team-card {
+      min-width: 200px;
+      max-width: 200px;
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      min-height: 400px;
+    }
+
+    .add-team-card:hover {
+      border-color: var(--accent);
+      background: var(--surface-hover);
+    }
+
+    .add-team-content {
+      text-align: center;
+      color: var(--text-secondary);
+    }
+
+    .add-team-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .add-team-text {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .player-roster {
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+    }
+
+    .player-roster-item {
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+      transition: background 0.15s;
+    }
+
+    .player-roster-item:last-child {
+      border-bottom: none;
+    }
+
+    .player-roster-item:hover {
+      background: var(--surface-hover);
+    }
+
+    .player-roster-item.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .player-roster-item.disabled:hover {
+      background: transparent;
+    }
+
+    .player-roster-name {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .player-roster-salary {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .tpe-section {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: var(--surface-hover);
+      border-radius: 6px;
+      border: 1px dashed var(--border);
+    }
+
+    .tpe-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .tpe-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .tpe-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+
+    .tpe-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      background: var(--bg);
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .tpe-item:hover {
+      border-color: var(--accent);
+    }
+
+    .tpe-item.selected {
+      border-color: var(--green);
+      background: var(--green-dim);
+    }
+
+    .tpe-item.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .tpe-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      color: var(--green);
+    }
+
+    .tpe-expiry {
+      font-size: 0.6875rem;
+      color: var(--text-secondary);
+    }
+
+    .tpe-used-badge {
+      font-size: 0.625rem;
+      padding: 0.125rem 0.375rem;
+      background: var(--green-dim);
+      color: var(--green);
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge {
+      font-size: 0.5625rem;
+      padding: 0.125rem 0.3rem;
+      border-radius: 3px;
+      font-weight: 600;
+      text-transform: uppercase;
+      cursor: help;
+      position: relative;
+    }
+
+    .ntc-badge::after, .restriction-badge::after, .na-badge::after, .pp-badge::after, .min-badge::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 400;
+      text-transform: none;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s, visibility 0.15s;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .ntc-badge:hover::after, .restriction-badge:hover::after, .na-badge:hover::after, .pp-badge:hover::after, .min-badge:hover::after {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .ntc-badge {
+      background: var(--orange-dim);
+      color: var(--orange);
+    }
+
+    .restriction-badge {
+      background: var(--red-dim);
+      color: var(--red);
+    }
+
+    .na-badge {
+      background: rgba(168, 85, 247, 0.15);
+      color: #a855f7;
+    }
+
+    .pp-badge {
+      background: rgba(236, 72, 153, 0.15);
+      color: #ec4899;
+    }
+
+    .min-badge {
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.5rem 0;
+    }
+
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .divider-text {
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      .trade-container {
+        flex-direction: column;
+      }
+
+      .team-card, .add-team-card {
+        max-width: none;
+        min-width: auto;
+      }
+
+      .add-team-card {
+        min-height: 100px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🏀 NBA Trade Calculator</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
+        <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
+      </div>
+    </header>
+
+    <div class="loading" id="loadingState">
+      <div class="spinner"></div>
+      <p>Loading player data...</p>
+    </div>
+
+    <div id="mainContent" style="display: none;">
+      <div class="trade-status" id="tradeStatus" style="display: none;">
+        <div class="trade-status-icon" id="tradeStatusIcon">✓</div>
+        <div class="trade-status-text">
+          <div class="trade-status-title" id="tradeStatusTitle">Trade is valid</div>
+          <div class="trade-status-message" id="tradeStatusMessage"></div>
+        </div>
+      </div>
+
+      <div class="trade-container" id="tradeContainer">
+        <!-- Team cards will be added here -->
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSg6im6IYB6HXMGzQbmmBnLw9SfQLzxCSo8OfChxlJLhsB6BBCO0wPF_TMch0YgAbtFqYkwDWrsxRe7/pub?output=csv';
+    const MAX_TEAMS = 5;
+
+    let players = [];
+    let teams = [];
+    let tradeExceptions = []; // Array of { team, value, expirationDate }
+    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null }
+
+    // DOM Elements
+    const loadingState = document.getElementById('loadingState');
+    const mainContent = document.getElementById('mainContent');
+    const tradeContainer = document.getElementById('tradeContainer');
+    const tradeStatus = document.getElementById('tradeStatus');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // Parse salary string to number
+    function parseSalary(salaryStr) {
+      if (!salaryStr || salaryStr === '') return 0;
+      return parseFloat(salaryStr.toString().replace(/[$,]/g, '')) || 0;
+    }
+
+    // Format number as currency
+    function formatSalary(num) {
+      if (num === 0) return '$0';
+      const absNum = Math.abs(num);
+      const formatted = '$' + absNum.toLocaleString('en-US', { maximumFractionDigits: 0 });
+      return num < 0 ? '-' + formatted : formatted;
+    }
+
+    // Get unique teams from players
+    function getUniqueTeams() {
+      const teamSet = new Set(players.map(p => p.team));
+      return Array.from(teamSet).sort();
+    }
+
+    // Get team info (status, cap space, hardcap) from first player of that team
+    function getTeamInfo(teamName) {
+      const teamPlayer = players.find(p => p.team === teamName);
+      if (!teamPlayer) return null;
+      return {
+        name: teamName,
+        status: teamPlayer.teamStatus,
+        capSpace: teamPlayer.capSpace,
+        apronRoom1st: teamPlayer.apronRoom1st,
+        apronRoom2nd: teamPlayer.apronRoom2nd,
+        isHardcap1st: teamPlayer.isHardcap1st,
+        isHardcap2nd: teamPlayer.isHardcap2nd
+      };
+    }
+
+    // Calculate trade salary (two-way players count as $0)
+    function getTradeSalary(player) {
+      if (player.contractStatus?.toUpperCase() === 'TWO-WAY') return 0;
+      return player.salary;
+    }
+
+    // Get trade exceptions for a team
+    function getTeamTPEs(teamName) {
+      const tpes = tradeExceptions.filter(tpe => tpe.team === teamName);
+      if (tpes.length > 0) {
+        console.log('TPEs for', teamName, ':', tpes);
+      }
+      return tpes;
+    }
+
+    // League minimum salary for 2025-26 season
+    const LEAGUE_MINIMUM = 1157153;
+
+    // Get trade salary (Two-Way contracts count as $0)
+    // For outgoing: use regular salary
+    // For incoming: use poison pill value if present, or league minimum if minimum contract, otherwise regular salary
+    function getOutgoingSalary(player) {
+      if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
+        return 0;
+      }
+      return player.salary;
+    }
+
+    function getIncomingSalary(player) {
+      if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
+        return 0;
+      }
+      // Poison pill takes priority
+      if (player.poisonPill > 0) {
+        return player.poisonPill;
+      }
+      // Minimum salary players count as league minimum for receiving team
+      if (player.isMinimum) {
+        return LEAGUE_MINIMUM;
+      }
+      return player.salary;
+    }
+
+    // Legacy function for backwards compatibility
+    function getTradeSalary(player) {
+      return getOutgoingSalary(player);
+    }
+
+    // Get players for a specific team
+    function getTeamPlayers(teamName) {
+      return players.filter(p => p.team === teamName);
+    }
+
+    // Calculate max incoming salary based on team status and outgoing salary
+    function getMaxIncoming(status, outgoingSalary, capSpace = 0) {
+      if (status === 'Cap Space') {
+        return capSpace + outgoingSalary;
+      } else if (status === '2nd Apron') {
+        return outgoingSalary + 250000;
+      } else if (status === '1st Apron') {
+        return outgoingSalary * 1.1 + 250000;
+      } else {
+        // Below Tax or Tax Team
+        return outgoingSalary * 1.75 + 250000;
+      }
+    }
+
+    // Validate a team's side of the trade
+    function validateTeamTrade(tradeTeam) {
+      const teamInfo = getTeamInfo(tradeTeam.teamName);
+      if (!teamInfo) return { valid: false, message: 'Team not found' };
+
+      // Outgoing salary uses regular salary
+      const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+      // Incoming salary uses poison pill value if present
+      const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+      
+      // Net incoming for hardcap purposes (TPE doesn't help with hardcap - salary still goes on books)
+      const netIncomingForHardcap = incomingSalary - outgoingSalary;
+
+      // Check hardcap FIRST - TPE doesn't help here, salary still counts against cap
+      if (teamInfo.isHardcap1st && netIncomingForHardcap > teamInfo.apronRoom1st) {
+        return { 
+          valid: false, 
+          message: `Exceeds 1st apron hardcap by ${formatSalary(netIncomingForHardcap - teamInfo.apronRoom1st)}` 
+        };
+      }
+      if (teamInfo.isHardcap2nd && netIncomingForHardcap > teamInfo.apronRoom2nd) {
+        return { 
+          valid: false, 
+          message: `Exceeds 2nd apron hardcap by ${formatSalary(netIncomingForHardcap - teamInfo.apronRoom2nd)}` 
+        };
+      }
+
+      // Calculate TPE contribution for salary MATCHING purposes only
+      let tpeValue = 0;
+      if (tradeTeam.tpeUsed) {
+        tpeValue = tradeTeam.tpeUsed.value;
+      }
+
+      // Check salary matching
+      let maxIncoming;
+      const status = teamInfo.status.toUpperCase();
+      if (status === 'CAP SPACE') {
+        // Cap Space teams can absorb up to their cap space + any outgoing salary
+        maxIncoming = teamInfo.capSpace + outgoingSalary;
+      } else if (status === '2ND APRON') {
+        maxIncoming = outgoingSalary + 250000;
+      } else if (status === '1ST APRON') {
+        maxIncoming = outgoingSalary * 1.1 + 250000;
+      } else {
+        // Below Tax or Tax Team
+        maxIncoming = outgoingSalary * 1.75 + 250000;
+      }
+      
+      // Add TPE value to max incoming for salary matching
+      maxIncoming += tpeValue;
+
+      if (incomingSalary > maxIncoming) {
+        const deficit = incomingSalary - maxIncoming;
+        return { 
+          valid: false, 
+          message: `Need to send out ${formatSalary(deficit)} more in salary` 
+        };
+      }
+
+      // Check for trade restrictions
+      const restrictions = [];
+      
+      // Check for not aggregated players being combined with others
+      const naPlayers = tradeTeam.playersOut.filter(p => p.notAggregated);
+      if (naPlayers.length > 0 && tradeTeam.playersOut.length > 1) {
+        naPlayers.forEach(p => {
+          restrictions.push(`${p.player} cannot be aggregated with other players`);
+        });
+      }
+      
+      tradeTeam.playersOut.forEach(p => {
+        if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
+          restrictions.push(`${p.player} cannot be traded before deadline`);
+        } else if (p.tradeAvailable) {
+          restrictions.push(`${p.player} available ${p.tradeAvailable}`);
+        }
+        if (p.noTradeClause) {
+          restrictions.push(`${p.player} has a no-trade clause`);
+        }
+      });
+
+      // If there are NA violations, trade is invalid
+      if (naPlayers.length > 0 && tradeTeam.playersOut.length > 1) {
+        return {
+          valid: false,
+          message: `${naPlayers.map(p => p.player).join(', ')} cannot be aggregated with other players`,
+          warnings: restrictions
+        };
+      }
+
+      return { 
+        valid: true, 
+        message: restrictions.length > 0 ? restrictions.join('; ') : 'Trade works',
+        warnings: restrictions
+      };
+    }
+
+    // Validate entire trade
+    function validateTrade() {
+      // Need at least 2 teams involved (sending or receiving)
+      const teamsWithPlayers = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+      const teamsSendingPlayers = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
+      
+      if (teamsSendingPlayers.length < 1) {
+        return { valid: false, message: 'Add players to trade', type: 'warning' };
+      }
+
+      if (teamsWithPlayers.length < 2) {
+        return { valid: false, message: 'Select destination for players', type: 'warning' };
+      }
+
+      // Check that all players have destinations assigned
+      let missingDestinations = false;
+      teamsSendingPlayers.forEach(t => {
+        t.playersOut.forEach(p => {
+          if (p.destination === undefined) {
+            missingDestinations = true;
+          }
+        });
+      });
+
+      if (missingDestinations) {
+        return { valid: false, message: 'Select destination team for all players', type: 'warning' };
+      }
+
+      // Validate each team's side
+      let allValid = true;
+      let allWarnings = [];
+      let invalidMessages = [];
+      
+      teamsWithPlayers.forEach(t => {
+        const result = validateTeamTrade(t);
+        if (!result.valid) {
+          allValid = false;
+          invalidMessages.push(`${t.teamName}: ${result.message}`);
+        }
+        if (result.warnings) {
+          allWarnings = allWarnings.concat(result.warnings);
+        }
+      });
+
+      if (!allValid) {
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
+      }
+
+      // Check if warnings are only date-related or NTC (trade is valid but pending approval/date)
+      if (allWarnings.length > 0) {
+        const hasDateWarnings = allWarnings.some(w => w.includes('available') && !w.includes('no-trade'));
+        const hasNTCWarnings = allWarnings.some(w => w.includes('no-trade clause'));
+        const hasBlockingWarnings = allWarnings.some(w => w.includes('cannot be traded before deadline'));
+        
+        if (hasBlockingWarnings) {
+          return { valid: true, message: allWarnings.join('; '), type: 'warning' };
+        }
+        
+        if (hasDateWarnings && !hasNTCWarnings) {
+          // Extract the date from the warning message
+          const dateMatch = allWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
+          const date = dateMatch ? dateMatch[1] : 'a future date';
+          return { valid: true, message: allWarnings.join('; '), type: 'pending-date', pendingDate: date };
+        }
+        
+        if (hasNTCWarnings && !hasDateWarnings) {
+          return { valid: true, message: allWarnings.join('; '), type: 'pending-ntc' };
+        }
+        
+        if (hasNTCWarnings && hasDateWarnings) {
+          const dateMatch = allWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
+          const date = dateMatch ? dateMatch[1] : 'a future date';
+          return { valid: true, message: allWarnings.join('; '), type: 'pending-both', pendingDate: date };
+        }
+        
+        return { valid: true, message: allWarnings.join('; '), type: 'warning' };
+      }
+
+      return { valid: true, message: 'All teams can complete this trade', type: 'valid' };
+    }
+
+    // Distribute players based on their assigned destinations
+    function redistributePlayers() {
+      // Clear all incoming players
+      tradeTeams.forEach(t => t.playersIn = []);
+
+      // For each player being sent out, add them to their destination team's incoming
+      tradeTeams.forEach((team, teamIndex) => {
+        team.playersOut.forEach(player => {
+          if (player.destination !== undefined && player.destination !== teamIndex) {
+            const destTeam = tradeTeams[player.destination];
+            if (destTeam) {
+              destTeam.playersIn.push(player);
+            }
+          }
+        });
+      });
+    }
+
+    // Get other active teams (for destination dropdown)
+    function getOtherActiveTeams(currentTeamIndex) {
+      return tradeTeams
+        .map((t, i) => ({ index: i, name: t.teamName }))
+        .filter(t => t.name && t.index !== currentTeamIndex);
+    }
+
+    // Render a single team card
+    function renderTeamCard(tradeTeam, index) {
+      const teamInfo = tradeTeam.teamName ? getTeamInfo(tradeTeam.teamName) : null;
+      const validation = tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) 
+        ? validateTeamTrade(tradeTeam) 
+        : null;
+
+      const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+      const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+      const netSalary = incomingSalary - outgoingSalary;
+
+      const cardClass = validation ? (validation.valid ? 'valid' : 'invalid') : '';
+
+      const availableTeams = getUniqueTeams().filter(t => 
+        t === tradeTeam.teamName || !tradeTeams.some(tt => tt.teamName === t)
+      );
+
+      const otherTeams = getOtherActiveTeams(index);
+
+      return `
+        <div class="team-card ${cardClass}" data-index="${index}">
+          <div class="team-header">
+            <select class="team-select" data-index="${index}">
+              <option value="">Select Team...</option>
+              ${availableTeams.map(t => `
+                <option value="${t}" ${t === tradeTeam.teamName ? 'selected' : ''}>${t}</option>
+              `).join('')}
+            </select>
+            ${tradeTeams.length > 2 ? `
+              <button class="remove-team-btn" data-index="${index}">×</button>
+            ` : ''}
+          </div>
+          
+          ${teamInfo ? `
+            <div class="team-status">
+              <span class="team-status-item">
+                <strong>${teamInfo.status}</strong>
+              </span>
+              ${teamInfo.isHardcap1st ? `<span class="team-status-item" style="color: var(--orange);">HC 1st</span>` : ''}
+              ${teamInfo.isHardcap2nd ? `<span class="team-status-item" style="color: var(--orange);">HC 2nd</span>` : ''}
+            </div>
+          ` : ''}
+          
+          <div class="team-body">
+            <div class="players-out">
+              <div class="section-label">Sends Out</div>
+              ${tradeTeam.playersOut.map((p, pIndex) => `
+                <div class="player-chip">
+                  <div class="player-chip-row">
+                    <div class="player-chip-info">
+                      <div class="player-chip-name">
+                        ${p.player}
+                        ${p.noTradeClause ? '<span class="ntc-badge" data-tooltip="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
+                        ${p.notAggregated ? '<span class="na-badge" data-tooltip="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
+                        ${p.poisonPill > 0 ? '<span class="pp-badge" data-tooltip="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
+                        ${p.isMinimum ? '<span class="min-badge" data-tooltip="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                        ${p.tradeAvailable ? '<span class="restriction-badge" data-tooltip="Trade Restriction: Check availability date">!</span>' : ''}
+                      </div>
+                      <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
+                    </div>
+                    <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
+                  </div>
+                  ${otherTeams.length > 0 ? `
+                    <div class="player-destination">
+                      <span class="player-destination-label">→ To:</span>
+                      <select class="player-destination-select" data-team="${index}" data-player="${pIndex}">
+                        <option value="">Select team...</option>
+                        ${otherTeams.map(t => `
+                          <option value="${t.index}" ${p.destination === t.index ? 'selected' : ''}>${t.name}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+            
+            ${tradeTeam.playersIn.length > 0 ? `
+              <div class="divider">
+                <div class="divider-line"></div>
+                <div class="divider-text">Receives</div>
+                <div class="divider-line"></div>
+              </div>
+              
+              <div class="players-in">
+                ${tradeTeam.playersIn.map(p => {
+                  const incomingValue = getIncomingSalary(p);
+                  const showAdjusted = p.poisonPill > 0 || p.isMinimum;
+                  return `
+                    <div class="player-chip incoming">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name">
+                          ${p.player}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" data-tooltip="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" data-tooltip="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                        </div>
+                        <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${p.isMinimum ? '#22c55e' : '#ec4899'}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : ''}
+            
+            ${tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) ? `
+              <div class="team-footer">
+                <div class="salary-summary">
+                  <div class="salary-row">
+                    <span class="salary-label">Outgoing</span>
+                    <span class="salary-value">${formatSalary(outgoingSalary)}</span>
+                  </div>
+                  <div class="salary-row">
+                    <span class="salary-label">Incoming</span>
+                    <span class="salary-value">${formatSalary(incomingSalary)}</span>
+                  </div>
+                  ${tradeTeam.tpeUsed ? `
+                    <div class="salary-row">
+                      <span class="salary-label">TPE Used</span>
+                      <span class="salary-value" style="color: var(--green);">${formatSalary(Math.min(tradeTeam.tpeUsed.value, incomingSalary))}</span>
+                    </div>
+                  ` : ''}
+                  <div class="salary-row total">
+                    <span class="salary-label">Net</span>
+                    <span class="salary-value ${netSalary > 0 ? 'negative' : netSalary < 0 ? 'positive' : ''}">${netSalary > 0 ? '+' : ''}${formatSalary(netSalary)}</span>
+                  </div>
+                </div>
+                ${validation && !validation.valid ? `
+                  <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--red);">
+                    ⚠️ ${validation.message}
+                  </div>
+                ` : ''}
+                ${validation && validation.warnings && validation.warnings.length > 0 ? `
+                  <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--orange);">
+                    ⚠️ ${validation.warnings.join('; ')}
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
+              
+            ${tradeTeam.teamName ? `
+              ${(() => {
+                const teamTPEs = getTeamTPEs(tradeTeam.teamName);
+                if (teamTPEs.length === 0) return '';
+                return `
+                  <div class="tpe-section">
+                    <div class="tpe-section-header">
+                      <span class="tpe-label">Trade Exceptions</span>
+                      ${tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
+                    </div>
+                    <div class="tpe-list">
+                      ${teamTPEs.map((tpe, tpeIndex) => {
+                        const isSelected = tradeTeam.tpeUsed && tradeTeam.tpeUsed.value === tpe.value && tradeTeam.tpeUsed.expirationDate === tpe.expirationDate;
+                        const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && t.tpeUsed && t.tpeUsed.value === tpe.value && t.tpeUsed.team === tpe.team);
+                        return `
+                          <div class="tpe-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                               data-team="${index}" 
+                               data-tpe-index="${tpeIndex}"
+                               data-tpe-value="${tpe.value}"
+                               data-tpe-date="${tpe.expirationDate}"
+                               ${isUsedElsewhere ? 'data-disabled="true"' : ''}>
+                            <div>
+                              <span class="tpe-value">${formatSalary(tpe.value)}</span>
+                              ${tpe.expirationDate ? `<span class="tpe-expiry">expires ${tpe.expirationDate}</span>` : ''}
+                            </div>
+                            ${isSelected ? '<span style="color: var(--green);">✓</span>' : ''}
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                `;
+              })()}
+              <div class="section-label" style="margin-top: 0.75rem;">Roster</div>
+              <div class="player-roster" data-team="${index}">
+                ${getTeamPlayers(tradeTeam.teamName)
+                  .sort((a, b) => b.salary - a.salary)
+                  .map(p => {
+                    const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
+                    return `
+                      <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
+                        <span class="player-roster-name">
+                          ${p.player}
+                          ${p.noTradeClause ? '<span class="ntc-badge" data-tooltip="No-Trade Clause: Player must approve trade">NTC</span>' : ''}
+                          ${p.notAggregated ? '<span class="na-badge" data-tooltip="Not Aggregated: Cannot be traded with other salaries">NA</span>' : ''}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" data-tooltip="Poison Pill: Higher incoming value for receiving team">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" data-tooltip="Minimum Salary: Counts as league minimum for receiving team">MIN</span>' : ''}
+                          ${p.tradeAvailable ? '<span class="restriction-badge" data-tooltip="Trade Restriction: Check availability date">!</span>' : ''}
+                        </span>
+                        <span class="player-roster-salary">${formatSalary(p.salary)}</span>
+                      </div>
+                    `;
+                  }).join('')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // Render add team card
+    function renderAddTeamCard() {
+      if (tradeTeams.length >= MAX_TEAMS) return '';
+      return `
+        <div class="add-team-card" id="addTeamCard">
+          <div class="add-team-content">
+            <div class="add-team-icon">+</div>
+            <div class="add-team-text">Add Team</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Render trade status
+    function renderTradeStatus() {
+      const validation = validateTrade();
+      
+      if (!tradeTeams.some(t => t.playersOut.length > 0)) {
+        tradeStatus.style.display = 'none';
+        return;
+      }
+
+      tradeStatus.style.display = 'flex';
+      tradeStatus.className = 'trade-status ' + (validation.type.startsWith('pending') ? 'pending' : validation.type);
+      
+      document.getElementById('tradeStatusIcon').textContent = 
+        validation.type === 'valid' ? '✓' : 
+        validation.type.startsWith('pending') ? '✓' :
+        validation.type === 'warning' ? '⚠️' : '✗';
+      
+      let statusTitle;
+      if (validation.type === 'valid') {
+        statusTitle = 'Trade is valid';
+      } else if (validation.type === 'pending-date') {
+        statusTitle = `Trade will be valid on ${validation.pendingDate}`;
+      } else if (validation.type === 'pending-ntc') {
+        const ntcCount = (validation.message.match(/no-trade clause/g) || []).length;
+        statusTitle = ntcCount > 1 ? 'Trade is valid (pending players approval)' : 'Trade is valid (pending player approval)';
+      } else if (validation.type === 'pending-both') {
+        const ntcCount = (validation.message.match(/no-trade clause/g) || []).length;
+        const approvalText = ntcCount > 1 ? 'pending players approval' : 'pending player approval';
+        statusTitle = `Trade will be valid on ${validation.pendingDate} (${approvalText})`;
+      } else if (validation.type === 'warning') {
+        statusTitle = 'Trade has warnings';
+      } else {
+        statusTitle = 'Trade is invalid';
+      }
+      
+      document.getElementById('tradeStatusTitle').textContent = statusTitle;
+      
+      document.getElementById('tradeStatusMessage').textContent = validation.message;
+    }
+
+    // Main render function
+    function render() {
+      tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard();
+      renderTradeStatus();
+      attachEventListeners();
+    }
+
+    // Attach event listeners
+    function attachEventListeners() {
+      // Team select change
+      document.querySelectorAll('.team-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const index = parseInt(e.target.dataset.index);
+          tradeTeams[index].teamName = e.target.value;
+          tradeTeams[index].playersOut = [];
+          tradeTeams[index].playersIn = [];
+          tradeTeams[index].tpeUsed = null;
+          
+          // Auto-assign destinations for players in other teams that don't have one yet
+          const otherTeamsWithPlayers = tradeTeams.filter((t, i) => i !== index && t.teamName && t.playersOut.length > 0);
+          if (e.target.value && otherTeamsWithPlayers.length > 0) {
+            otherTeamsWithPlayers.forEach(team => {
+              team.playersOut.forEach(player => {
+                if (player.destination === undefined) {
+                  // Assign to this newly selected team
+                  player.destination = index;
+                }
+              });
+            });
+          }
+          
+          redistributePlayers();
+          render();
+        });
+      });
+
+      // Remove team
+      document.querySelectorAll('.remove-team-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = parseInt(e.target.dataset.index);
+          tradeTeams.splice(index, 1);
+          redistributePlayers();
+          render();
+        });
+      });
+
+      // Remove player
+      document.querySelectorAll('.player-chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const playerIndex = parseInt(e.target.dataset.player);
+          tradeTeams[teamIndex].playersOut.splice(playerIndex, 1);
+          redistributePlayers();
+          render();
+        });
+      });
+
+      // Player destination change
+      document.querySelectorAll('.player-destination-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const playerIndex = parseInt(e.target.dataset.player);
+          const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
+          tradeTeams[teamIndex].playersOut[playerIndex].destination = destinationIndex;
+          redistributePlayers();
+          render();
+        });
+      });
+
+      // Add team
+      const addTeamCard = document.getElementById('addTeamCard');
+      if (addTeamCard) {
+        addTeamCard.addEventListener('click', () => {
+          tradeTeams.push({ teamName: '', playersOut: [], playersIn: [], tpeUsed: null });
+          render();
+        });
+      }
+
+      // Player roster click
+      document.querySelectorAll('.player-roster-item').forEach(item => {
+        item.addEventListener('click', () => {
+          if (item.dataset.disabled === 'true') return;
+          
+          const teamIndex = parseInt(item.dataset.team);
+          const playerName = item.dataset.player;
+          const teamName = tradeTeams[teamIndex].teamName;
+          const teamPlayers = getTeamPlayers(teamName);
+          const player = teamPlayers.find(p => p.player === playerName);
+          
+          if (player) {
+            // Create a copy of the player with destination property
+            const playerWithDest = { ...player };
+            
+            // Auto-assign destination for 2-team trades
+            const otherTeams = getOtherActiveTeams(teamIndex);
+            if (otherTeams.length === 1) {
+              playerWithDest.destination = otherTeams[0].index;
+            }
+            
+            tradeTeams[teamIndex].playersOut.push(playerWithDest);
+            redistributePlayers();
+            render();
+          }
+        });
+      });
+
+      // TPE click - toggle selection
+      document.querySelectorAll('.tpe-item').forEach(item => {
+        item.addEventListener('click', () => {
+          if (item.dataset.disabled === 'true') return;
+          
+          const teamIndex = parseInt(item.dataset.team);
+          const tpeValue = parseSalary(item.dataset.tpeValue);
+          const tpeDate = item.dataset.tpeDate;
+          const teamName = tradeTeams[teamIndex].teamName;
+          
+          // Toggle TPE selection
+          if (tradeTeams[teamIndex].tpeUsed && 
+              tradeTeams[teamIndex].tpeUsed.value === tpeValue &&
+              tradeTeams[teamIndex].tpeUsed.expirationDate === tpeDate) {
+            // Deselect
+            tradeTeams[teamIndex].tpeUsed = null;
+          } else {
+            // Select this TPE
+            tradeTeams[teamIndex].tpeUsed = {
+              team: teamName,
+              value: tpeValue,
+              expirationDate: tpeDate
+            };
+          }
+          
+          render();
+        });
+      });
+    }
+
+    // Generate a random valid trade
+    function generateRandomTrade() {
+      const MIN_COMBINED_SALARY = 10000000; // $10M minimum
+      const MAX_ATTEMPTS = 150;
+      
+      // Get tradeable players (exclude two-way, 10-day, must have team)
+      const tradeablePlayers = players.filter(p => 
+        p.team && 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        p.salary >= 1000000 // At least $1M salary
+      );
+      
+      // Randomly decide 2-team or 3-team trade (40% chance for 3-team)
+      const isThreeTeam = Math.random() < 0.4;
+      
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        if (isThreeTeam) {
+          // THREE-TEAM TRADE (at least 4 players involved, non-circular allowed)
+          // Pick 3 random teams
+          const allTeams = [...new Set(tradeablePlayers.map(p => p.team))];
+          if (allTeams.length < 3) continue;
+          
+          const shuffledTeams = [...allTeams].sort(() => Math.random() - 0.5);
+          const team1Name = shuffledTeams[0];
+          const team2Name = shuffledTeams[1];
+          const team3Name = shuffledTeams[2];
+          
+          // Get players from each team
+          const team1Players = tradeablePlayers.filter(p => p.team === team1Name).sort(() => Math.random() - 0.5);
+          const team2Players = tradeablePlayers.filter(p => p.team === team2Name).sort(() => Math.random() - 0.5);
+          const team3Players = tradeablePlayers.filter(p => p.team === team3Name).sort(() => Math.random() - 0.5);
+          
+          if (team1Players.length < 2 || team2Players.length < 2 || team3Players.length < 2) continue;
+          
+          // Create base trade structure
+          const testTrade = [
+            { 
+              teamName: team1Name, 
+              playersOut: [], 
+              playersIn: [] 
+            },
+            { 
+              teamName: team2Name, 
+              playersOut: [], 
+              playersIn: [] 
+            },
+            { 
+              teamName: team3Name, 
+              playersOut: [], 
+              playersIn: [] 
+            }
+          ];
+          
+          // Randomly distribute 4-6 players across the trade
+          const totalPlayers = 4 + Math.floor(Math.random() * 3); // 4, 5, or 6 players
+          let playersAdded = 0;
+          
+          // Keep track of which players we've used
+          const usedPlayers = new Set();
+          const playerPools = [team1Players, team2Players, team3Players];
+          
+          // Add players randomly, with random destinations (not their own team)
+          let attempts = 0;
+          while (playersAdded < totalPlayers && attempts < 50) {
+            attempts++;
+            
+            // Pick a random team to send from
+            const fromTeam = Math.floor(Math.random() * 3);
+            const pool = playerPools[fromTeam];
+            
+            // Find a player we haven't used yet
+            const availablePlayer = pool.find(p => !usedPlayers.has(p.player));
+            if (!availablePlayer) continue;
+            
+            // Pick a random destination (not the same team)
+            const possibleDests = [0, 1, 2].filter(t => t !== fromTeam);
+            const destTeam = possibleDests[Math.floor(Math.random() * possibleDests.length)];
+            
+            usedPlayers.add(availablePlayer.player);
+            testTrade[fromTeam].playersOut.push({ ...availablePlayer, destination: destTeam });
+            testTrade[destTeam].playersIn.push(availablePlayer);
+            playersAdded++;
+          }
+          
+          // Make sure we have at least 4 players
+          if (playersAdded < 4) continue;
+          
+          // Make sure each team is sending at least one player (true 3-team trade)
+          if (testTrade.some(t => t.playersOut.length === 0)) continue;
+          
+          // Check minimum combined salary
+          const totalSalary = testTrade.reduce((sum, t) => 
+            sum + t.playersOut.reduce((s, p) => s + p.salary, 0), 0
+          );
+          if (totalSalary < MIN_COMBINED_SALARY) continue;
+          
+          // Validate all three sides
+          const team1Valid = validateTeamTrade(testTrade[0]);
+          const team2Valid = validateTeamTrade(testTrade[1]);
+          const team3Valid = validateTeamTrade(testTrade[2]);
+          
+          if (team1Valid.valid && team2Valid.valid && team3Valid.valid) {
+            return testTrade;
+          }
+        } else {
+          // TWO-TEAM TRADE
+          // Pick a random player to start
+          const player1 = tradeablePlayers[Math.floor(Math.random() * tradeablePlayers.length)];
+          const team1Info = getTeamInfo(player1.team);
+          
+          // Find potential trade partners from other teams
+          const otherTeamPlayers = tradeablePlayers.filter(p => p.team !== player1.team);
+          
+          // Shuffle and try to find a valid match
+          const shuffled = [...otherTeamPlayers].sort(() => Math.random() - 0.5);
+          
+          for (const player2 of shuffled) {
+            const team2Info = getTeamInfo(player2.team);
+            
+            // Check minimum combined salary
+            if (player1.salary + player2.salary < MIN_COMBINED_SALARY) continue;
+            
+            // Create test trade
+            const testTrade = [
+              { 
+                teamName: player1.team, 
+                playersOut: [{ ...player1, destination: 1 }], 
+                playersIn: [player2] 
+              },
+              { 
+                teamName: player2.team, 
+                playersOut: [{ ...player2, destination: 0 }], 
+                playersIn: [player1] 
+              }
+            ];
+            
+            // Validate both sides
+            const team1Valid = validateTeamTrade(testTrade[0]);
+            const team2Valid = validateTeamTrade(testTrade[1]);
+            
+            if (team1Valid.valid && team2Valid.valid) {
+              // Maybe add a third player (50% chance)
+              if (Math.random() > 0.5) {
+                // Try to add another player to one side
+                const sideToAdd = Math.random() > 0.5 ? 0 : 1;
+                const teamToAddFrom = testTrade[sideToAdd].teamName;
+                const additionalPlayers = tradeablePlayers.filter(p => 
+                  p.team === teamToAddFrom && 
+                  p.player !== testTrade[sideToAdd].playersOut[0].player &&
+                  p.salary < 15000000 // Keep additional player smaller
+                );
+                
+                if (additionalPlayers.length > 0) {
+                  const additionalPlayer = additionalPlayers[Math.floor(Math.random() * additionalPlayers.length)];
+                  const otherSide = sideToAdd === 0 ? 1 : 0;
+                  
+                  // Add player and test
+                  testTrade[sideToAdd].playersOut.push({ ...additionalPlayer, destination: otherSide });
+                  testTrade[otherSide].playersIn.push(additionalPlayer);
+                  
+                  // Re-validate
+                  const retest1 = validateTeamTrade(testTrade[0]);
+                  const retest2 = validateTeamTrade(testTrade[1]);
+                  
+                  if (!retest1.valid || !retest2.valid) {
+                    // Remove the additional player if it breaks the trade
+                    testTrade[sideToAdd].playersOut.pop();
+                    testTrade[otherSide].playersIn.pop();
+                  }
+                }
+              }
+              
+              // Found a valid trade!
+              return testTrade;
+            }
+          }
+        }
+      }
+      
+      return null; // No valid trade found
+    }
+    
+    // Handle random trade button
+    const randomTradeBtn = document.getElementById('randomTradeBtn');
+    randomTradeBtn.addEventListener('click', () => {
+      const randomTrade = generateRandomTrade();
+      
+      if (randomTrade) {
+        tradeTeams = randomTrade;
+        render();
+      } else {
+        alert('Could not generate a valid random trade. Try again!');
+      }
+    });
+
+    // Reset trade
+    resetBtn.addEventListener('click', () => {
+      tradeTeams = [
+        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null },
+        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null }
+      ];
+      render();
+    });
+
+    // Load data
+    async function loadData() {
+      try {
+        const response = await fetch(CSV_URL);
+        const csvText = await response.text();
+        
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            players = results.data
+              .filter(row => row.PLAYER && row.PLAYER.trim())
+              .filter(row => row.TEAM && row.TEAM.trim())
+              .filter(row => {
+                const contractStatus = row['ST 25-26']?.trim() || '';
+                return !contractStatus.toLowerCase().includes('10-day');
+              })
+              .map(row => {
+                const otherNotes = row['OTHER NOTES']?.trim() || '';
+                const player = {
+                  player: row.PLAYER?.trim() || '',
+                  team: row.TEAM?.trim() || '',
+                  salary: parseSalary(row['2026']),
+                  contractStatus: row['ST 25-26']?.trim() || '',
+                  teamStatus: row['TEAM STATUS']?.trim() || '',
+                  capSpace: parseSalary(row['CAP SPACE'] || row['Cap Space'] || row['H'] || 0),
+                  globalRating: parseFloat(row['RAT 365'] || 0) || 0,
+                  noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
+                  notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
+                  poisonPill: parseSalary(row['POISON PILL'] || 0),
+                  otherNotes: otherNotes,
+                  isMinimum: otherNotes.toLowerCase().includes('minimum'),
+                  apronRoom1st: parseSalary(row['1st APRON'] || 0),
+                  apronRoom2nd: parseSalary(row['2nd APRON'] || 0),
+                  isHardcap1st: (row['HARD CAP 1st?'] || '').toString().trim().toLowerCase().includes('hc'),
+                  isHardcap2nd: (row['HARD CAP 2nd?'] || '').toString().trim().toLowerCase().includes('hc'),
+                  tradeAvailable: row['RESTRICTIONS']?.trim() || ''
+                };
+                // Debug logging for Brooklyn players
+                if (player.team === 'Brooklyn') {
+                  console.log('Brooklyn player:', player.player, 'teamStatus:', player.teamStatus, 'capSpace:', player.capSpace, 'raw CAP SPACE:', row['CAP SPACE']);
+                }
+                return player;
+              });
+
+            teams = getUniqueTeams();
+            
+            // Parse Trade Exceptions
+            // Columns: BF = TRADE EXCEPTION (team), BG = DATE, BH = VALUE
+            tradeExceptions = results.data
+              .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
+              .map(row => {
+                // Try to get value - it might be in VALUE or DATE column depending on header
+                let value = parseSalary(row['VALUE'] || 0);
+                let date = row['DATE']?.trim() || '';
+                
+                // If value looks like a date and date looks like money, swap them
+                if (value < 100 && date && date.includes('$')) {
+                  value = parseSalary(date);
+                  date = row['VALUE']?.trim() || '';
+                }
+                
+                return {
+                  team: row['TRADE EXCEPTION']?.trim() || '',
+                  value: value,
+                  expirationDate: date
+                };
+              })
+              .filter(tpe => tpe.value > 0);
+            
+            console.log('Trade Exceptions loaded:', tradeExceptions);
+            if (results.data.length > 0) {
+              const sampleRow = results.data.find(r => r['TRADE EXCEPTION']);
+              if (sampleRow) {
+                console.log('TPE Sample - TRADE EXCEPTION:', sampleRow['TRADE EXCEPTION'], 'DATE:', sampleRow['DATE'], 'VALUE:', sampleRow['VALUE']);
+              }
+            }
+            
+            // Log CSV headers
+            if (results.data.length > 0) {
+              console.log('CSV Headers:', Object.keys(results.data[0]));
+            }
+            
+            // Initialize with 2 empty team slots
+            tradeTeams = [
+              { teamName: '', playersOut: [], playersIn: [], tpeUsed: null },
+              { teamName: '', playersOut: [], playersIn: [], tpeUsed: null }
+            ];
+
+            loadingState.style.display = 'none';
+            mainContent.style.display = 'block';
+            render();
+          },
+          error: function(error) {
+            console.error('Parse error:', error);
+            loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+          }
+        });
+      } catch (error) {
+        console.error('Fetch error:', error);
+        loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+      }
+    }
+
+    // Initialize
+    loadData();
+  </script>
+</body>
+</html>
