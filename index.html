@@ -732,6 +732,121 @@
       font-weight: 600;
     }
 
+    .rights-section {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: var(--surface-hover);
+      border-radius: 6px;
+      border: 1px dashed var(--border);
+    }
+
+    .rights-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .rights-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .rights-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+
+    .rights-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      background: var(--bg);
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .rights-item:hover {
+      border-color: var(--accent);
+    }
+
+    .rights-item.selected {
+      border-color: #a855f7;
+      background: rgba(168, 85, 247, 0.15);
+    }
+
+    .rights-item.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .rights-name {
+      font-weight: 500;
+      color: #a855f7;
+    }
+
+    .rights-year {
+      font-size: 0.6875rem;
+      color: var(--text-secondary);
+      margin-left: 0.25rem;
+    }
+
+    .rights-traded-badge {
+      font-size: 0.625rem;
+      padding: 0.125rem 0.375rem;
+      background: rgba(168, 85, 247, 0.15);
+      color: #a855f7;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .cash-section {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: var(--surface-hover);
+      border-radius: 6px;
+      border: 1px dashed var(--border);
+    }
+
+    .cash-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      background: var(--bg);
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .cash-item:hover {
+      border-color: var(--accent);
+    }
+
+    .cash-item.selected {
+      border-color: #22c55e;
+      background: rgba(34, 197, 94, 0.15);
+    }
+
+    .cash-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
     .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge {
       font-size: 0.5625rem;
       padding: 0.125rem 0.3rem;
@@ -864,8 +979,9 @@
     let players = [];
     let teams = [];
     let tradeExceptions = []; // Array of { team, value, expirationDate }
-    let draftPicks = []; // Array of { team, round, year, surePick, notes }
-    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [] }
+    let draftPicks = []; // Array of { team, round, year, surePick, notes, linkedTo }
+    let draftRights = []; // Array of { team, playerName, draftedYear }
+    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false }
 
     // DOM Elements
     const loadingState = document.getElementById('loadingState');
@@ -930,6 +1046,14 @@
         console.log('Draft picks for', teamName, ':', picks);
       }
       return picks;
+    }
+
+    function getTeamDraftRights(teamName) {
+      const rights = draftRights.filter(r => r.team === teamName);
+      if (rights.length > 0) {
+        console.log('Draft rights for', teamName, ':', rights);
+      }
+      return rights;
     }
 
     // League minimum salary for 2025-26 season
@@ -1171,23 +1295,29 @@
     }
 
     function validateTrade() {
-      // Teams involved in the trade (sending players, receiving players, or trading picks)
+      // Teams involved in the trade (sending players, receiving players, or trading any assets)
       const teamsWithAssets = tradeTeams.filter(t => t.teamName && (
         t.playersOut.length > 0 || 
         t.playersIn.length > 0 || 
-        (t.picksOut && t.picksOut.length > 0)
+        (t.picksOut && t.picksOut.length > 0) ||
+        (t.rightsOut && t.rightsOut.length > 0) ||
+        t.cashOut
       ));
       const teamsSendingPlayers = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
-      const teamsSendingPicks = tradeTeams.filter(t => t.teamName && t.picksOut && t.picksOut.length > 0);
+      const teamsSendingAssets = tradeTeams.filter(t => t.teamName && (
+        (t.picksOut && t.picksOut.length > 0) ||
+        (t.rightsOut && t.rightsOut.length > 0) ||
+        t.cashOut
+      ));
       
       // Need at least some assets being traded
-      if (teamsSendingPlayers.length < 1 && teamsSendingPicks.length < 1) {
-        return { valid: false, message: 'Add players or picks to trade', type: 'warning' };
+      if (teamsSendingPlayers.length < 1 && teamsSendingAssets.length < 1) {
+        return { valid: false, message: 'Add players or assets to trade', type: 'warning' };
       }
 
-      // For picks-only trades, need at least 2 teams trading picks
-      if (teamsSendingPlayers.length < 1 && teamsSendingPicks.length < 2) {
-        return { valid: false, message: 'Select second team to trade picks', type: 'warning' };
+      // For asset-only trades (no players), need at least 2 teams trading assets
+      if (teamsSendingPlayers.length < 1 && teamsSendingAssets.length < 2) {
+        return { valid: false, message: 'Select second team to trade assets', type: 'warning' };
       }
 
       // For trades with players, need at least 2 teams involved
@@ -1395,24 +1525,64 @@
                     </div>
                   `;
                 }).join('')}
+                ${(tradeTeam.rightsOut || []).map((rights, rightsIdx) => {
+                  return `
+                    <div class="player-chip" style="background: rgba(168, 85, 247, 0.15); border-color: #a855f7;">
+                      <div class="player-chip-row">
+                        <div class="player-chip-info">
+                          <div class="player-chip-name" style="color: #a855f7;">
+                            🎓 Rights to ${rights.playerName}
+                          </div>
+                          <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">Drafted ${rights.draftedYear}</div>
+                        </div>
+                        <button class="player-chip-remove rights-remove" data-team="${index}" data-rights="${rightsIdx}">×</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+                ${tradeTeam.cashOut ? `
+                  <div class="player-chip" style="background: rgba(34, 197, 94, 0.15); border-color: #22c55e;">
+                    <div class="player-chip-row">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name" style="color: #22c55e;">
+                          💵 Cash Considerations
+                        </div>
+                      </div>
+                      <button class="player-chip-remove cash-remove" data-team="${index}">×</button>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             
             ${(() => {
               // Get incoming picks (picks that other teams are sending to this team)
               const incomingPicks = [];
+              const incomingRights = [];
+              let incomingCash = false;
+              
               tradeTeams.forEach((otherTeam, otherIndex) => {
-                if (otherIndex !== index && otherTeam.picksOut) {
-                  // In a 2-team trade, picks go to the other team
+                if (otherIndex !== index) {
+                  // In a 2-team trade, assets go to the other team
                   // In multi-team trades, we'd need destination logic (for now assume 2-team)
                   if (tradeTeams.length === 2) {
-                    otherTeam.picksOut.forEach(pick => {
-                      incomingPicks.push({...pick, fromTeam: otherTeam.teamName});
-                    });
+                    if (otherTeam.picksOut) {
+                      otherTeam.picksOut.forEach(pick => {
+                        incomingPicks.push({...pick, fromTeam: otherTeam.teamName});
+                      });
+                    }
+                    if (otherTeam.rightsOut) {
+                      otherTeam.rightsOut.forEach(rights => {
+                        incomingRights.push({...rights, fromTeam: otherTeam.teamName});
+                      });
+                    }
+                    if (otherTeam.cashOut) {
+                      incomingCash = true;
+                    }
                   }
                 }
               });
               
-              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || tradeTeam.tpeUsed;
+              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || incomingRights.length > 0 || incomingCash || tradeTeam.tpeUsed;
               
               if (!hasIncoming) return '';
               
@@ -1454,6 +1624,27 @@
                     </div>
                   `;
                 }).join('')}
+                ${incomingRights.map(rights => {
+                  return `
+                    <div class="player-chip incoming" style="background: rgba(168, 85, 247, 0.15); border-color: #a855f7;">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name" style="color: #a855f7;">
+                          🎓 Rights to ${rights.playerName}
+                        </div>
+                        <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">Drafted ${rights.draftedYear} (from ${rights.fromTeam})</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+                ${incomingCash ? `
+                  <div class="player-chip incoming" style="background: rgba(34, 197, 94, 0.15); border-color: #22c55e;">
+                    <div class="player-chip-info">
+                      <div class="player-chip-name" style="color: #22c55e;">
+                        💵 Cash Considerations
+                      </div>
+                    </div>
+                  </div>
+                ` : ''}
                 ${tradeTeam.tpeUsed ? `
                   <div class="player-chip incoming" style="background: var(--green-dim); border-color: var(--green);">
                     <div class="player-chip-info">
@@ -1603,6 +1794,50 @@
                     </div>
                   `;
                 })()}
+                ${(() => {
+                  const teamRights = getTeamDraftRights(tradeTeam.teamName);
+                  if (teamRights.length === 0) return '';
+                  const rightsOut = tradeTeam.rightsOut || [];
+                  return `
+                    <div class="rights-section">
+                      <div class="rights-section-header">
+                        <span class="rights-label">Draft Rights</span>
+                        ${rightsOut.length > 0 ? '<span class="rights-traded-badge">RIGHTS TRADED</span>' : ''}
+                      </div>
+                      <div class="rights-list">
+                        ${teamRights.map((rights, rightsIndex) => {
+                          const isSelected = rightsOut.some(r => r.playerName === rights.playerName);
+                          const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && (t.rightsOut || []).some(r => r.playerName === rights.playerName && r.team === rights.team));
+                          return `
+                            <div class="rights-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                                 data-team="${index}" 
+                                 data-rights-index="${rightsIndex}"
+                                 data-rights-player="${rights.playerName}"
+                                 data-rights-year="${rights.draftedYear}"
+                                 data-rights-team="${rights.team}"
+                                 ${isUsedElsewhere ? 'data-disabled="true"' : ''}
+                                 title="Draft rights to ${rights.playerName} (${rights.draftedYear})">
+                              <div>
+                                <span class="rights-name">${rights.playerName}</span>
+                                <span class="rights-year">(${rights.draftedYear})</span>
+                              </div>
+                              ${isSelected ? '<span style="color: #a855f7;">✓</span>' : ''}
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+                  `;
+                })()}
+                <div class="cash-section">
+                  <div class="cash-label">Cash Considerations</div>
+                  <div class="cash-item ${tradeTeam.cashOut ? 'selected' : ''}" 
+                       data-team="${index}"
+                       data-cash="true">
+                    <span>💵 Cash Considerations</span>
+                    ${tradeTeam.cashOut ? '<span style="color: #22c55e;">✓</span>' : ''}
+                  </div>
+                </div>
               </div>
             ` : ''}
           </div>
@@ -1627,7 +1862,15 @@
     function renderTradeStatus() {
       const validation = validateTrade();
       
-      if (!tradeTeams.some(t => t.playersOut.length > 0)) {
+      // Show status if any assets are being traded (players, picks, rights, or cash)
+      const hasAnyAssets = tradeTeams.some(t => 
+        t.playersOut.length > 0 || 
+        (t.picksOut && t.picksOut.length > 0) ||
+        (t.rightsOut && t.rightsOut.length > 0) ||
+        t.cashOut
+      );
+      
+      if (!hasAnyAssets) {
         tradeStatus.style.display = 'none';
         return;
       }
@@ -1703,6 +1946,8 @@
           tradeTeams[index].playersIn = [];
           tradeTeams[index].tpeUsed = null;
           tradeTeams[index].picksOut = [];
+          tradeTeams[index].rightsOut = [];
+          tradeTeams[index].cashOut = false;
           
           // Auto-assign destinations for players in other teams that don't have one yet
           const otherTeamsWithPlayers = tradeTeams.filter((t, i) => i !== index && t.teamName && t.playersOut.length > 0);
@@ -1753,6 +1998,25 @@
         });
       });
 
+      // Remove rights
+      document.querySelectorAll('.rights-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const rightsIndex = parseInt(e.target.dataset.rights);
+          tradeTeams[teamIndex].rightsOut.splice(rightsIndex, 1);
+          render();
+        });
+      });
+
+      // Remove cash
+      document.querySelectorAll('.cash-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          tradeTeams[teamIndex].cashOut = false;
+          render();
+        });
+      });
+
       // Player destination change
       document.querySelectorAll('.player-destination-select').forEach(select => {
         select.addEventListener('change', (e) => {
@@ -1769,7 +2033,7 @@
       const addTeamCard = document.getElementById('addTeamCard');
       if (addTeamCard) {
         addTeamCard.addEventListener('click', () => {
-          tradeTeams.push({ teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [] });
+          tradeTeams.push({ teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false });
           render();
         });
       }
@@ -1872,6 +2136,51 @@
             });
           }
           
+          render();
+        });
+      });
+
+      // Draft Rights click - toggle selection
+      document.querySelectorAll('.rights-item').forEach(item => {
+        item.addEventListener('click', () => {
+          if (item.dataset.disabled === 'true') return;
+          
+          const teamIndex = parseInt(item.dataset.team);
+          const rightsPlayer = item.dataset.rightsPlayer;
+          const rightsYear = item.dataset.rightsYear;
+          const rightsTeam = item.dataset.rightsTeam;
+          
+          // Initialize rightsOut array if needed
+          if (!tradeTeams[teamIndex].rightsOut) {
+            tradeTeams[teamIndex].rightsOut = [];
+          }
+          
+          // Toggle rights selection
+          const existingIndex = tradeTeams[teamIndex].rightsOut.findIndex(
+            r => r.playerName === rightsPlayer
+          );
+          
+          if (existingIndex >= 0) {
+            // Deselect - remove from array
+            tradeTeams[teamIndex].rightsOut.splice(existingIndex, 1);
+          } else {
+            // Select - add to array
+            tradeTeams[teamIndex].rightsOut.push({
+              team: rightsTeam,
+              playerName: rightsPlayer,
+              draftedYear: rightsYear
+            });
+          }
+          
+          render();
+        });
+      });
+
+      // Cash click - toggle selection
+      document.querySelectorAll('.cash-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const teamIndex = parseInt(item.dataset.team);
+          tradeTeams[teamIndex].cashOut = !tradeTeams[teamIndex].cashOut;
           render();
         });
       });
@@ -2077,8 +2386,8 @@
     // Reset trade
     resetBtn.addEventListener('click', () => {
       tradeTeams = [
-        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [] },
-        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [] }
+        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false },
+        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false }
       ];
       render();
     });
@@ -2202,6 +2511,26 @@
               console.log('Picks by team:', picksByTeam);
             }
             
+            // Parse Draft Rights
+            // Columns: BQ = DRAFT RIGHTS (player name), BR = DRAFTED YEAR, BS = TEAM RIGHTS
+            draftRights = results.data
+              .filter(row => {
+                // Must have player name and team
+                if (!row['DRAFT RIGHTS']?.trim()) return false;
+                if (!row['TEAM RIGHTS']?.trim()) return false;
+                return true;
+              })
+              .map(row => ({
+                playerName: row['DRAFT RIGHTS']?.trim() || '',
+                draftedYear: row['DRAFTED YEAR']?.toString().trim() || '',
+                team: row['TEAM RIGHTS']?.trim() || ''
+              }));
+            
+            console.log('Draft Rights loaded:', draftRights.length, 'rights');
+            if (draftRights.length > 0) {
+              console.log('Sample draft rights:', draftRights.slice(0, 5));
+            }
+            
             // Log CSV headers
             if (results.data.length > 0) {
               console.log('CSV Headers:', Object.keys(results.data[0]));
@@ -2213,8 +2542,8 @@
             const randomTeam2 = shuffledTeams[1] || '';
             
             tradeTeams = [
-              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [] },
-              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [] }
+              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false },
+              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false }
             ];
 
             loadingState.style.display = 'none';
