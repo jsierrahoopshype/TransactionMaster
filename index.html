@@ -196,11 +196,18 @@
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-      min-height: 200px;
+    }
+
+    .trade-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
     }
 
     .roster-section {
-      margin-top: auto;
+      border-top: 2px dashed var(--border);
+      padding-top: 0.75rem;
+      margin-top: 0.75rem;
     }
 
     .section-label {
@@ -559,12 +566,6 @@
       background: var(--surface-hover);
       border-radius: 6px;
       border: 1px dashed var(--border);
-    }
-
-    .trade-separator {
-      border-top: 2px dashed var(--border);
-      margin: 1rem 0 0.75rem 0;
-      padding-top: 0.75rem;
     }
 
     .tpe-section-header {
@@ -1125,38 +1126,39 @@
           ` : ''}
           
           <div class="team-body">
-            <div class="players-out">
-              <div class="section-label">Sends Out</div>
-              ${tradeTeam.playersOut.map((p, pIndex) => `
-                <div class="player-chip">
-                  <div class="player-chip-row">
-                    <div class="player-chip-info">
-                      <div class="player-chip-name">
-                        ${p.player}
-                        ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
-                        ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
-                        ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                        ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
-                        ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
+            <div class="trade-content" data-trade-content="${index}">
+              <div class="players-out">
+                <div class="section-label">Sends Out</div>
+                ${tradeTeam.playersOut.map((p, pIndex) => `
+                  <div class="player-chip">
+                    <div class="player-chip-row">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name">
+                          ${p.player}
+                          ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
+                          ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                          ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
+                        </div>
+                        <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                       </div>
-                      <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
+                      <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
                     </div>
-                    <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
+                    ${otherTeams.length > 0 ? `
+                      <div class="player-destination">
+                        <span class="player-destination-label">→ To:</span>
+                        <select class="player-destination-select" data-team="${index}" data-player="${pIndex}">
+                          <option value="">Select team...</option>
+                          ${otherTeams.map(t => `
+                            <option value="${t.index}" ${p.destination === t.index ? 'selected' : ''}>${t.name}</option>
+                          `).join('')}
+                        </select>
+                      </div>
+                    ` : ''}
                   </div>
-                  ${otherTeams.length > 0 ? `
-                    <div class="player-destination">
-                      <span class="player-destination-label">→ To:</span>
-                      <select class="player-destination-select" data-team="${index}" data-player="${pIndex}">
-                        <option value="">Select team...</option>
-                        ${otherTeams.map(t => `
-                          <option value="${t.index}" ${p.destination === t.index ? 'selected' : ''}>${t.name}</option>
-                        `).join('')}
-                      </select>
-                    </div>
-                  ` : ''}
-                </div>
-              `).join('')}
-            </div>
+                `).join('')}
+              </div>
             
             ${tradeTeam.playersIn.length > 0 ? `
               <div class="divider">
@@ -1219,10 +1221,10 @@
                 ` : ''}
               </div>
             ` : ''}
+            </div>
               
             ${tradeTeam.teamName ? `
               <div class="roster-section">
-                <div class="trade-separator"></div>
                 <div class="section-label">Roster</div>
                 <div class="player-roster" data-team="${index}">
                   ${getTeamPlayers(tradeTeam.teamName)
@@ -1341,6 +1343,28 @@
       tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard();
       renderTradeStatus();
       attachEventListeners();
+      equalizeTradeContentHeights();
+    }
+
+    // Equalize trade content heights so roster sections align
+    function equalizeTradeContentHeights() {
+      const tradeContents = document.querySelectorAll('.trade-content');
+      if (tradeContents.length === 0) return;
+      
+      // Reset heights first
+      tradeContents.forEach(el => el.style.minHeight = '');
+      
+      // Find the maximum height
+      let maxHeight = 0;
+      tradeContents.forEach(el => {
+        const height = el.offsetHeight;
+        if (height > maxHeight) maxHeight = height;
+      });
+      
+      // Set all to the maximum height
+      tradeContents.forEach(el => {
+        el.style.minHeight = maxHeight + 'px';
+      });
     }
 
     // Attach event listeners
