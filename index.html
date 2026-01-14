@@ -1967,26 +1967,43 @@
             }
             
             // Parse Draft Picks
-            // Columns: BJ = TEAM, BK = ROUND, BL = YEAR, BM = SURE PICK?, BN = NOTES
+            // Columns: BJ = DRAFT TEAM, BK = ROUND, BL = DRAFT YEAR, BM = SURE PICK?, BN = NOTES
             draftPicks = results.data
-              .filter(row => row['TEAM'] && row['ROUND'] && row['YEAR'])
               .filter(row => {
-                // Only include rows that have draft pick data (check if YEAR is a valid year)
-                const year = row['YEAR']?.toString().trim();
-                return year && parseInt(year) >= 2025 && parseInt(year) <= 2035;
+                // Must have DRAFT TEAM and DRAFT YEAR
+                if (!row['DRAFT TEAM']?.trim()) return false;
+                if (!row['DRAFT YEAR']?.toString().trim()) return false;
+                
+                // Must have valid ROUND (1st or 2nd)
+                const round = row['ROUND']?.toString().trim().toLowerCase();
+                if (!round || (round !== '1st' && round !== '2nd')) return false;
+                
+                // Must have valid DRAFT YEAR (2025-2035)
+                const year = row['DRAFT YEAR']?.toString().trim();
+                if (!year || isNaN(parseInt(year))) return false;
+                const yearNum = parseInt(year);
+                if (yearNum < 2025 || yearNum > 2035) return false;
+                
+                return true;
               })
               .map(row => ({
-                team: row['TEAM']?.trim() || '',
+                team: row['DRAFT TEAM']?.trim() || '',
                 round: row['ROUND']?.trim() || '1st',
-                year: row['YEAR']?.toString().trim() || '',
+                year: row['DRAFT YEAR']?.toString().trim() || '',
                 surePick: row['SURE PICK?']?.toString().trim().toUpperCase() || 'NO',
                 notes: row['NOTES']?.trim() || ''
-              }))
-              .filter(pick => pick.team && pick.year);
+              }));
             
             console.log('Draft Picks loaded:', draftPicks.length, 'picks');
             if (draftPicks.length > 0) {
               console.log('Sample draft picks:', draftPicks.slice(0, 5));
+              // Log picks by team for debugging
+              const picksByTeam = {};
+              draftPicks.forEach(p => {
+                if (!picksByTeam[p.team]) picksByTeam[p.team] = [];
+                picksByTeam[p.team].push(`${p.year} ${p.round}`);
+              });
+              console.log('Picks by team:', picksByTeam);
             }
             
             // Log CSV headers
