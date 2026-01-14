@@ -1263,9 +1263,45 @@
                     ` : ''}
                   </div>
                 `).join('')}
+                ${(tradeTeam.picksOut || []).map((pick, pickIdx) => {
+                  const isConditional = pick.surePick !== 'YES';
+                  return `
+                    <div class="player-chip" style="background: var(--orange-dim); border-color: var(--orange);">
+                      <div class="player-chip-row">
+                        <div class="player-chip-info">
+                          <div class="player-chip-name" style="color: var(--orange);">
+                            📋 ${pick.year} ${pick.round} Round Pick
+                            ${isConditional ? '<span class="pick-conditional">COND</span>' : ''}
+                          </div>
+                          <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pick.notes || 'Draft Pick'}</div>
+                        </div>
+                        <button class="player-chip-remove pick-remove" data-team="${index}" data-pick="${pickIdx}">×</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
               </div>
             
-            ${tradeTeam.playersIn.length > 0 ? `
+            ${(() => {
+              // Get incoming picks (picks that other teams are sending to this team)
+              const incomingPicks = [];
+              tradeTeams.forEach((otherTeam, otherIndex) => {
+                if (otherIndex !== index && otherTeam.picksOut) {
+                  // In a 2-team trade, picks go to the other team
+                  // In multi-team trades, we'd need destination logic (for now assume 2-team)
+                  if (tradeTeams.length === 2) {
+                    otherTeam.picksOut.forEach(pick => {
+                      incomingPicks.push({...pick, fromTeam: otherTeam.teamName});
+                    });
+                  }
+                }
+              });
+              
+              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || tradeTeam.tpeUsed;
+              
+              if (!hasIncoming) return '';
+              
+              return `
               <div class="divider">
                 <div class="divider-line"></div>
                 <div class="divider-text">Receives</div>
@@ -1289,8 +1325,33 @@
                     </div>
                   `;
                 }).join('')}
+                ${incomingPicks.map(pick => {
+                  const isConditional = pick.surePick !== 'YES';
+                  return `
+                    <div class="player-chip incoming" style="background: var(--orange-dim); border-color: var(--orange);">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name" style="color: var(--orange);">
+                          📋 ${pick.year} ${pick.round} Round Pick
+                          ${isConditional ? '<span class="pick-conditional">COND</span>' : ''}
+                        </div>
+                        <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pick.notes || `From ${pick.fromTeam}`}</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+                ${tradeTeam.tpeUsed ? `
+                  <div class="player-chip incoming" style="background: var(--green-dim); border-color: var(--green);">
+                    <div class="player-chip-info">
+                      <div class="player-chip-name" style="color: var(--green);">
+                        💰 Trade Exception Used
+                      </div>
+                      <div class="player-chip-salary" style="color: var(--green);">${formatSalary(tradeTeam.tpeUsed.value)}</div>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
-            ` : ''}
+            `;
+            })()}
             
             ${tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) ? `
               <div class="team-footer">
@@ -1395,9 +1456,9 @@
                       </div>
                       <div class="picks-list">
                         ${teamPicks.map((pick, pickIndex) => {
-                          const pickId = `${pick.year}-${pick.round}`;
-                          const isSelected = picksOut.some(p => p.year === pick.year && p.round === pick.round);
-                          const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && (t.picksOut || []).some(p => p.team === pick.team && p.year === pick.year && p.round === pick.round));
+                          // Use pickIndex as unique identifier since same team can have multiple picks in same year
+                          const isSelected = picksOut.some(p => p.pickIndex === pickIndex);
+                          const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && (t.picksOut || []).some(p => p.team === pick.team && p.pickIndex === pickIndex));
                           const isConditional = pick.surePick !== 'YES';
                           return `
                             <div class="pick-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
@@ -1407,6 +1468,7 @@
                                  data-pick-round="${pick.round}"
                                  data-pick-team="${pick.team}"
                                  data-pick-notes="${pick.notes || ''}"
+                                 data-pick-sure="${pick.surePick}"
                                  ${isUsedElsewhere ? 'data-disabled="true"' : ''}
                                  title="${pick.notes || `${pick.year} ${pick.round} Round Pick`}">
                               <div>
@@ -1555,12 +1617,22 @@
       });
 
       // Remove player
-      document.querySelectorAll('.player-chip-remove').forEach(btn => {
+      document.querySelectorAll('.player-chip-remove:not(.pick-remove)').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const teamIndex = parseInt(e.target.dataset.team);
           const playerIndex = parseInt(e.target.dataset.player);
           tradeTeams[teamIndex].playersOut.splice(playerIndex, 1);
           redistributePlayers();
+          render();
+        });
+      });
+
+      // Remove pick
+      document.querySelectorAll('.pick-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const pickIndex = parseInt(e.target.dataset.pick);
+          tradeTeams[teamIndex].picksOut.splice(pickIndex, 1);
           render();
         });
       });
@@ -1659,9 +1731,12 @@
             tradeTeams[teamIndex].picksOut = [];
           }
           
-          // Toggle pick selection
+          const pickIndex = parseInt(item.dataset.pickIndex);
+          const pickSure = item.dataset.pickSure;
+          
+          // Toggle pick selection using pickIndex as unique identifier
           const existingIndex = tradeTeams[teamIndex].picksOut.findIndex(
-            p => p.year === pickYear && p.round === pickRound
+            p => p.pickIndex === pickIndex
           );
           
           if (existingIndex >= 0) {
@@ -1673,7 +1748,9 @@
               team: pickTeam,
               year: pickYear,
               round: pickRound,
-              notes: pickNotes
+              notes: pickNotes,
+              pickIndex: pickIndex,
+              surePick: pickSure
             });
           }
           
