@@ -1082,6 +1082,94 @@
     }
 
     // Validate entire trade
+    // Stepien Rule validation
+    // Teams must have at least one first-round pick in consecutive years
+    function validateStepienRule(teamName, picksOut) {
+      if (!picksOut || picksOut.length === 0) return { valid: true };
+      
+      // Only check first-round picks being traded out
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
+      if (firstRoundPicksOut.length === 0) return { valid: true };
+      
+      // Get all first-round picks for this team from the master list
+      const teamFirstRoundPicks = draftPicks.filter(p => p.team === teamName && p.round === '1st');
+      
+      // Years to check (need consecutive year coverage)
+      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
+      
+      // Helper to check if a specific pick is being traded
+      const isPickBeingTraded = (pick) => {
+        return firstRoundPicksOut.some(p => 
+          p.year === pick.year && p.round === pick.round && p.notes === pick.notes
+        );
+      };
+      
+      // For each year, determine if team will have a "guaranteed" pick after trade
+      const guaranteedPicksByYear = {};
+      
+      console.log('Stepien check for', teamName);
+      console.log('First round picks out:', firstRoundPicksOut.map(p => `${p.year} ${p.round}`));
+      console.log('Team first round picks:', teamFirstRoundPicks.map(p => `${p.year} ${p.surePick} ${p.linkedTo || ''}`));
+      
+      years.forEach(year => {
+        const yearStr = year.toString();
+        const picksThisYear = teamFirstRoundPicks.filter(p => p.year === yearStr);
+        
+        let hasGuaranteedPick = false;
+        
+        picksThisYear.forEach(pick => {
+          const beingTraded = isPickBeingTraded(pick);
+          
+          if (!beingTraded) {
+            if (pick.surePick === 'YES') {
+              // Sure pick that's not being traded = guaranteed
+              hasGuaranteedPick = true;
+              console.log(`  ${yearStr}: Has sure pick (not traded)`);
+            } else if (pick.linkedTo) {
+              // Conditional pick - check if we're keeping either this OR the linked pick
+              // If this pick is not traded, we need to check if the linked pick gives us coverage
+              const linkedYear = pick.linkedTo;
+              const linkedPicks = teamFirstRoundPicks.filter(p => p.year === linkedYear);
+              
+              // We have a guarantee if we're keeping this conditional pick AND 
+              // (the linked pick is also not traded OR the linked pick is a sure pick we're keeping)
+              const linkedPickBeingTraded = linkedPicks.some(lp => isPickBeingTraded(lp));
+              
+              if (!linkedPickBeingTraded) {
+                // We're keeping both this pick and its linked pick - guaranteed to have one
+                hasGuaranteedPick = true;
+                console.log(`  ${yearStr}: Has linked pick pair with ${linkedYear} (both kept)`);
+              }
+            }
+          }
+        });
+        
+        // Also check if this year has no picks at all (team doesn't own any pick this year)
+        if (picksThisYear.length === 0) {
+          console.log(`  ${yearStr}: No picks owned`);
+        }
+        
+        guaranteedPicksByYear[yearStr] = hasGuaranteedPick;
+      });
+      
+      console.log('Guaranteed picks by year:', guaranteedPicksByYear);
+      
+      // Check for consecutive years without a guaranteed pick
+      for (let i = 0; i < years.length - 1; i++) {
+        const year1 = years[i].toString();
+        const year2 = years[i + 1].toString();
+        
+        if (!guaranteedPicksByYear[year1] && !guaranteedPicksByYear[year2]) {
+          return { 
+            valid: false, 
+            message: `Stepien Rule: ${teamName} must have a 1st round pick in ${year1} or ${year2}`
+          };
+        }
+      }
+      
+      return { valid: true };
+    }
+
     function validateTrade() {
       // Need at least 2 teams involved (sending or receiving)
       const teamsWithPlayers = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
@@ -1122,6 +1210,20 @@
         }
         if (result.warnings) {
           allWarnings = allWarnings.concat(result.warnings);
+        }
+      });
+
+      if (!allValid) {
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
+      }
+
+      // Validate Stepien Rule for each team trading picks
+      const teamsWithPicksOut = tradeTeams.filter(t => t.teamName && t.picksOut && t.picksOut.length > 0);
+      teamsWithPicksOut.forEach(t => {
+        const stepienResult = validateStepienRule(t.teamName, t.picksOut);
+        if (!stepienResult.valid) {
+          allValid = false;
+          invalidMessages.push(stepienResult.message);
         }
       });
 
@@ -1271,7 +1373,7 @@
                         <div class="player-chip-info">
                           <div class="player-chip-name" style="color: var(--orange);">
                             📋 ${pick.year} ${pick.round} Round Pick
-                            ${isConditional ? '<span class="pick-conditional">COND</span>' : ''}
+                            ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                           </div>
                           <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pick.notes || 'Draft Pick'}</div>
                         </div>
@@ -1332,7 +1434,7 @@
                       <div class="player-chip-info">
                         <div class="player-chip-name" style="color: var(--orange);">
                           📋 ${pick.year} ${pick.round} Round Pick
-                          ${isConditional ? '<span class="pick-conditional">COND</span>' : ''}
+                          ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                         </div>
                         <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pick.notes || `From ${pick.fromTeam}`}</div>
                       </div>
@@ -1469,12 +1571,13 @@
                                  data-pick-team="${pick.team}"
                                  data-pick-notes="${pick.notes || ''}"
                                  data-pick-sure="${pick.surePick}"
+                                 data-pick-linked="${pick.linkedTo || ''}"
                                  ${isUsedElsewhere ? 'data-disabled="true"' : ''}
                                  title="${pick.notes || `${pick.year} ${pick.round} Round Pick`}">
                               <div>
                                 <span class="pick-year">${pick.year}</span>
                                 <span class="pick-round">${pick.round}</span>
-                                ${isConditional ? '<span class="pick-conditional">COND</span>' : ''}
+                                ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                               </div>
                               <div style="display: flex; align-items: center; gap: 0.25rem;">
                                 ${pick.notes ? `<span class="pick-notes">${pick.notes}</span>` : ''}
@@ -1725,6 +1828,7 @@
           const pickRound = item.dataset.pickRound;
           const pickTeam = item.dataset.pickTeam;
           const pickNotes = item.dataset.pickNotes;
+          const pickLinked = item.dataset.pickLinked;
           
           // Initialize picksOut array if needed
           if (!tradeTeams[teamIndex].picksOut) {
@@ -1750,7 +1854,8 @@
               round: pickRound,
               notes: pickNotes,
               pickIndex: pickIndex,
-              surePick: pickSure
+              surePick: pickSure,
+              linkedTo: pickLinked
             });
           }
           
@@ -2068,7 +2173,8 @@
                 round: row['ROUND']?.trim() || '1st',
                 year: row['DRAFT YEAR']?.toString().trim() || '',
                 surePick: row['SURE PICK?']?.toString().trim().toUpperCase() || 'NO',
-                notes: row['NOTES']?.trim() || ''
+                notes: row['NOTES']?.trim() || '',
+                linkedTo: row['LINKED TO']?.toString().trim() || ''
               }));
             
             console.log('Draft Picks loaded:', draftPicks.length, 'picks');
