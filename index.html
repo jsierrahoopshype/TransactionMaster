@@ -199,6 +199,10 @@
       min-height: 200px;
     }
 
+    .roster-section {
+      margin-top: auto;
+    }
+
     .section-label {
       font-size: 0.6875rem;
       text-transform: uppercase;
@@ -1217,60 +1221,62 @@
             ` : ''}
               
             ${tradeTeam.teamName ? `
-              <div class="trade-separator"></div>
-              <div class="section-label">Roster</div>
-              <div class="player-roster" data-team="${index}">
-                ${getTeamPlayers(tradeTeam.teamName)
-                  .sort((a, b) => b.salary - a.salary)
-                  .map(p => {
-                    const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
-                    return `
-                      <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
-                        <span class="player-roster-name">
-                          ${p.player}
-                          ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
-                          ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
-                          ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
-                          ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
-                        </span>
-                        <span class="player-roster-salary">${formatSalary(p.salary)}</span>
+              <div class="roster-section">
+                <div class="trade-separator"></div>
+                <div class="section-label">Roster</div>
+                <div class="player-roster" data-team="${index}">
+                  ${getTeamPlayers(tradeTeam.teamName)
+                    .sort((a, b) => b.salary - a.salary)
+                    .map(p => {
+                      const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
+                      return `
+                        <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
+                          <span class="player-roster-name">
+                            ${p.player}
+                            ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
+                            ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
+                            ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                            ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                            ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
+                          </span>
+                          <span class="player-roster-salary">${formatSalary(p.salary)}</span>
+                        </div>
+                      `;
+                    }).join('')}
+                </div>
+                ${(() => {
+                  const teamTPEs = getTeamTPEs(tradeTeam.teamName);
+                  if (teamTPEs.length === 0) return '';
+                  return `
+                    <div class="tpe-section">
+                      <div class="tpe-section-header">
+                        <span class="tpe-label">Trade Exceptions</span>
+                        ${tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
                       </div>
-                    `;
-                  }).join('')}
-              </div>
-              ${(() => {
-                const teamTPEs = getTeamTPEs(tradeTeam.teamName);
-                if (teamTPEs.length === 0) return '';
-                return `
-                  <div class="tpe-section">
-                    <div class="tpe-section-header">
-                      <span class="tpe-label">Trade Exceptions</span>
-                      ${tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
-                    </div>
-                    <div class="tpe-list">
-                      ${teamTPEs.map((tpe, tpeIndex) => {
-                        const isSelected = tradeTeam.tpeUsed && tradeTeam.tpeUsed.value === tpe.value && tradeTeam.tpeUsed.expirationDate === tpe.expirationDate;
-                        const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && t.tpeUsed && t.tpeUsed.value === tpe.value && t.tpeUsed.team === tpe.team);
-                        return `
-                          <div class="tpe-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
-                               data-team="${index}" 
-                               data-tpe-index="${tpeIndex}"
-                               data-tpe-value="${tpe.value}"
-                               data-tpe-date="${tpe.expirationDate}"
-                               ${isUsedElsewhere ? 'data-disabled="true"' : ''}>
-                            <div>
-                              <span class="tpe-value">${formatSalary(tpe.value)}</span>
-                              ${tpe.expirationDate ? `<span class="tpe-expiry">expires ${tpe.expirationDate}</span>` : ''}
+                      <div class="tpe-list">
+                        ${teamTPEs.map((tpe, tpeIndex) => {
+                          const isSelected = tradeTeam.tpeUsed && tradeTeam.tpeUsed.value === tpe.value && tradeTeam.tpeUsed.expirationDate === tpe.expirationDate;
+                          const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && t.tpeUsed && t.tpeUsed.value === tpe.value && t.tpeUsed.team === tpe.team);
+                          return `
+                            <div class="tpe-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                                 data-team="${index}" 
+                                 data-tpe-index="${tpeIndex}"
+                                 data-tpe-value="${tpe.value}"
+                                 data-tpe-date="${tpe.expirationDate}"
+                                 ${isUsedElsewhere ? 'data-disabled="true"' : ''}>
+                              <div>
+                                <span class="tpe-value">${formatSalary(tpe.value)}</span>
+                                ${tpe.expirationDate ? `<span class="tpe-expiry">expires ${tpe.expirationDate}</span>` : ''}
+                              </div>
+                              ${isSelected ? '<span style="color: var(--green);">✓</span>' : ''}
                             </div>
-                            ${isSelected ? '<span style="color: var(--green);">✓</span>' : ''}
-                          </div>
-                        `;
-                      }).join('')}
+                          `;
+                        }).join('')}
+                      </div>
                     </div>
-                  </div>
-                `;
-              })()}
+                  `;
+                })()}
+              </div>
             ` : ''}
           </div>
         </div>
