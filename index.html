@@ -981,7 +981,7 @@
     let tradeExceptions = []; // Array of { team, value, expirationDate }
     let draftPicks = []; // Array of { team, round, year, surePick, notes, linkedTo }
     let draftRights = []; // Array of { team, playerName, draftedYear }
-    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false }
+    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false, cashDestination: undefined }
 
     // DOM Elements
     const loadingState = document.getElementById('loadingState');
@@ -1522,6 +1522,17 @@
                         </div>
                         <button class="player-chip-remove pick-remove" data-team="${index}" data-pick="${pickIdx}">×</button>
                       </div>
+                      ${otherTeams.length > 0 ? `
+                        <div class="player-destination">
+                          <span class="player-destination-label">→ To:</span>
+                          <select class="pick-destination-select" data-team="${index}" data-pick="${pickIdx}">
+                            <option value="">Select team...</option>
+                            ${otherTeams.map(t => `
+                              <option value="${t.index}" ${pick.destination === t.index ? 'selected' : ''}>${t.name}</option>
+                            `).join('')}
+                          </select>
+                        </div>
+                      ` : ''}
                     </div>
                   `;
                 }).join('')}
@@ -1537,6 +1548,17 @@
                         </div>
                         <button class="player-chip-remove rights-remove" data-team="${index}" data-rights="${rightsIdx}">×</button>
                       </div>
+                      ${otherTeams.length > 0 ? `
+                        <div class="player-destination">
+                          <span class="player-destination-label">→ To:</span>
+                          <select class="rights-destination-select" data-team="${index}" data-rights="${rightsIdx}">
+                            <option value="">Select team...</option>
+                            ${otherTeams.map(t => `
+                              <option value="${t.index}" ${rights.destination === t.index ? 'selected' : ''}>${t.name}</option>
+                            `).join('')}
+                          </select>
+                        </div>
+                      ` : ''}
                     </div>
                   `;
                 }).join('')}
@@ -1550,32 +1572,52 @@
                       </div>
                       <button class="player-chip-remove cash-remove" data-team="${index}">×</button>
                     </div>
+                    ${otherTeams.length > 0 ? `
+                      <div class="player-destination">
+                        <span class="player-destination-label">→ To:</span>
+                        <select class="cash-destination-select" data-team="${index}">
+                          <option value="">Select team...</option>
+                          ${otherTeams.map(t => `
+                            <option value="${t.index}" ${tradeTeam.cashDestination === t.index ? 'selected' : ''}>${t.name}</option>
+                          `).join('')}
+                        </select>
+                      </div>
+                    ` : ''}
                   </div>
                 ` : ''}
               </div>
             
             ${(() => {
-              // Get incoming picks (picks that other teams are sending to this team)
+              // Get incoming assets based on destination
               const incomingPicks = [];
               const incomingRights = [];
               let incomingCash = false;
               
               tradeTeams.forEach((otherTeam, otherIndex) => {
-                if (otherIndex !== index) {
-                  // In a 2-team trade, assets go to the other team
-                  // In multi-team trades, we'd need destination logic (for now assume 2-team)
-                  if (tradeTeams.length === 2) {
-                    if (otherTeam.picksOut) {
-                      otherTeam.picksOut.forEach(pick => {
+                if (otherIndex !== index && otherTeam.teamName) {
+                  // Check picks with this team as destination
+                  if (otherTeam.picksOut) {
+                    otherTeam.picksOut.forEach(pick => {
+                      // In 2-team trade, auto-destination to other team; in multi-team, use explicit destination
+                      const dest = pick.destination !== undefined ? pick.destination : (tradeTeams.length === 2 ? index : undefined);
+                      if (dest === index) {
                         incomingPicks.push({...pick, fromTeam: otherTeam.teamName});
-                      });
-                    }
-                    if (otherTeam.rightsOut) {
-                      otherTeam.rightsOut.forEach(rights => {
+                      }
+                    });
+                  }
+                  // Check rights with this team as destination
+                  if (otherTeam.rightsOut) {
+                    otherTeam.rightsOut.forEach(rights => {
+                      const dest = rights.destination !== undefined ? rights.destination : (tradeTeams.length === 2 ? index : undefined);
+                      if (dest === index) {
                         incomingRights.push({...rights, fromTeam: otherTeam.teamName});
-                      });
-                    }
-                    if (otherTeam.cashOut) {
+                      }
+                    });
+                  }
+                  // Check cash with this team as destination
+                  if (otherTeam.cashOut) {
+                    const dest = otherTeam.cashDestination !== undefined ? otherTeam.cashDestination : (tradeTeams.length === 2 ? index : undefined);
+                    if (dest === index) {
                       incomingCash = true;
                     }
                   }
@@ -1953,6 +1995,7 @@
           tradeTeams[index].picksOut = [];
           tradeTeams[index].rightsOut = [];
           tradeTeams[index].cashOut = false;
+          tradeTeams[index].cashDestination = undefined;
           
           // Auto-assign destinations for players in other teams that don't have one yet
           const otherTeamsWithPlayers = tradeTeams.filter((t, i) => i !== index && t.teamName && t.playersOut.length > 0);
@@ -2030,6 +2073,38 @@
           const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
           tradeTeams[teamIndex].playersOut[playerIndex].destination = destinationIndex;
           redistributePlayers();
+          render();
+        });
+      });
+
+      // Pick destination change
+      document.querySelectorAll('.pick-destination-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const pickIndex = parseInt(e.target.dataset.pick);
+          const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
+          tradeTeams[teamIndex].picksOut[pickIndex].destination = destinationIndex;
+          render();
+        });
+      });
+
+      // Rights destination change
+      document.querySelectorAll('.rights-destination-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const rightsIndex = parseInt(e.target.dataset.rights);
+          const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
+          tradeTeams[teamIndex].rightsOut[rightsIndex].destination = destinationIndex;
+          render();
+        });
+      });
+
+      // Cash destination change
+      document.querySelectorAll('.cash-destination-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
+          tradeTeams[teamIndex].cashDestination = destinationIndex;
           render();
         });
       });
