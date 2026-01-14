@@ -981,7 +981,7 @@
     let tradeExceptions = []; // Array of { team, value, expirationDate }
     let draftPicks = []; // Array of { team, round, year, surePick, notes, linkedTo }
     let draftRights = []; // Array of { team, playerName, draftedYear }
-    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false, cashDestination: undefined }
+    let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
 
     // DOM Elements
     const loadingState = document.getElementById('loadingState');
@@ -1301,13 +1301,13 @@
         t.playersIn.length > 0 || 
         (t.picksOut && t.picksOut.length > 0) ||
         (t.rightsOut && t.rightsOut.length > 0) ||
-        t.cashOut
+        (t.cashOut && t.cashOut.length > 0)
       ));
       const teamsSendingPlayers = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
       const teamsSendingAssets = tradeTeams.filter(t => t.teamName && (
         (t.picksOut && t.picksOut.length > 0) ||
         (t.rightsOut && t.rightsOut.length > 0) ||
-        t.cashOut
+        (t.cashOut && t.cashOut.length > 0)
       ));
       
       // Need at least some assets being traded
@@ -1525,7 +1525,7 @@
                       ${otherTeams.length > 0 ? `
                         <div class="player-destination">
                           <span class="player-destination-label">→ To:</span>
-                          <select class="pick-destination-select" data-team="${index}" data-pick="${pickIdx}">
+                          <select class="player-destination-select pick-destination-select" data-team="${index}" data-pick="${pickIdx}">
                             <option value="">Select team...</option>
                             ${otherTeams.map(t => `
                               <option value="${t.index}" ${pick.destination === t.index ? 'selected' : ''}>${t.name}</option>
@@ -1551,7 +1551,7 @@
                       ${otherTeams.length > 0 ? `
                         <div class="player-destination">
                           <span class="player-destination-label">→ To:</span>
-                          <select class="rights-destination-select" data-team="${index}" data-rights="${rightsIdx}">
+                          <select class="player-destination-select rights-destination-select" data-team="${index}" data-rights="${rightsIdx}">
                             <option value="">Select team...</option>
                             ${otherTeams.map(t => `
                               <option value="${t.index}" ${rights.destination === t.index ? 'selected' : ''}>${t.name}</option>
@@ -1562,36 +1562,38 @@
                     </div>
                   `;
                 }).join('')}
-                ${tradeTeam.cashOut ? `
-                  <div class="player-chip" style="background: rgba(34, 197, 94, 0.15); border-color: #22c55e;">
-                    <div class="player-chip-row">
-                      <div class="player-chip-info">
-                        <div class="player-chip-name" style="color: #22c55e;">
-                          💵 Cash Considerations
+                ${(tradeTeam.cashOut || []).map((cash, cashIdx) => {
+                  return `
+                    <div class="player-chip" style="background: rgba(34, 197, 94, 0.15); border-color: #22c55e;">
+                      <div class="player-chip-row">
+                        <div class="player-chip-info">
+                          <div class="player-chip-name" style="color: #22c55e;">
+                            💵 Cash Considerations
+                          </div>
                         </div>
+                        <button class="player-chip-remove cash-remove" data-team="${index}" data-cash="${cashIdx}">×</button>
                       </div>
-                      <button class="player-chip-remove cash-remove" data-team="${index}">×</button>
+                      ${otherTeams.length > 0 ? `
+                        <div class="player-destination">
+                          <span class="player-destination-label">→ To:</span>
+                          <select class="player-destination-select cash-destination-select" data-team="${index}" data-cash="${cashIdx}">
+                            <option value="">Select team...</option>
+                            ${otherTeams.map(t => `
+                              <option value="${t.index}" ${cash.destination === t.index ? 'selected' : ''}>${t.name}</option>
+                            `).join('')}
+                          </select>
+                        </div>
+                      ` : ''}
                     </div>
-                    ${otherTeams.length > 0 ? `
-                      <div class="player-destination">
-                        <span class="player-destination-label">→ To:</span>
-                        <select class="cash-destination-select" data-team="${index}">
-                          <option value="">Select team...</option>
-                          ${otherTeams.map(t => `
-                            <option value="${t.index}" ${tradeTeam.cashDestination === t.index ? 'selected' : ''}>${t.name}</option>
-                          `).join('')}
-                        </select>
-                      </div>
-                    ` : ''}
-                  </div>
-                ` : ''}
+                  `;
+                }).join('')}
               </div>
             
             ${(() => {
               // Get incoming assets based on destination
               const incomingPicks = [];
               const incomingRights = [];
-              let incomingCash = false;
+              let incomingCash = 0;
               
               tradeTeams.forEach((otherTeam, otherIndex) => {
                 if (otherIndex !== index && otherTeam.teamName) {
@@ -1614,17 +1616,19 @@
                       }
                     });
                   }
-                  // Check cash with this team as destination
-                  if (otherTeam.cashOut) {
-                    const dest = otherTeam.cashDestination !== undefined ? otherTeam.cashDestination : (tradeTeams.length === 2 ? index : undefined);
-                    if (dest === index) {
-                      incomingCash = true;
-                    }
+                  // Check cash with this team as destination (now array)
+                  if (otherTeam.cashOut && otherTeam.cashOut.length > 0) {
+                    otherTeam.cashOut.forEach(cash => {
+                      const dest = cash.destination !== undefined ? cash.destination : (tradeTeams.length === 2 ? index : undefined);
+                      if (dest === index) {
+                        incomingCash++;
+                      }
+                    });
                   }
                 }
               });
               
-              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || incomingRights.length > 0 || incomingCash || tradeTeam.tpeUsed;
+              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || incomingRights.length > 0 || incomingCash > 0 || tradeTeam.tpeUsed;
               
               if (!hasIncoming) return '';
               
@@ -1679,7 +1683,7 @@
                     </div>
                   `;
                 }).join('')}
-                ${incomingCash ? `
+                ${incomingCash > 0 ? Array(incomingCash).fill(0).map(() => `
                   <div class="player-chip incoming" style="background: rgba(34, 197, 94, 0.15); border-color: #22c55e;">
                     <div class="player-chip-row">
                       <div class="player-chip-info">
@@ -1689,7 +1693,7 @@
                       </div>
                     </div>
                   </div>
-                ` : ''}
+                `).join('') : ''}
                 ${tradeTeam.tpeUsed ? `
                   <div class="player-chip incoming" style="background: var(--green-dim); border-color: var(--green);">
                     <div class="player-chip-row">
@@ -1878,11 +1882,10 @@
                 })()}
                 <div class="cash-section">
                   <div class="cash-label">Cash Considerations</div>
-                  <div class="cash-item ${tradeTeam.cashOut ? 'selected' : ''}" 
+                  <div class="cash-item" 
                        data-team="${index}"
-                       data-cash="true">
-                    <span>💵 Cash Considerations</span>
-                    ${tradeTeam.cashOut ? '<span style="color: #22c55e;">✓</span>' : ''}
+                       data-cash="add">
+                    <span>💵 + Add Cash Considerations</span>
                   </div>
                 </div>
               </div>
@@ -1914,7 +1917,7 @@
         t.playersOut.length > 0 || 
         (t.picksOut && t.picksOut.length > 0) ||
         (t.rightsOut && t.rightsOut.length > 0) ||
-        t.cashOut
+        (t.cashOut && t.cashOut.length > 0)
       );
       
       if (!hasAnyAssets) {
@@ -1994,8 +1997,7 @@
           tradeTeams[index].tpeUsed = null;
           tradeTeams[index].picksOut = [];
           tradeTeams[index].rightsOut = [];
-          tradeTeams[index].cashOut = false;
-          tradeTeams[index].cashDestination = undefined;
+          tradeTeams[index].cashOut = [];
           
           // Auto-assign destinations for players in other teams that don't have one yet
           const otherTeamsWithPlayers = tradeTeams.filter((t, i) => i !== index && t.teamName && t.playersOut.length > 0);
@@ -2060,7 +2062,8 @@
       document.querySelectorAll('.cash-remove').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const teamIndex = parseInt(e.target.dataset.team);
-          tradeTeams[teamIndex].cashOut = false;
+          const cashIndex = parseInt(e.target.dataset.cash);
+          tradeTeams[teamIndex].cashOut.splice(cashIndex, 1);
           render();
         });
       });
@@ -2103,8 +2106,9 @@
       document.querySelectorAll('.cash-destination-select').forEach(select => {
         select.addEventListener('change', (e) => {
           const teamIndex = parseInt(e.target.dataset.team);
+          const cashIndex = parseInt(e.target.dataset.cash);
           const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
-          tradeTeams[teamIndex].cashDestination = destinationIndex;
+          tradeTeams[teamIndex].cashOut[cashIndex].destination = destinationIndex;
           render();
         });
       });
@@ -2113,7 +2117,7 @@
       const addTeamCard = document.getElementById('addTeamCard');
       if (addTeamCard) {
         addTeamCard.addEventListener('click', () => {
-          tradeTeams.push({ teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false });
+          tradeTeams.push({ teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] });
           render();
         });
       }
@@ -2256,11 +2260,16 @@
         });
       });
 
-      // Cash click - toggle selection
+      // Cash click - add cash consideration
       document.querySelectorAll('.cash-item').forEach(item => {
         item.addEventListener('click', () => {
           const teamIndex = parseInt(item.dataset.team);
-          tradeTeams[teamIndex].cashOut = !tradeTeams[teamIndex].cashOut;
+          // Initialize cashOut array if needed
+          if (!tradeTeams[teamIndex].cashOut) {
+            tradeTeams[teamIndex].cashOut = [];
+          }
+          // Add new cash consideration
+          tradeTeams[teamIndex].cashOut.push({ destination: undefined });
           render();
         });
       });
@@ -2466,8 +2475,8 @@
     // Reset trade
     resetBtn.addEventListener('click', () => {
       tradeTeams = [
-        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false },
-        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false }
+        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+        { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
       ];
       render();
     });
@@ -2622,8 +2631,8 @@
             const randomTeam2 = shuffledTeams[1] || '';
             
             tradeTeams = [
-              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false },
-              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: false }
+              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
             ];
 
             loadingState.style.display = 'none';
