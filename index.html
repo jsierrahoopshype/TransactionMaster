@@ -1171,15 +1171,27 @@
     }
 
     function validateTrade() {
-      // Need at least 2 teams involved (sending or receiving)
-      const teamsWithPlayers = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+      // Teams involved in the trade (sending players, receiving players, or trading picks)
+      const teamsWithAssets = tradeTeams.filter(t => t.teamName && (
+        t.playersOut.length > 0 || 
+        t.playersIn.length > 0 || 
+        (t.picksOut && t.picksOut.length > 0)
+      ));
       const teamsSendingPlayers = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
+      const teamsSendingPicks = tradeTeams.filter(t => t.teamName && t.picksOut && t.picksOut.length > 0);
       
-      if (teamsSendingPlayers.length < 1) {
-        return { valid: false, message: 'Add players to trade', type: 'warning' };
+      // Need at least some assets being traded
+      if (teamsSendingPlayers.length < 1 && teamsSendingPicks.length < 1) {
+        return { valid: false, message: 'Add players or picks to trade', type: 'warning' };
       }
 
-      if (teamsWithPlayers.length < 2) {
+      // For picks-only trades, need at least 2 teams trading picks
+      if (teamsSendingPlayers.length < 1 && teamsSendingPicks.length < 2) {
+        return { valid: false, message: 'Select second team to trade picks', type: 'warning' };
+      }
+
+      // For trades with players, need at least 2 teams involved
+      if (teamsSendingPlayers.length >= 1 && teamsWithAssets.length < 2) {
         return { valid: false, message: 'Select destination for players', type: 'warning' };
       }
 
@@ -1197,11 +1209,12 @@
         return { valid: false, message: 'Select destination team for all players', type: 'warning' };
       }
 
-      // Validate each team's side
+      // Validate each team's side (only for teams with players)
       let allValid = true;
       let allWarnings = [];
       let invalidMessages = [];
       
+      const teamsWithPlayers = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
       teamsWithPlayers.forEach(t => {
         const result = validateTeamTrade(t);
         if (!result.valid) {
