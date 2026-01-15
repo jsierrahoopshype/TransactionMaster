@@ -1260,10 +1260,14 @@
       if (status === 'BELOW TAX') {
         // If net incoming exceeds tax room, they become a TAX TEAM
         if (teamInfo.taxRoom > 0 && netIncomingForHardcap > teamInfo.taxRoom) {
-          // Team would become TAX TEAM - still 175% + $250K rule, but need to verify they can handle it
-          // The key issue: they now need to match salaries as if they were a TAX TEAM
-          // Since TAX TEAM uses same 175% rule, the main thing is just updating the status display
-          // But if they go even further past 1st apron, stricter rules apply
+          // Team would become TAX TEAM - needs to use 125% + $100K rule
+          const maxIncomingTaxTeam = outgoingSalary * 1.25 + 100000;
+          if (incomingSalary > maxIncomingTaxTeam) {
+            return {
+              valid: false,
+              message: `Trade would push team into tax - can only receive ${formatSalary(maxIncomingTaxTeam)}`
+            };
+          }
         }
       }
       
@@ -1274,8 +1278,8 @@
         // If net incoming > apronRoom1st, they'd be in 1st apron territory
         if (teamInfo.apronRoom1st > 0 && netIncomingForHardcap > teamInfo.apronRoom1st) {
           // Team would cross into 1st apron - need to check with 1st apron rules
-          // 1st apron rules: can only take back 110% + $250K of outgoing
-          const maxIncoming1stApron = outgoingSalary * 1.1 + 250000;
+          // 1st apron rules: can only take back 110% + $100K of outgoing
+          const maxIncoming1stApron = outgoingSalary * 1.1 + 100000;
           if (incomingSalary > maxIncoming1stApron) {
             return {
               valid: false,
@@ -1287,8 +1291,8 @@
         // If net incoming > apronRoom2nd, they'd be in 2nd apron territory  
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
           // Team would cross into 2nd apron - need to check with 2nd apron rules
-          // 2nd apron rules: can only take back 100% + $250K of outgoing
-          const maxIncoming2ndApron = outgoingSalary + 250000;
+          // 2nd apron rules: can only take back 100% + $100K of outgoing
+          const maxIncoming2ndApron = outgoingSalary + 100000;
           if (incomingSalary > maxIncoming2ndApron) {
             return {
               valid: false,
@@ -1302,7 +1306,7 @@
       if (status === '1ST APRON') {
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
           // Team would cross into 2nd apron
-          const maxIncoming2ndApron = outgoingSalary + 250000;
+          const maxIncoming2ndApron = outgoingSalary + 100000;
           if (incomingSalary > maxIncoming2ndApron) {
             return {
               valid: false,
@@ -1342,16 +1346,25 @@
       }
 
       // Check salary matching using EFFECTIVE status (where team ends up after trade)
+      // Rules:
+      // - Cap Space: can absorb up to cap space + outgoing
+      // - Below Tax: 175% + $250K
+      // - Tax Team: 125% + $100K
+      // - 1st Apron: 110% + $100K
+      // - 2nd Apron: 100% + $100K
       let maxIncoming;
       if (effectiveStatus === 'CAP SPACE') {
         // Cap Space teams can absorb up to their cap space + any outgoing salary
         maxIncoming = teamInfo.capSpace + outgoingSalary;
       } else if (effectiveStatus === '2ND APRON') {
-        maxIncoming = outgoingSalary + 250000;
+        maxIncoming = outgoingSalary + 100000;
       } else if (effectiveStatus === '1ST APRON') {
-        maxIncoming = outgoingSalary * 1.1 + 250000;
+        maxIncoming = outgoingSalary * 1.1 + 100000;
+      } else if (effectiveStatus === 'TAX TEAM') {
+        // Tax teams: 125% + $100K
+        maxIncoming = outgoingSalary * 1.25 + 100000;
       } else {
-        // Below Tax or Tax Team
+        // Below Tax: 175% + $250K
         maxIncoming = outgoingSalary * 1.75 + 250000;
       }
       
