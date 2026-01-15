@@ -137,6 +137,87 @@
       color: white;
     }
 
+    .btn-success {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid transparent;
+    }
+
+    .btn-success:hover {
+      background: var(--green);
+      color: white;
+    }
+
+    /* Image Modal */
+    .image-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .image-modal-content {
+      background: var(--surface);
+      border-radius: 12px;
+      max-width: 90%;
+      max-height: 90%;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .image-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .image-modal-header h3 {
+      margin: 0;
+      font-size: 1.125rem;
+    }
+
+    .image-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      padding: 0;
+      line-height: 1;
+    }
+
+    .image-modal-close:hover {
+      color: var(--text);
+    }
+
+    .image-modal-body {
+      padding: 1.5rem;
+      overflow: auto;
+      max-height: 60vh;
+    }
+
+    .image-modal-body img {
+      max-width: 100%;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .image-modal-footer {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+      justify-content: center;
+    }
+
     .trade-container {
       display: flex;
       gap: 1rem;
@@ -1088,9 +1169,30 @@
           <button class="btn btn-primary" id="tradeForTeamBtn">🏀 Trade Team</button>
         </div>
         <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
+        <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
         <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
       </div>
     </header>
+
+    <!-- Hidden canvas for image generation -->
+    <canvas id="tradeCanvas" style="display: none;"></canvas>
+    
+    <!-- Modal for showing generated image -->
+    <div id="imageModal" class="image-modal" style="display: none;">
+      <div class="image-modal-content">
+        <div class="image-modal-header">
+          <h3>Trade Image</h3>
+          <button class="image-modal-close" id="closeImageModal">×</button>
+        </div>
+        <div class="image-modal-body">
+          <img id="generatedImage" alt="Generated Trade Image">
+        </div>
+        <div class="image-modal-footer">
+          <button class="btn btn-primary" id="downloadImageBtn">⬇️ Download Image</button>
+          <button class="btn btn-secondary" id="copyImageBtn">📋 Copy to Clipboard</button>
+        </div>
+      </div>
+    </div>
 
     <div class="loading" id="loadingState">
       <div class="spinner"></div>
@@ -3354,6 +3456,234 @@
       ];
       render();
     });
+
+    // Generate Trade Image
+    const generateImageBtn = document.getElementById('generateImageBtn');
+    const imageModal = document.getElementById('imageModal');
+    const closeImageModal = document.getElementById('closeImageModal');
+    const generatedImage = document.getElementById('generatedImage');
+    const downloadImageBtn = document.getElementById('downloadImageBtn');
+    const copyImageBtn = document.getElementById('copyImageBtn');
+    const tradeCanvas = document.getElementById('tradeCanvas');
+
+    generateImageBtn.addEventListener('click', () => {
+      // Check if there's a valid trade
+      const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+      if (activeTeams.length < 2) {
+        alert('Please create a trade with at least 2 teams first');
+        return;
+      }
+
+      generateTradeImage();
+      imageModal.style.display = 'flex';
+    });
+
+    closeImageModal.addEventListener('click', () => {
+      imageModal.style.display = 'none';
+    });
+
+    imageModal.addEventListener('click', (e) => {
+      if (e.target === imageModal) {
+        imageModal.style.display = 'none';
+      }
+    });
+
+    downloadImageBtn.addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = 'nba-trade.png';
+      link.href = tradeCanvas.toDataURL('image/png');
+      link.click();
+    });
+
+    copyImageBtn.addEventListener('click', async () => {
+      try {
+        const blob = await new Promise(resolve => tradeCanvas.toBlob(resolve, 'image/png'));
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        copyImageBtn.textContent = '✓ Copied!';
+        setTimeout(() => {
+          copyImageBtn.textContent = '📋 Copy to Clipboard';
+        }, 2000);
+      } catch (err) {
+        alert('Failed to copy image. Try downloading instead.');
+      }
+    });
+
+    function generateTradeImage() {
+      const ctx = tradeCanvas.getContext('2d');
+      const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+      
+      // Calculate dimensions
+      const teamWidth = 280;
+      const padding = 30;
+      const headerHeight = 80;
+      const teamHeaderHeight = 50;
+      const playerRowHeight = 32;
+      const sectionPadding = 20;
+      
+      // Calculate max height needed
+      let maxPlayers = 0;
+      activeTeams.forEach(team => {
+        const playerCount = team.playersOut.length + team.playersIn.length;
+        if (playerCount > maxPlayers) maxPlayers = playerCount;
+      });
+      
+      const contentHeight = Math.max(300, headerHeight + teamHeaderHeight + (maxPlayers * playerRowHeight) + sectionPadding * 4 + 100);
+      const canvasWidth = (teamWidth * activeTeams.length) + (padding * (activeTeams.length + 1));
+      const canvasHeight = contentHeight;
+      
+      tradeCanvas.width = canvasWidth;
+      tradeCanvas.height = canvasHeight;
+      
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+      gradient.addColorStop(0, '#1a1a2e');
+      gradient.addColorStop(1, '#16213e');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      
+      // Header
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 28px DM Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🏀 NBA TRADE', canvasWidth / 2, 45);
+      
+      // Trade status
+      const validation = validateTrade();
+      ctx.font = '14px DM Sans, sans-serif';
+      ctx.fillStyle = validation.valid ? '#34c759' : '#ff453a';
+      ctx.fillText(validation.valid ? '✓ Trade is valid' : '✕ ' + validation.message, canvasWidth / 2, 70);
+      
+      // Draw each team
+      activeTeams.forEach((team, teamIndex) => {
+        const x = padding + (teamIndex * (teamWidth + padding));
+        const y = headerHeight;
+        
+        // Team card background
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.roundRect(x, y, teamWidth, canvasHeight - headerHeight - padding, 12);
+        ctx.fill();
+        
+        // Team header
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.roundRect(x, y, teamWidth, teamHeaderHeight, [12, 12, 0, 0]);
+        ctx.fill();
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px DM Sans, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(team.teamName, x + teamWidth / 2, y + 32);
+        
+        let currentY = y + teamHeaderHeight + sectionPadding;
+        
+        // Sends Out section
+        if (team.playersOut.length > 0) {
+          ctx.fillStyle = '#8e8e93';
+          ctx.font = '11px DM Sans, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('SENDS OUT', x + 15, currentY);
+          currentY += 18;
+          
+          team.playersOut.forEach(player => {
+            // Player chip background
+            ctx.fillStyle = 'rgba(255, 69, 58, 0.15)';
+            ctx.roundRect(x + 10, currentY - 2, teamWidth - 20, playerRowHeight - 4, 6);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px DM Sans, sans-serif';
+            ctx.fillText(player.player, x + 18, currentY + 14);
+            
+            ctx.fillStyle = '#8e8e93';
+            ctx.font = '11px DM Sans, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(formatSalary(player.salary), x + teamWidth - 18, currentY + 14);
+            ctx.textAlign = 'left';
+            
+            currentY += playerRowHeight;
+          });
+          
+          currentY += 10;
+        }
+        
+        // Receives section
+        if (team.playersIn.length > 0) {
+          ctx.fillStyle = '#8e8e93';
+          ctx.font = '11px DM Sans, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('RECEIVES', x + 15, currentY);
+          currentY += 18;
+          
+          team.playersIn.forEach(player => {
+            // Player chip background
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
+            ctx.roundRect(x + 10, currentY - 2, teamWidth - 20, playerRowHeight - 4, 6);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '13px DM Sans, sans-serif';
+            ctx.fillText(player.player, x + 18, currentY + 14);
+            
+            ctx.fillStyle = '#8e8e93';
+            ctx.font = '11px DM Sans, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(formatSalary(player.salary), x + teamWidth - 18, currentY + 14);
+            ctx.textAlign = 'left';
+            
+            currentY += playerRowHeight;
+          });
+          
+          currentY += 10;
+        }
+        
+        // Net salary
+        const outgoing = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+        const incoming = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+        const net = incoming - outgoing;
+        
+        currentY += 10;
+        ctx.fillStyle = '#8e8e93';
+        ctx.font = '11px DM Sans, sans-serif';
+        ctx.fillText('Net:', x + 15, currentY + 10);
+        
+        ctx.fillStyle = net > 0 ? '#ff453a' : '#34c759';
+        ctx.font = 'bold 13px DM Sans, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 15, currentY + 10);
+        ctx.textAlign = 'left';
+      });
+      
+      // Footer watermark
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.font = '10px DM Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Made with NBA Trade Calculator', canvasWidth / 2, canvasHeight - 10);
+      
+      // Set the image src
+      generatedImage.src = tradeCanvas.toDataURL('image/png');
+    }
+
+    // Polyfill for roundRect if not available
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radii) {
+        if (typeof radii === 'number') {
+          radii = [radii, radii, radii, radii];
+        }
+        const [tl, tr, br, bl] = radii;
+        this.beginPath();
+        this.moveTo(x + tl, y);
+        this.lineTo(x + width - tr, y);
+        this.quadraticCurveTo(x + width, y, x + width, y + tr);
+        this.lineTo(x + width, y + height - br);
+        this.quadraticCurveTo(x + width, y + height, x + width - br, y + height);
+        this.lineTo(x + bl, y + height);
+        this.quadraticCurveTo(x, y + height, x, y + height - bl);
+        this.lineTo(x, y + tl);
+        this.quadraticCurveTo(x, y, x + tl, y);
+        this.closePath();
+      };
+    }
 
     // Load data
     async function loadData() {
