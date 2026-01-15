@@ -63,6 +63,36 @@
     .header-actions {
       display: flex;
       gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .trade-machine {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .player-search-input {
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      width: 200px;
+      transition: all 0.15s;
+    }
+
+    .player-search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    .player-search-input::placeholder {
+      color: var(--text-secondary);
     }
 
     .btn {
@@ -946,6 +976,10 @@
     <header>
       <h1>🏀 NBA Trade Calculator</h1>
       <div class="header-actions">
+        <div class="trade-machine">
+          <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Enter player name..." autocomplete="off">
+          <button class="btn btn-primary" id="tradeForPlayerBtn">🔄 Trade for Player</button>
+        </div>
         <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
         <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
       </div>
@@ -2490,6 +2524,215 @@
       
       return null; // No valid trade found
     }
+
+    // Generate a random valid trade featuring a specific player
+    function generateTradeForPlayer(playerName) {
+      const MAX_ATTEMPTS = 200;
+      
+      // Find the target player (case-insensitive partial match)
+      const searchTerm = playerName.toLowerCase().trim();
+      const targetPlayer = players.find(p => 
+        p.player.toLowerCase().includes(searchTerm) ||
+        p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm))
+      );
+      
+      if (!targetPlayer) {
+        return { error: `Player "${playerName}" not found` };
+      }
+      
+      // Check if player is tradeable
+      if (targetPlayer.contractStatus?.toUpperCase() === 'TWO-WAY' ||
+          targetPlayer.contractStatus?.toUpperCase().includes('10-DAY') ||
+          targetPlayer.tradeAvailable?.toLowerCase() === 'not available') {
+        return { error: `${targetPlayer.player} is not available for trade` };
+      }
+      
+      const targetTeam = targetPlayer.team;
+      
+      // Get tradeable players (exclude two-way, 10-day)
+      const tradeablePlayers = players.filter(p => 
+        p.team && 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        p.salary >= 500000
+      );
+      
+      // Get other teams
+      const otherTeams = [...new Set(tradeablePlayers.map(p => p.team))].filter(t => t !== targetTeam);
+      
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Randomly decide 2-team or 3-team trade (30% chance for 3-team)
+        const isThreeTeam = Math.random() < 0.3;
+        
+        if (isThreeTeam && otherTeams.length >= 2) {
+          // THREE-TEAM TRADE
+          const shuffledOtherTeams = [...otherTeams].sort(() => Math.random() - 0.5);
+          const team2Name = shuffledOtherTeams[0];
+          const team3Name = shuffledOtherTeams[1];
+          
+          // Target player's team sends them out
+          const team1PlayersOut = [{ ...targetPlayer, destination: 1 }]; // Goes to team2
+          
+          // Maybe add more players from team1
+          const team1OtherPlayers = tradeablePlayers
+            .filter(p => p.team === targetTeam && p.player !== targetPlayer.player)
+            .sort(() => Math.random() - 0.5);
+          
+          if (Math.random() < 0.4 && team1OtherPlayers.length > 0) {
+            const extraPlayer = team1OtherPlayers[0];
+            team1PlayersOut.push({ ...extraPlayer, destination: Math.random() < 0.5 ? 1 : 2 });
+          }
+          
+          // Team2 sends players
+          const team2Players = tradeablePlayers
+            .filter(p => p.team === team2Name)
+            .sort(() => Math.random() - 0.5);
+          
+          // Team3 sends players
+          const team3Players = tradeablePlayers
+            .filter(p => p.team === team3Name)
+            .sort(() => Math.random() - 0.5);
+          
+          if (team2Players.length < 1 || team3Players.length < 1) continue;
+          
+          // Build return package - try to match salaries
+          const team1Outgoing = team1PlayersOut.reduce((sum, p) => sum + p.salary, 0);
+          
+          // Team2 and Team3 need to send enough back to team1
+          let team2PlayersOut = [];
+          let team3PlayersOut = [];
+          let returnToTeam1 = 0;
+          
+          // Add players from team2 going to team1
+          for (const p of team2Players) {
+            if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
+              team2PlayersOut.push({ ...p, destination: 0 });
+              returnToTeam1 += p.salary;
+            }
+            if (team2PlayersOut.length >= 3) break;
+          }
+          
+          // Maybe add players from team3 going to team1
+          if (returnToTeam1 < team1Outgoing * 0.8) {
+            for (const p of team3Players) {
+              if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
+                team3PlayersOut.push({ ...p, destination: 0 });
+                returnToTeam1 += p.salary;
+              }
+              if (team3PlayersOut.length >= 2) break;
+            }
+          }
+          
+          // Team2 might also send to team3
+          const team2Remaining = team2Players.filter(p => !team2PlayersOut.some(po => po.player === p.player));
+          if (Math.random() < 0.5 && team2Remaining.length > 0) {
+            team2PlayersOut.push({ ...team2Remaining[0], destination: 2 });
+          }
+          
+          if (team2PlayersOut.length === 0 && team3PlayersOut.length === 0) continue;
+          
+          // Build trade structure
+          const testTrade = [
+            { teamName: targetTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: team2Name, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: team3Name, playersOut: team3PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          
+          // Redistribute and validate
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
+        } else {
+          // TWO-TEAM TRADE
+          const partnerTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+          
+          // Target player goes to partner team
+          const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+          
+          // Maybe add more players from target team
+          const team1OtherPlayers = tradeablePlayers
+            .filter(p => p.team === targetTeam && p.player !== targetPlayer.player)
+            .sort(() => Math.random() - 0.5);
+          
+          const numExtra = Math.random() < 0.3 ? 0 : Math.random() < 0.6 ? 1 : 2;
+          for (let i = 0; i < numExtra && i < team1OtherPlayers.length; i++) {
+            team1PlayersOut.push({ ...team1OtherPlayers[i], destination: 1 });
+          }
+          
+          // Calculate outgoing salary
+          const team1Outgoing = team1PlayersOut.reduce((sum, p) => sum + p.salary, 0);
+          
+          // Partner team sends players back
+          const partnerPlayers = tradeablePlayers
+            .filter(p => p.team === partnerTeam)
+            .sort(() => Math.random() - 0.5);
+          
+          let team2PlayersOut = [];
+          let team2Outgoing = 0;
+          
+          // Try to match salary within CBA rules
+          for (const p of partnerPlayers) {
+            if (team2Outgoing < team1Outgoing * 1.25 + 5000000) {
+              team2PlayersOut.push({ ...p, destination: 0 });
+              team2Outgoing += p.salary;
+            }
+            if (team2PlayersOut.length >= 4) break;
+          }
+          
+          if (team2PlayersOut.length === 0) continue;
+          
+          // Build trade structure
+          const testTrade = [
+            { teamName: targetTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          
+          // Redistribute and validate
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
+        }
+      }
+      
+      return { error: `Could not generate a valid trade for ${targetPlayer.player}. Try again!` };
+    }
+    
+    // Handle trade for player button
+    const tradeForPlayerBtn = document.getElementById('tradeForPlayerBtn');
+    const playerSearchInput = document.getElementById('playerSearchInput');
+    
+    tradeForPlayerBtn.addEventListener('click', () => {
+      const playerName = playerSearchInput.value.trim();
+      if (!playerName) {
+        alert('Please enter a player name');
+        return;
+      }
+      
+      const result = generateTradeForPlayer(playerName);
+      
+      if (result.error) {
+        alert(result.error);
+      } else {
+        tradeTeams = result;
+        render();
+      }
+    });
+    
+    // Also trigger on Enter key
+    playerSearchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        tradeForPlayerBtn.click();
+      }
+    });
     
     // Handle random trade button
     const randomTradeBtn = document.getElementById('randomTradeBtn');
