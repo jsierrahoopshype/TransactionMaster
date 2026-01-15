@@ -3515,150 +3515,222 @@
       const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
       
       // Calculate dimensions
-      const teamWidth = 280;
-      const padding = 30;
-      const headerHeight = 80;
-      const teamHeaderHeight = 50;
-      const playerRowHeight = 32;
-      const sectionPadding = 20;
+      const teamWidth = 300;
+      const teamGap = 16;
+      const padding = 24;
+      const headerHeight = 70;
+      const teamHeaderHeight = 48;
+      const playerRowHeight = 44;
+      const sectionLabelHeight = 24;
+      const summaryHeight = 80;
+      const footerHeight = 30;
       
-      // Calculate max height needed
-      let maxPlayers = 0;
-      activeTeams.forEach(team => {
-        const playerCount = team.playersOut.length + team.playersIn.length;
-        if (playerCount > maxPlayers) maxPlayers = playerCount;
+      // Calculate content height for each team
+      const teamHeights = activeTeams.map(team => {
+        let height = teamHeaderHeight;
+        if (team.playersOut.length > 0) {
+          height += sectionLabelHeight + (team.playersOut.length * playerRowHeight);
+        }
+        if (team.playersIn.length > 0) {
+          height += sectionLabelHeight + (team.playersIn.length * playerRowHeight);
+        }
+        height += summaryHeight;
+        return height;
       });
+      const maxTeamHeight = Math.max(...teamHeights, 250);
       
-      const contentHeight = Math.max(300, headerHeight + teamHeaderHeight + (maxPlayers * playerRowHeight) + sectionPadding * 4 + 100);
-      const canvasWidth = (teamWidth * activeTeams.length) + (padding * (activeTeams.length + 1));
-      const canvasHeight = contentHeight;
+      const canvasWidth = (teamWidth * activeTeams.length) + (teamGap * (activeTeams.length - 1)) + (padding * 2);
+      const canvasHeight = headerHeight + maxTeamHeight + footerHeight + padding;
       
       tradeCanvas.width = canvasWidth;
       tradeCanvas.height = canvasHeight;
       
-      // Background gradient
-      const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
-      gradient.addColorStop(0, '#1a1a2e');
-      gradient.addColorStop(1, '#16213e');
-      ctx.fillStyle = gradient;
+      // White background
+      ctx.fillStyle = '#f5f5f7';
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       
       // Header
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 28px DM Sans, sans-serif';
+      ctx.fillStyle = '#1d1d1f';
+      ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('🏀 NBA TRADE', canvasWidth / 2, 45);
+      ctx.fillText('🏀 NBA Trade', canvasWidth / 2, 38);
       
       // Trade status
       const validation = validateTrade();
-      ctx.font = '14px DM Sans, sans-serif';
+      ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.fillStyle = validation.valid ? '#34c759' : '#ff453a';
-      ctx.fillText(validation.valid ? '✓ Trade is valid' : '✕ ' + validation.message, canvasWidth / 2, 70);
+      const statusText = validation.valid ? '✓ Trade is valid' : '✕ Trade is invalid';
+      ctx.fillText(statusText, canvasWidth / 2, 58);
       
-      // Draw each team
+      // Draw each team card
       activeTeams.forEach((team, teamIndex) => {
-        const x = padding + (teamIndex * (teamWidth + padding));
+        const x = padding + (teamIndex * (teamWidth + teamGap));
         const y = headerHeight;
+        const cardHeight = maxTeamHeight;
         
-        // Team card background
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.roundRect(x, y, teamWidth, canvasHeight - headerHeight - padding, 12);
+        // Card shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.roundRect(x + 2, y + 2, teamWidth, cardHeight, 12);
         ctx.fill();
         
-        // Team header
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        // Card background
+        ctx.fillStyle = '#ffffff';
+        ctx.roundRect(x, y, teamWidth, cardHeight, 12);
+        ctx.fill();
+        
+        // Card border
+        ctx.strokeStyle = '#d1d1d6';
+        ctx.lineWidth = 1;
+        ctx.roundRect(x, y, teamWidth, cardHeight, 12);
+        ctx.stroke();
+        
+        // Team header background
+        ctx.fillStyle = '#fafafa';
         ctx.roundRect(x, y, teamWidth, teamHeaderHeight, [12, 12, 0, 0]);
         ctx.fill();
         
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 16px DM Sans, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(team.teamName, x + teamWidth / 2, y + 32);
+        // Team header bottom border
+        ctx.strokeStyle = '#e5e5e7';
+        ctx.beginPath();
+        ctx.moveTo(x, y + teamHeaderHeight);
+        ctx.lineTo(x + teamWidth, y + teamHeaderHeight);
+        ctx.stroke();
         
-        let currentY = y + teamHeaderHeight + sectionPadding;
+        // Team name
+        ctx.fillStyle = '#1d1d1f';
+        ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(team.teamName, x + 16, y + 30);
+        
+        // Team status
+        const teamInfo = getTeamInfo(team.teamName);
+        if (teamInfo) {
+          ctx.fillStyle = '#6e6e73';
+          ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillText(teamInfo.status.toUpperCase(), x + 16, y + 44);
+        }
+        
+        let currentY = y + teamHeaderHeight + 16;
         
         // Sends Out section
         if (team.playersOut.length > 0) {
-          ctx.fillStyle = '#8e8e93';
-          ctx.font = '11px DM Sans, sans-serif';
+          ctx.fillStyle = '#6e6e73';
+          ctx.font = '600 10px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText('SENDS OUT', x + 15, currentY);
-          currentY += 18;
+          ctx.fillText('SENDS OUT', x + 16, currentY);
+          currentY += 14;
           
           team.playersOut.forEach(player => {
-            // Player chip background
-            ctx.fillStyle = 'rgba(255, 69, 58, 0.15)';
-            ctx.roundRect(x + 10, currentY - 2, teamWidth - 20, playerRowHeight - 4, 6);
+            // Player chip background (red tint)
+            ctx.fillStyle = 'rgba(255, 69, 58, 0.08)';
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 8);
             ctx.fill();
             
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '13px DM Sans, sans-serif';
-            ctx.fillText(player.player, x + 18, currentY + 14);
+            // Player chip border
+            ctx.strokeStyle = 'rgba(255, 69, 58, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 8);
+            ctx.stroke();
             
-            ctx.fillStyle = '#8e8e93';
-            ctx.font = '11px DM Sans, sans-serif';
-            ctx.textAlign = 'right';
-            ctx.fillText(formatSalary(player.salary), x + teamWidth - 18, currentY + 14);
+            // Player name
+            ctx.fillStyle = '#1d1d1f';
+            ctx.font = '500 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
+            ctx.fillText(player.player, x + 20, currentY + 16);
+            
+            // Player salary
+            ctx.fillStyle = '#6e6e73';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillText(formatSalary(player.salary), x + 20, currentY + 32);
             
             currentY += playerRowHeight;
           });
           
-          currentY += 10;
+          currentY += 8;
         }
         
         // Receives section
         if (team.playersIn.length > 0) {
-          ctx.fillStyle = '#8e8e93';
-          ctx.font = '11px DM Sans, sans-serif';
+          ctx.fillStyle = '#6e6e73';
+          ctx.font = '600 10px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText('RECEIVES', x + 15, currentY);
-          currentY += 18;
+          ctx.fillText('RECEIVES', x + 16, currentY);
+          currentY += 14;
           
           team.playersIn.forEach(player => {
-            // Player chip background
-            ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
-            ctx.roundRect(x + 10, currentY - 2, teamWidth - 20, playerRowHeight - 4, 6);
+            // Player chip background (blue tint)
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.08)';
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 8);
             ctx.fill();
             
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '13px DM Sans, sans-serif';
-            ctx.fillText(player.player, x + 18, currentY + 14);
+            // Player chip border
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.25)';
+            ctx.lineWidth = 1;
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 8);
+            ctx.stroke();
             
-            ctx.fillStyle = '#8e8e93';
-            ctx.font = '11px DM Sans, sans-serif';
-            ctx.textAlign = 'right';
-            ctx.fillText(formatSalary(player.salary), x + teamWidth - 18, currentY + 14);
+            // Player name
+            ctx.fillStyle = '#1d1d1f';
+            ctx.font = '500 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
+            ctx.fillText(player.player, x + 20, currentY + 16);
+            
+            // Player salary
+            ctx.fillStyle = '#6e6e73';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillText(formatSalary(player.salary), x + 20, currentY + 32);
             
             currentY += playerRowHeight;
           });
-          
-          currentY += 10;
         }
         
-        // Net salary
+        // Summary section at bottom
+        const summaryY = y + cardHeight - summaryHeight;
+        
+        // Dashed separator
+        ctx.strokeStyle = '#d1d1d6';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x + 12, summaryY);
+        ctx.lineTo(x + teamWidth - 12, summaryY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
         const outgoing = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
         const incoming = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
         const net = incoming - outgoing;
         
-        currentY += 10;
-        ctx.fillStyle = '#8e8e93';
-        ctx.font = '11px DM Sans, sans-serif';
-        ctx.fillText('Net:', x + 15, currentY + 10);
-        
-        ctx.fillStyle = net > 0 ? '#ff453a' : '#34c759';
-        ctx.font = 'bold 13px DM Sans, sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 15, currentY + 10);
+        // Outgoing row
+        ctx.fillStyle = '#6e6e73';
+        ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
+        ctx.fillText('Outgoing', x + 16, summaryY + 20);
+        ctx.textAlign = 'right';
+        ctx.fillText(formatSalary(outgoing), x + teamWidth - 16, summaryY + 20);
+        
+        // Incoming row
+        ctx.textAlign = 'left';
+        ctx.fillText('Incoming', x + 16, summaryY + 38);
+        ctx.textAlign = 'right';
+        ctx.fillText(formatSalary(incoming), x + teamWidth - 16, summaryY + 38);
+        
+        // Net row
+        ctx.textAlign = 'left';
+        ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = '#1d1d1f';
+        ctx.fillText('Net', x + 16, summaryY + 60);
+        
+        ctx.textAlign = 'right';
+        ctx.fillStyle = net > 0 ? '#ff453a' : '#34c759';
+        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 16, summaryY + 60);
       });
       
       // Footer watermark
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.font = '10px DM Sans, sans-serif';
+      ctx.fillStyle = '#8e8e93';
+      ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Made with NBA Trade Calculator', canvasWidth / 2, canvasHeight - 10);
+      ctx.fillText('Made with NBA Trade Calculator', canvasWidth / 2, canvasHeight - 12);
       
       // Set the image src
       generatedImage.src = tradeCanvas.toDataURL('image/png');
