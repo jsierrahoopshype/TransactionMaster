@@ -1257,7 +1257,81 @@
       // The trade rules are based on where the team ENDS UP, not where they start
       
       // Determine what tier the team would end up in after the trade
-      // Then apply rules based on that final tier
+      // IMPORTANT: Teams must satisfy the rules for EACH tier they cross through
+      // Check from least restrictive to most restrictive, and fail at the first violation
+      
+      if (status === 'BELOW TAX') {
+        // First check: crossing into Tax Team territory
+        if (teamInfo.taxRoom > 0 && netIncomingForHardcap > teamInfo.taxRoom) {
+          // Must satisfy Tax Team rules (125% + $100K) to cross the tax line
+          const maxIncomingTax = outgoingSalary * 1.25 + 100000;
+          if (incomingSalary > maxIncomingTax) {
+            return {
+              valid: false,
+              message: `Trade would push team into tax - can only receive ${formatSalary(maxIncomingTax)}`
+            };
+          }
+        }
+        
+        // Second check: crossing into 1st Apron territory
+        if (teamInfo.apronRoom1st > 0 && netIncomingForHardcap > teamInfo.apronRoom1st) {
+          // Must satisfy 1st Apron rules (110% + $100K)
+          const maxIncoming1st = outgoingSalary * 1.1 + 100000;
+          if (incomingSalary > maxIncoming1st) {
+            return {
+              valid: false,
+              message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1st)}`
+            };
+          }
+        }
+        
+        // Third check: crossing into 2nd Apron territory
+        if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
+          // Must satisfy 2nd Apron rules (100% + $100K)
+          const maxIncoming2nd = outgoingSalary + 100000;
+          if (incomingSalary > maxIncoming2nd) {
+            return {
+              valid: false,
+              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+            };
+          }
+        }
+      } else if (status === 'TAX TEAM') {
+        // First check: crossing into 1st Apron territory
+        if (teamInfo.apronRoom1st > 0 && netIncomingForHardcap > teamInfo.apronRoom1st) {
+          const maxIncoming1st = outgoingSalary * 1.1 + 100000;
+          if (incomingSalary > maxIncoming1st) {
+            return {
+              valid: false,
+              message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1st)}`
+            };
+          }
+        }
+        
+        // Second check: crossing into 2nd Apron territory
+        if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
+          const maxIncoming2nd = outgoingSalary + 100000;
+          if (incomingSalary > maxIncoming2nd) {
+            return {
+              valid: false,
+              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+            };
+          }
+        }
+      } else if (status === '1ST APRON') {
+        // Check: crossing into 2nd Apron territory
+        if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
+          const maxIncoming2nd = outgoingSalary + 100000;
+          if (incomingSalary > maxIncoming2nd) {
+            return {
+              valid: false,
+              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+            };
+          }
+        }
+      }
+      
+      // Determine the EFFECTIVE status for salary matching (where team ends up)
       let effectiveStatus = status;
       
       if (status === 'BELOW TAX') {
@@ -1277,31 +1351,6 @@
       } else if (status === '1ST APRON') {
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
           effectiveStatus = '2ND APRON';
-        }
-      }
-      
-      // Now check if the trade violates the rules for the EFFECTIVE (post-trade) status
-      // Only check if they're moving to a MORE restrictive tier
-      if (effectiveStatus !== status) {
-        let maxIncoming;
-        let tierName;
-        
-        if (effectiveStatus === '2ND APRON') {
-          maxIncoming = outgoingSalary + 100000;
-          tierName = '2nd apron';
-        } else if (effectiveStatus === '1ST APRON') {
-          maxIncoming = outgoingSalary * 1.1 + 100000;
-          tierName = '1st apron';
-        } else if (effectiveStatus === 'TAX TEAM') {
-          maxIncoming = outgoingSalary * 1.25 + 100000;
-          tierName = 'tax';
-        }
-        
-        if (maxIncoming && incomingSalary > maxIncoming) {
-          return {
-            valid: false,
-            message: `Trade would push team into ${tierName} - can only receive ${formatSalary(maxIncoming)}`
-          };
         }
       }
 
