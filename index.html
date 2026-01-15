@@ -1208,11 +1208,30 @@
     // Validate entire trade
     // Stepien Rule validation
     // Teams must have at least one first-round pick in consecutive years
-    function validateStepienRule(teamName, picksOut) {
-      if (!picksOut || picksOut.length === 0) return { valid: true };
+    function validateStepienRule(teamName, teamIndex) {
+      const team = tradeTeams[teamIndex];
+      const picksOut = team.picksOut || [];
       
       // Only check first-round picks being traded out
       const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
+      
+      // Get incoming first-round picks from other teams
+      const incomingFirstRoundPicks = [];
+      tradeTeams.forEach((otherTeam, otherIndex) => {
+        if (otherIndex !== teamIndex && otherTeam.picksOut) {
+          otherTeam.picksOut.forEach(pick => {
+            if (pick.round === '1st') {
+              // Check if this pick is coming to our team
+              const dest = pick.destination !== undefined ? pick.destination : (tradeTeams.length === 2 ? teamIndex : undefined);
+              if (dest === teamIndex) {
+                incomingFirstRoundPicks.push(pick);
+              }
+            }
+          });
+        }
+      });
+      
+      // If not trading any first-round picks, no Stepien concern
       if (firstRoundPicksOut.length === 0) return { valid: true };
       
       // Get all first-round picks for this team from the master list
@@ -1221,7 +1240,7 @@
       // Years to check (need consecutive year coverage)
       const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
       
-      // Helper to check if a specific pick is being traded
+      // Helper to check if a specific pick is being traded out
       const isPickBeingTraded = (pick) => {
         return firstRoundPicksOut.some(p => 
           p.year === pick.year && p.round === pick.round && p.notes === pick.notes
@@ -1233,6 +1252,7 @@
       
       console.log('Stepien check for', teamName);
       console.log('First round picks out:', firstRoundPicksOut.map(p => `${p.year} ${p.round}`));
+      console.log('Incoming first round picks:', incomingFirstRoundPicks.map(p => `${p.year} ${p.round}`));
       console.log('Team first round picks:', teamFirstRoundPicks.map(p => `${p.year} ${p.surePick} ${p.linkedTo || ''}`));
       
       years.forEach(year => {
@@ -1241,6 +1261,7 @@
         
         let hasGuaranteedPick = false;
         
+        // Check owned picks that are NOT being traded
         picksThisYear.forEach(pick => {
           const beingTraded = isPickBeingTraded(pick);
           
@@ -1251,12 +1272,11 @@
               console.log(`  ${yearStr}: Has sure pick (not traded)`);
             } else if (pick.linkedTo) {
               // Conditional pick - check if we're keeping either this OR the linked pick
-              // If this pick is not traded, we need to check if the linked pick gives us coverage
               const linkedYear = pick.linkedTo;
               const linkedPicks = teamFirstRoundPicks.filter(p => p.year === linkedYear);
               
               // We have a guarantee if we're keeping this conditional pick AND 
-              // (the linked pick is also not traded OR the linked pick is a sure pick we're keeping)
+              // the linked pick is also not traded
               const linkedPickBeingTraded = linkedPicks.some(lp => isPickBeingTraded(lp));
               
               if (!linkedPickBeingTraded) {
@@ -1268,9 +1288,20 @@
           }
         });
         
+        // Check incoming picks for this year
+        const incomingThisYear = incomingFirstRoundPicks.filter(p => p.year === yearStr);
+        incomingThisYear.forEach(pick => {
+          if (pick.surePick === 'YES') {
+            hasGuaranteedPick = true;
+            console.log(`  ${yearStr}: Receiving sure pick`);
+          }
+          // Note: For conditional incoming picks, we'd need more complex logic
+          // For now, only sure incoming picks count as guaranteed
+        });
+        
         // Also check if this year has no picks at all (team doesn't own any pick this year)
-        if (picksThisYear.length === 0) {
-          console.log(`  ${yearStr}: No picks owned`);
+        if (picksThisYear.length === 0 && incomingThisYear.length === 0) {
+          console.log(`  ${yearStr}: No picks owned or incoming`);
         }
         
         guaranteedPicksByYear[yearStr] = hasGuaranteedPick;
@@ -1361,12 +1392,13 @@
       }
 
       // Validate Stepien Rule for each team trading picks
-      const teamsWithPicksOut = tradeTeams.filter(t => t.teamName && t.picksOut && t.picksOut.length > 0);
-      teamsWithPicksOut.forEach(t => {
-        const stepienResult = validateStepienRule(t.teamName, t.picksOut);
-        if (!stepienResult.valid) {
-          allValid = false;
-          invalidMessages.push(stepienResult.message);
+      tradeTeams.forEach((t, teamIndex) => {
+        if (t.teamName && t.picksOut && t.picksOut.length > 0) {
+          const stepienResult = validateStepienRule(t.teamName, teamIndex);
+          if (!stepienResult.valid) {
+            allValid = false;
+            invalidMessages.push(stepienResult.message);
+          }
         }
       });
 
