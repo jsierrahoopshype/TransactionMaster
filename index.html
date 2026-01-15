@@ -1256,67 +1256,8 @@
       // But if the net incoming pushes them PAST the 1st apron, they'd be in 1ST APRON tier which has stricter rules
       // The trade rules are based on where the team ENDS UP, not where they start
       
-      // Check if BELOW TAX team would become TAX TEAM
-      if (status === 'BELOW TAX') {
-        // If net incoming exceeds tax room, they become a TAX TEAM
-        if (teamInfo.taxRoom > 0 && netIncomingForHardcap > teamInfo.taxRoom) {
-          // Team would become TAX TEAM - needs to use 125% + $100K rule
-          const maxIncomingTaxTeam = outgoingSalary * 1.25 + 100000;
-          if (incomingSalary > maxIncomingTaxTeam) {
-            return {
-              valid: false,
-              message: `Trade would push team into tax - can only receive ${formatSalary(maxIncomingTaxTeam)}`
-            };
-          }
-        }
-      }
-      
-      // Check if this trade would push a non-apron team into apron territory
-      if (status === 'BELOW TAX' || status === 'TAX TEAM') {
-        // These teams have room before hitting aprons
-        // apronRoom1st = how much salary they can add before hitting 1st apron
-        // If net incoming > apronRoom1st, they'd be in 1st apron territory
-        if (teamInfo.apronRoom1st > 0 && netIncomingForHardcap > teamInfo.apronRoom1st) {
-          // Team would cross into 1st apron - need to check with 1st apron rules
-          // 1st apron rules: can only take back 110% + $100K of outgoing
-          const maxIncoming1stApron = outgoingSalary * 1.1 + 100000;
-          if (incomingSalary > maxIncoming1stApron) {
-            return {
-              valid: false,
-              message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1stApron)}`
-            };
-          }
-        }
-        
-        // If net incoming > apronRoom2nd, they'd be in 2nd apron territory  
-        if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
-          // Team would cross into 2nd apron - need to check with 2nd apron rules
-          // 2nd apron rules: can only take back 100% + $100K of outgoing
-          const maxIncoming2ndApron = outgoingSalary + 100000;
-          if (incomingSalary > maxIncoming2ndApron) {
-            return {
-              valid: false,
-              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2ndApron)}`
-            };
-          }
-        }
-      }
-      
-      // Similarly for 1st apron teams that might cross into 2nd apron
-      if (status === '1ST APRON') {
-        if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
-          // Team would cross into 2nd apron
-          const maxIncoming2ndApron = outgoingSalary + 100000;
-          if (incomingSalary > maxIncoming2ndApron) {
-            return {
-              valid: false,
-              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2ndApron)}`
-            };
-          }
-        }
-      }
-
-      // Determine the EFFECTIVE status for salary matching based on where team will end up
+      // Determine what tier the team would end up in after the trade
+      // Then apply rules based on that final tier
       let effectiveStatus = status;
       
       if (status === 'BELOW TAX') {
@@ -1336,6 +1277,31 @@
       } else if (status === '1ST APRON') {
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
           effectiveStatus = '2ND APRON';
+        }
+      }
+      
+      // Now check if the trade violates the rules for the EFFECTIVE (post-trade) status
+      // Only check if they're moving to a MORE restrictive tier
+      if (effectiveStatus !== status) {
+        let maxIncoming;
+        let tierName;
+        
+        if (effectiveStatus === '2ND APRON') {
+          maxIncoming = outgoingSalary + 100000;
+          tierName = '2nd apron';
+        } else if (effectiveStatus === '1ST APRON') {
+          maxIncoming = outgoingSalary * 1.1 + 100000;
+          tierName = '1st apron';
+        } else if (effectiveStatus === 'TAX TEAM') {
+          maxIncoming = outgoingSalary * 1.25 + 100000;
+          tierName = 'tax';
+        }
+        
+        if (maxIncoming && incomingSalary > maxIncoming) {
+          return {
+            valid: false,
+            message: `Trade would push team into ${tierName} - can only receive ${formatSalary(maxIncoming)}`
+          };
         }
       }
 
