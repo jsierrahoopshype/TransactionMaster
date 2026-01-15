@@ -1492,9 +1492,12 @@
       }
 
       // Check salary matching using EFFECTIVE status (where team ends up after trade)
-      // Rules:
+      // Rules for 2024-25 CBA:
       // - Cap Space: can absorb up to cap space + outgoing
-      // - Below Tax: 175% + $250K
+      // - Below Tax (tiered):
+      //   * Outgoing ≤ $7,500,000: 200% + $250K
+      //   * Outgoing $7,500,001 - $29,000,000: Outgoing + $7.5M
+      //   * Outgoing > $29,000,000: 125% + $250K
       // - Tax Team: 125% + $100K
       // - 1st Apron: 110% + $100K
       // - 2nd Apron: 100% + $100K
@@ -1510,8 +1513,17 @@
         // Tax teams: 125% + $100K
         maxIncoming = outgoingSalary * 1.25 + 100000;
       } else {
-        // Below Tax: 175% + $250K
-        maxIncoming = outgoingSalary * 1.75 + 250000;
+        // Below Tax: Tiered system
+        if (outgoingSalary <= 7500000) {
+          // Tier 1: 200% + $250K for outgoing up to $7.5M
+          maxIncoming = outgoingSalary * 2 + 250000;
+        } else if (outgoingSalary <= 29000000) {
+          // Tier 2: Outgoing + $7.5M for outgoing $7.5M - $29M
+          maxIncoming = outgoingSalary + 7500000;
+        } else {
+          // Tier 3: 125% + $250K for outgoing over $29M
+          maxIncoming = outgoingSalary * 1.25 + 250000;
+        }
       }
       
       // Add TPE value to max incoming for salary matching
