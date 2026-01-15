@@ -9,12 +9,12 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0a0a0b;
-      --surface: #141416;
-      --surface-hover: #1a1a1d;
-      --border: #2a2a2e;
-      --text: #f5f5f7;
-      --text-secondary: #8e8e93;
+      --bg: #f5f5f7;
+      --surface: #ffffff;
+      --surface-hover: #f0f0f2;
+      --border: #d1d1d6;
+      --text: #1d1d1f;
+      --text-secondary: #6e6e73;
       --accent: #3b82f6;
       --accent-dim: rgba(59, 130, 246, 0.15);
       --green: #34c759;
@@ -23,6 +23,7 @@
       --orange-dim: rgba(255, 159, 10, 0.15);
       --red: #ff453a;
       --red-dim: rgba(255, 69, 58, 0.15);
+      --valid: #34c759;
     }
 
     * {
@@ -877,7 +878,7 @@
       margin-bottom: 0.5rem;
     }
 
-    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge {
+    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge {
       font-size: 0.5625rem;
       padding: 0.125rem 0.3rem;
       border-radius: 3px;
@@ -909,6 +910,26 @@
     .min-badge {
       background: rgba(34, 197, 94, 0.15);
       color: #22c55e;
+    }
+
+    .tw-badge {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+    }
+
+    .injury-badge {
+      cursor: help;
+      font-size: 0.7rem;
+    }
+
+    .rating-badge {
+      font-size: 0.625rem;
+      padding: 0.1rem 0.25rem;
+      border-radius: 3px;
+      font-weight: 600;
+      background: rgba(100, 100, 100, 0.15);
+      color: #6b7280;
+      margin-left: 0.25rem;
     }
 
     .loading {
@@ -1752,39 +1773,81 @@
                   const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
                   const netIncoming = incomingSalary - outgoingSalary;
                   
-                  if (netIncoming <= 0) return '';
+                  if (netIncoming === 0) return '';
                   
                   const status = teamInfo.status.toUpperCase();
                   let newStatus = null;
+                  let color = 'var(--orange)'; // Default for moving up (more restrictive)
                   
-                  if (status === 'BELOW TAX') {
-                    if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
-                      newStatus = '2nd Apron';
-                    } else if (teamInfo.apronRoom1st > 0 && netIncoming > teamInfo.apronRoom1st) {
-                      newStatus = '1st Apron';
-                    } else if (teamInfo.taxRoom > 0 && netIncoming > teamInfo.taxRoom) {
-                      newStatus = 'Tax Team';
+                  if (netIncoming > 0) {
+                    // Team taking on salary - might move UP to more restrictive tier
+                    if (status === 'BELOW TAX') {
+                      if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
+                        newStatus = '2nd Apron';
+                      } else if (teamInfo.apronRoom1st > 0 && netIncoming > teamInfo.apronRoom1st) {
+                        newStatus = '1st Apron';
+                      } else if (teamInfo.taxRoom > 0 && netIncoming > teamInfo.taxRoom) {
+                        newStatus = 'Tax Team';
+                      }
+                    } else if (status === 'TAX TEAM') {
+                      if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
+                        newStatus = '2nd Apron';
+                      } else if (teamInfo.apronRoom1st > 0 && netIncoming > teamInfo.apronRoom1st) {
+                        newStatus = '1st Apron';
+                      }
+                    } else if (status === '1ST APRON') {
+                      if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
+                        newStatus = '2nd Apron';
+                      }
                     }
-                  } else if (status === 'TAX TEAM') {
-                    if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
-                      newStatus = '2nd Apron';
-                    } else if (teamInfo.apronRoom1st > 0 && netIncoming > teamInfo.apronRoom1st) {
-                      newStatus = '1st Apron';
-                    }
-                  } else if (status === '1ST APRON') {
-                    if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
-                      newStatus = '2nd Apron';
+                  } else {
+                    // Team shedding salary - might move DOWN to less restrictive tier
+                    const netOutgoing = Math.abs(netIncoming);
+                    color = 'var(--valid)'; // Green for moving down (less restrictive)
+                    
+                    if (status === '2ND APRON') {
+                      // Check if they drop below 2nd apron
+                      // They're currently X over 2nd apron line, if they shed more than X they drop
+                      if (teamInfo.apronRoom2nd < 0 && netOutgoing > Math.abs(teamInfo.apronRoom2nd)) {
+                        // Check if they also drop below 1st apron
+                        if (teamInfo.apronRoom1st < 0 && netOutgoing > Math.abs(teamInfo.apronRoom1st)) {
+                          // Check if they also drop below tax
+                          if (teamInfo.taxRoom < 0 && netOutgoing > Math.abs(teamInfo.taxRoom)) {
+                            newStatus = 'Below Tax';
+                          } else {
+                            newStatus = 'Tax Team';
+                          }
+                        } else {
+                          newStatus = '1st Apron';
+                        }
+                      }
+                    } else if (status === '1ST APRON') {
+                      // Check if they drop below 1st apron
+                      if (teamInfo.apronRoom1st < 0 && netOutgoing > Math.abs(teamInfo.apronRoom1st)) {
+                        // Check if they also drop below tax
+                        if (teamInfo.taxRoom < 0 && netOutgoing > Math.abs(teamInfo.taxRoom)) {
+                          newStatus = 'Below Tax';
+                        } else {
+                          newStatus = 'Tax Team';
+                        }
+                      }
+                    } else if (status === 'TAX TEAM') {
+                      // Check if they drop below tax line
+                      // taxRoom is negative when over tax, so if netOutgoing > |taxRoom| they drop below
+                      if (teamInfo.taxRoom < 0 && netOutgoing > Math.abs(teamInfo.taxRoom)) {
+                        newStatus = 'Below Tax';
+                      }
                     }
                   }
                   
                   if (newStatus) {
-                    return ` <span style="color: var(--orange);">→ ${newStatus}</span>`;
+                    return ` <span style="color: ${color};">→ ${newStatus}</span>`;
                   }
                   return '';
                 })()}
               </span>
-              ${teamInfo.isHardcap1st ? `<span class="team-status-item" style="color: var(--orange);">HC 1st</span>` : ''}
-              ${teamInfo.isHardcap2nd ? `<span class="team-status-item" style="color: var(--orange);">HC 2nd</span>` : ''}
+              ${teamInfo.isHardcap1st ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 1st Apron</span>` : ''}
+              ${teamInfo.isHardcap2nd ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 2nd Apron</span>` : ''}
             </div>
           ` : ''}
           
@@ -1798,6 +1861,9 @@
                       <div class="player-chip-info">
                         <div class="player-chip-name">
                           ${p.player}
+                          ${p.globalRating ? `<span class="rating-badge">${p.globalRating.toFixed(1)}</span>` : ''}
+                          ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">❌</span>` : ''}
+                          ${p.contractStatus?.toUpperCase() === 'TWO-WAY' ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                           ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
@@ -1957,6 +2023,9 @@
                         <div class="player-chip-info">
                           <div class="player-chip-name">
                             ${p.player}
+                            ${p.globalRating ? `<span class="rating-badge">${p.globalRating.toFixed(1)}</span>` : ''}
+                            ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">❌</span>` : ''}
+                            ${p.contractStatus?.toUpperCase() === 'TWO-WAY' ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
                             ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           </div>
@@ -2071,6 +2140,9 @@
                         <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
                           <span class="player-roster-name">
                             ${p.player}
+                            ${p.globalRating ? `<span class="rating-badge">${p.globalRating.toFixed(1)}</span>` : ''}
+                            ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">❌</span>` : ''}
+                            ${p.contractStatus?.toUpperCase() === 'TWO-WAY' ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                             ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
@@ -2521,7 +2593,9 @@
             // Deselect - remove from array
             tradeTeams[teamIndex].picksOut.splice(existingIndex, 1);
           } else {
-            // Select - add to array
+            // Select - add to array with default destination
+            // Default to the other team in 2-team trade, or first other team in multi-team
+            const otherTeamIndex = tradeTeams.findIndex((t, i) => i !== teamIndex && t.teamName);
             tradeTeams[teamIndex].picksOut.push({
               team: pickTeam,
               year: pickYear,
@@ -2529,7 +2603,8 @@
               notes: pickNotes,
               pickIndex: pickIndex,
               surePick: pickSure,
-              linkedTo: pickLinked
+              linkedTo: pickLinked,
+              destination: otherTeamIndex >= 0 ? otherTeamIndex : undefined
             });
           }
           
@@ -2561,11 +2636,13 @@
             // Deselect - remove from array
             tradeTeams[teamIndex].rightsOut.splice(existingIndex, 1);
           } else {
-            // Select - add to array
+            // Select - add to array with default destination
+            const otherTeamIndex = tradeTeams.findIndex((t, i) => i !== teamIndex && t.teamName);
             tradeTeams[teamIndex].rightsOut.push({
               team: rightsTeam,
               playerName: rightsPlayer,
-              draftedYear: rightsYear
+              draftedYear: rightsYear,
+              destination: otherTeamIndex >= 0 ? otherTeamIndex : undefined
             });
           }
           
@@ -2581,8 +2658,9 @@
           if (!tradeTeams[teamIndex].cashOut) {
             tradeTeams[teamIndex].cashOut = [];
           }
-          // Add new cash consideration
-          tradeTeams[teamIndex].cashOut.push({ destination: undefined });
+          // Add new cash consideration with default destination
+          const otherTeamIndex = tradeTeams.findIndex((t, i) => i !== teamIndex && t.teamName);
+          tradeTeams[teamIndex].cashOut.push({ destination: otherTeamIndex >= 0 ? otherTeamIndex : undefined });
           render();
         });
       });
@@ -3187,8 +3265,13 @@
       
       const result = generateTradeForPlayer(exactMatch.player);
       
-      if (result.error) {
-        alert(result.error);
+      if (result && result.error) {
+        // Show error in trade status instead of alert
+        tradeStatus.style.display = 'flex';
+        tradeStatus.className = 'trade-status invalid';
+        document.getElementById('tradeStatusIcon').textContent = '✕';
+        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
+        document.getElementById('tradeStatusMessage').textContent = result.error;
       } else {
         tradeTeams = result;
         render();
@@ -3214,8 +3297,13 @@
       
       const result = generateTradeForTeam(exactMatch);
       
-      if (result.error) {
-        alert(result.error);
+      if (result && result.error) {
+        // Show error in trade status instead of alert
+        tradeStatus.style.display = 'flex';
+        tradeStatus.className = 'trade-status invalid';
+        document.getElementById('tradeStatusIcon').textContent = '✕';
+        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
+        document.getElementById('tradeStatusMessage').textContent = result.error;
       } else {
         tradeTeams = result;
         render();
@@ -3296,7 +3384,9 @@
                   apronRoom2nd: parseSalary(row['2nd APRON'] || 0),
                   isHardcap1st: (row['HARD CAP 1st?'] || '').toString().trim().toLowerCase().includes('hc'),
                   isHardcap2nd: (row['HARD CAP 2nd?'] || '').toString().trim().toLowerCase().includes('hc'),
-                  tradeAvailable: row['RESTRICTIONS']?.trim() || ''
+                  tradeAvailable: row['RESTRICTIONS']?.trim() || '',
+                  isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
+                  injuryReason: row['REASON']?.trim() || ''
                 };
                 // Debug logging for Brooklyn players
                 if (player.team === 'Brooklyn') {
