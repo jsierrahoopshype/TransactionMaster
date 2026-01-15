@@ -951,6 +951,61 @@
       color: var(--text-secondary);
     }
 
+    .autocomplete-container {
+      position: relative;
+    }
+
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      max-height: 250px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+    }
+
+    .autocomplete-dropdown.show {
+      display: block;
+    }
+
+    .autocomplete-item {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+      background: var(--surface-hover);
+    }
+
+    .autocomplete-item.selected {
+      background: var(--accent);
+      color: white;
+    }
+
+    .autocomplete-item .player-team {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .autocomplete-item.selected .player-team {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
     @media (max-width: 768px) {
       .container {
         padding: 1rem;
@@ -968,6 +1023,19 @@
       .add-team-card {
         min-height: 100px;
       }
+
+      .header-actions {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .trade-machine {
+        width: 100%;
+      }
+
+      .player-search-input {
+        flex: 1;
+      }
     }
   </style>
 </head>
@@ -977,8 +1045,18 @@
       <h1>🏀 NBA Trade Calculator</h1>
       <div class="header-actions">
         <div class="trade-machine">
-          <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Enter player name..." autocomplete="off">
-          <button class="btn btn-primary" id="tradeForPlayerBtn">🔄 Trade for Player</button>
+          <div class="autocomplete-container">
+            <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Search player..." autocomplete="off">
+            <div class="autocomplete-dropdown" id="playerDropdown"></div>
+          </div>
+          <button class="btn btn-primary" id="tradeForPlayerBtn">🔄 Trade Player</button>
+        </div>
+        <div class="trade-machine">
+          <div class="autocomplete-container">
+            <input type="text" id="teamSearchInput" class="player-search-input" placeholder="Search team..." autocomplete="off">
+            <div class="autocomplete-dropdown" id="teamDropdown"></div>
+          </div>
+          <button class="btn btn-primary" id="tradeForTeamBtn">🏀 Trade Team</button>
         </div>
         <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
         <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
@@ -2529,11 +2607,9 @@
     function generateTradeForPlayer(playerName) {
       const MAX_ATTEMPTS = 200;
       
-      // Find the target player (case-insensitive partial match)
-      const searchTerm = playerName.toLowerCase().trim();
+      // Find the target player (exact match, case-insensitive)
       const targetPlayer = players.find(p => 
-        p.player.toLowerCase().includes(searchTerm) ||
-        p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm))
+        p.player.toLowerCase() === playerName.toLowerCase()
       );
       
       if (!targetPlayer) {
@@ -2705,19 +2781,268 @@
       
       return { error: `Could not generate a valid trade for ${targetPlayer.player}. Try again!` };
     }
+
+    // Generate a random valid trade involving a specific team
+    function generateTradeForTeam(teamName) {
+      const MAX_ATTEMPTS = 200;
+      
+      // Verify team exists
+      if (!teams.includes(teamName)) {
+        return { error: `Team "${teamName}" not found` };
+      }
+      
+      // Get tradeable players
+      const tradeablePlayers = players.filter(p => 
+        p.team && 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        p.salary >= 500000
+      );
+      
+      // Get players from target team
+      const teamPlayers = tradeablePlayers.filter(p => p.team === teamName);
+      if (teamPlayers.length === 0) {
+        return { error: `No tradeable players found for ${teamName}` };
+      }
+      
+      // Get other teams
+      const otherTeams = [...new Set(tradeablePlayers.map(p => p.team))].filter(t => t !== teamName);
+      
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Randomly decide 2-team or 3-team trade (30% chance for 3-team)
+        const isThreeTeam = Math.random() < 0.3;
+        
+        // Pick random players from target team (1-3 players)
+        const shuffledTeamPlayers = [...teamPlayers].sort(() => Math.random() - 0.5);
+        const numPlayers = Math.min(Math.floor(Math.random() * 3) + 1, shuffledTeamPlayers.length);
+        
+        if (isThreeTeam && otherTeams.length >= 2) {
+          // THREE-TEAM TRADE
+          const shuffledOtherTeams = [...otherTeams].sort(() => Math.random() - 0.5);
+          const team2Name = shuffledOtherTeams[0];
+          const team3Name = shuffledOtherTeams[1];
+          
+          // Target team sends players out
+          const team1PlayersOut = [];
+          for (let i = 0; i < numPlayers; i++) {
+            team1PlayersOut.push({ ...shuffledTeamPlayers[i], destination: Math.random() < 0.7 ? 1 : 2 });
+          }
+          
+          const team1Outgoing = team1PlayersOut.reduce((sum, p) => sum + p.salary, 0);
+          
+          // Team2 sends players
+          const team2Players = tradeablePlayers
+            .filter(p => p.team === team2Name)
+            .sort(() => Math.random() - 0.5);
+          
+          // Team3 sends players
+          const team3Players = tradeablePlayers
+            .filter(p => p.team === team3Name)
+            .sort(() => Math.random() - 0.5);
+          
+          if (team2Players.length < 1 || team3Players.length < 1) continue;
+          
+          let team2PlayersOut = [];
+          let team3PlayersOut = [];
+          let returnToTeam1 = 0;
+          
+          // Add players from team2
+          for (const p of team2Players) {
+            if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
+              team2PlayersOut.push({ ...p, destination: 0 });
+              returnToTeam1 += p.salary;
+            }
+            if (team2PlayersOut.length >= 3) break;
+          }
+          
+          // Maybe add players from team3
+          if (returnToTeam1 < team1Outgoing * 0.8) {
+            for (const p of team3Players) {
+              if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
+                team3PlayersOut.push({ ...p, destination: 0 });
+                returnToTeam1 += p.salary;
+              }
+              if (team3PlayersOut.length >= 2) break;
+            }
+          }
+          
+          if (team2PlayersOut.length === 0 && team3PlayersOut.length === 0) continue;
+          
+          const testTrade = [
+            { teamName: teamName, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: team2Name, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: team3Name, playersOut: team3PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
+        } else {
+          // TWO-TEAM TRADE
+          const partnerTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+          
+          const team1PlayersOut = [];
+          for (let i = 0; i < numPlayers; i++) {
+            team1PlayersOut.push({ ...shuffledTeamPlayers[i], destination: 1 });
+          }
+          
+          const team1Outgoing = team1PlayersOut.reduce((sum, p) => sum + p.salary, 0);
+          
+          const partnerPlayers = tradeablePlayers
+            .filter(p => p.team === partnerTeam)
+            .sort(() => Math.random() - 0.5);
+          
+          let team2PlayersOut = [];
+          let team2Outgoing = 0;
+          
+          for (const p of partnerPlayers) {
+            if (team2Outgoing < team1Outgoing * 1.25 + 5000000) {
+              team2PlayersOut.push({ ...p, destination: 0 });
+              team2Outgoing += p.salary;
+            }
+            if (team2PlayersOut.length >= 4) break;
+          }
+          
+          if (team2PlayersOut.length === 0) continue;
+          
+          const testTrade = [
+            { teamName: teamName, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
+        }
+      }
+      
+      return { error: `Could not generate a valid trade for ${teamName}. Try again!` };
+    }
+    
+    // Selected player/team for autocomplete
+    let selectedPlayer = null;
+    let selectedTeam = null;
+    
+    // Player autocomplete
+    const playerSearchInput = document.getElementById('playerSearchInput');
+    const playerDropdown = document.getElementById('playerDropdown');
+    
+    playerSearchInput.addEventListener('input', () => {
+      const searchTerm = playerSearchInput.value.toLowerCase().trim();
+      selectedPlayer = null;
+      
+      if (searchTerm.length < 2) {
+        playerDropdown.classList.remove('show');
+        return;
+      }
+      
+      // Get tradeable players matching search
+      const matches = players
+        .filter(p => 
+          p.team && 
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          (p.player.toLowerCase().includes(searchTerm) ||
+           p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm)))
+        )
+        .slice(0, 10);
+      
+      if (matches.length === 0) {
+        playerDropdown.classList.remove('show');
+        return;
+      }
+      
+      playerDropdown.innerHTML = matches.map(p => `
+        <div class="autocomplete-item" data-player="${p.player}" data-team="${p.team}">
+          <span>${p.player}</span>
+          <span class="player-team">${p.team}</span>
+        </div>
+      `).join('');
+      
+      playerDropdown.classList.add('show');
+      
+      // Add click handlers
+      playerDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectedPlayer = item.dataset.player;
+          playerSearchInput.value = selectedPlayer;
+          playerDropdown.classList.remove('show');
+        });
+      });
+    });
+    
+    // Team autocomplete
+    const teamSearchInput = document.getElementById('teamSearchInput');
+    const teamDropdown = document.getElementById('teamDropdown');
+    
+    teamSearchInput.addEventListener('input', () => {
+      const searchTerm = teamSearchInput.value.toLowerCase().trim();
+      selectedTeam = null;
+      
+      if (searchTerm.length < 2) {
+        teamDropdown.classList.remove('show');
+        return;
+      }
+      
+      const matches = teams.filter(t => t.toLowerCase().includes(searchTerm)).slice(0, 10);
+      
+      if (matches.length === 0) {
+        teamDropdown.classList.remove('show');
+        return;
+      }
+      
+      teamDropdown.innerHTML = matches.map(t => `
+        <div class="autocomplete-item" data-team="${t}">
+          <span>${t}</span>
+        </div>
+      `).join('');
+      
+      teamDropdown.classList.add('show');
+      
+      teamDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectedTeam = item.dataset.team;
+          teamSearchInput.value = selectedTeam;
+          teamDropdown.classList.remove('show');
+        });
+      });
+    });
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.autocomplete-container')) {
+        playerDropdown.classList.remove('show');
+        teamDropdown.classList.remove('show');
+      }
+    });
     
     // Handle trade for player button
     const tradeForPlayerBtn = document.getElementById('tradeForPlayerBtn');
-    const playerSearchInput = document.getElementById('playerSearchInput');
     
     tradeForPlayerBtn.addEventListener('click', () => {
       const playerName = playerSearchInput.value.trim();
       if (!playerName) {
-        alert('Please enter a player name');
+        alert('Please search and select a player');
         return;
       }
       
-      const result = generateTradeForPlayer(playerName);
+      // Verify exact match exists
+      const exactMatch = players.find(p => p.player.toLowerCase() === playerName.toLowerCase());
+      if (!exactMatch) {
+        alert('Please select a player from the dropdown');
+        return;
+      }
+      
+      const result = generateTradeForPlayer(exactMatch.player);
       
       if (result.error) {
         alert(result.error);
@@ -2727,10 +3052,45 @@
       }
     });
     
-    // Also trigger on Enter key
+    // Handle trade for team button
+    const tradeForTeamBtn = document.getElementById('tradeForTeamBtn');
+    
+    tradeForTeamBtn.addEventListener('click', () => {
+      const teamName = teamSearchInput.value.trim();
+      if (!teamName) {
+        alert('Please search and select a team');
+        return;
+      }
+      
+      // Verify exact match exists
+      const exactMatch = teams.find(t => t.toLowerCase() === teamName.toLowerCase());
+      if (!exactMatch) {
+        alert('Please select a team from the dropdown');
+        return;
+      }
+      
+      const result = generateTradeForTeam(exactMatch);
+      
+      if (result.error) {
+        alert(result.error);
+      } else {
+        tradeTeams = result;
+        render();
+      }
+    });
+    
+    // Trigger on Enter key
     playerSearchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
+        playerDropdown.classList.remove('show');
         tradeForPlayerBtn.click();
+      }
+    });
+    
+    teamSearchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        teamDropdown.classList.remove('show');
+        tradeForTeamBtn.click();
       }
     });
     
