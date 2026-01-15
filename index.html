@@ -1518,6 +1518,25 @@
         return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
       }
 
+      // Check that teams using TPE to receive players must send something back
+      tradeTeams.forEach(t => {
+        if (t.teamName && t.tpeUsed && t.playersIn.length > 0 && t.playersOut.length === 0) {
+          // Team is receiving players via TPE but sending no players
+          // They must send at least one asset (pick, rights, or cash)
+          const hasAssets = (t.picksOut && t.picksOut.length > 0) ||
+                           (t.rightsOut && t.rightsOut.length > 0) ||
+                           (t.cashOut && t.cashOut.length > 0);
+          if (!hasAssets) {
+            allValid = false;
+            invalidMessages.push(`${t.teamName} must send an asset (pick, rights, or cash) when using TPE`);
+          }
+        }
+      });
+
+      if (!allValid) {
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
+      }
+
       // Check if warnings are only date-related or NTC (trade is valid but pending approval/date)
       if (allWarnings.length > 0) {
         const hasDateWarnings = allWarnings.some(w => w.includes('available') && !w.includes('no-trade'));
