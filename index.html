@@ -2638,59 +2638,118 @@
       const otherTeams = [...new Set(tradeablePlayers.map(p => p.team))].filter(t => t !== targetTeam);
       
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // TWO-TEAM TRADE (simpler, favor 1-for-1 when possible)
-        const partnerTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+        // Determine trade type: 60% 2-team, 35% 3-team, 5% 4-team
+        const rand = Math.random();
+        const numTeams = rand < 0.6 ? 2 : rand < 0.95 ? 3 : 4;
         
-        // Target player goes to partner team
-        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-        const team1Outgoing = targetPlayer.salary;
-        
-        // Partner team sends players back - try to find minimal match
-        const partnerPlayers = tradeablePlayers
-          .filter(p => p.team === partnerTeam)
-          .sort(() => Math.random() - 0.5);
-        
-        let team2PlayersOut = [];
-        let team2Outgoing = 0;
-        
-        // First try to find a single player that works (1-for-1)
-        const singleMatch = partnerPlayers.find(p => {
-          const wouldWork = p.salary >= team1Outgoing * 0.75 - 5000000 && 
-                           p.salary <= team1Outgoing * 1.25 + 5000000;
-          return wouldWork;
-        });
-        
-        if (singleMatch && Math.random() < 0.4) {
-          // 40% chance to use single player match if found
-          team2PlayersOut = [{ ...singleMatch, destination: 0 }];
-          team2Outgoing = singleMatch.salary;
-        } else {
-          // Build package with minimum players needed
-          for (const p of partnerPlayers) {
-            team2PlayersOut.push({ ...p, destination: 0 });
-            team2Outgoing += p.salary;
+        if (numTeams >= 3 && otherTeams.length >= numTeams - 1) {
+          // MULTI-TEAM TRADE (3 or 4 teams)
+          const shuffledOtherTeams = [...otherTeams].sort(() => Math.random() - 0.5);
+          const involvedTeams = [targetTeam, ...shuffledOtherTeams.slice(0, numTeams - 1)];
+          
+          // Target player goes to a random other team
+          const targetDestination = Math.floor(Math.random() * (numTeams - 1)) + 1;
+          const team1PlayersOut = [{ ...targetPlayer, destination: targetDestination }];
+          const team1Outgoing = targetPlayer.salary;
+          
+          // Build trade structure
+          const testTrade = involvedTeams.map((team, idx) => ({
+            teamName: team,
+            playersOut: idx === 0 ? team1PlayersOut : [],
+            playersIn: [],
+            tpeUsed: null,
+            picksOut: [],
+            rightsOut: [],
+            cashOut: []
+          }));
+          
+          // Other teams send players back to team 0 (target team)
+          let returnToTeam1 = 0;
+          
+          for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
+            const teamPlayers = tradeablePlayers
+              .filter(p => p.team === involvedTeams[teamIdx])
+              .sort(() => Math.random() - 0.5);
             
-            // Stop once we have enough salary
-            if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
-            if (team2PlayersOut.length >= 3) break;
+            for (const p of teamPlayers) {
+              if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
+                // Send to team 0 or another random team
+                const dest = Math.random() < 0.7 ? 0 : Math.floor(Math.random() * numTeams);
+                if (dest !== teamIdx) {
+                  testTrade[teamIdx].playersOut.push({ ...p, destination: dest });
+                  if (dest === 0) returnToTeam1 += p.salary;
+                }
+              }
+              if (testTrade[teamIdx].playersOut.length >= 2) break;
+            }
           }
-        }
-        
-        if (team2PlayersOut.length === 0) continue;
-        
-        // Build trade structure
-        const testTrade = [
-          { teamName: targetTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-        ];
-        
-        // Redistribute and validate
-        tradeTeams = testTrade;
-        redistributePlayers();
-        
-        const validation = validateTrade();
-        if (validation.valid || validation.type.startsWith('pending')) {
-          return testTrade;
+          
+          // Check if we have enough players involved
+          const totalPlayersOut = testTrade.reduce((sum, t) => sum + t.playersOut.length, 0);
+          if (totalPlayersOut < numTeams) continue;
+          
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
+        } else {
+          // TWO-TEAM TRADE
+          const partnerTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+          
+          // Target player goes to partner team
+          const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+          const team1Outgoing = targetPlayer.salary;
+          
+          // Partner team sends players back - try to find minimal match
+          const partnerPlayers = tradeablePlayers
+            .filter(p => p.team === partnerTeam)
+            .sort(() => Math.random() - 0.5);
+          
+          let team2PlayersOut = [];
+          let team2Outgoing = 0;
+          
+          // First try to find a single player that works (1-for-1)
+          const singleMatch = partnerPlayers.find(p => {
+            const wouldWork = p.salary >= team1Outgoing * 0.75 - 5000000 && 
+                             p.salary <= team1Outgoing * 1.25 + 5000000;
+            return wouldWork;
+          });
+          
+          if (singleMatch && Math.random() < 0.4) {
+            // 40% chance to use single player match if found
+            team2PlayersOut = [{ ...singleMatch, destination: 0 }];
+            team2Outgoing = singleMatch.salary;
+          } else {
+            // Build package with minimum players needed
+            for (const p of partnerPlayers) {
+              team2PlayersOut.push({ ...p, destination: 0 });
+              team2Outgoing += p.salary;
+              
+              // Stop once we have enough salary
+              if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
+              if (team2PlayersOut.length >= 3) break;
+            }
+          }
+          
+          if (team2PlayersOut.length === 0) continue;
+          
+          // Build trade structure
+          const testTrade = [
+            { teamName: targetTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          
+          // Redistribute and validate
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
         }
       }
       
@@ -2725,58 +2784,118 @@
       const otherTeams = [...new Set(tradeablePlayers.map(p => p.team))].filter(t => t !== teamName);
       
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // TWO-TEAM TRADE - pick 1 random player from target team
+        // Determine trade type: 60% 2-team, 35% 3-team, 5% 4-team
+        const rand = Math.random();
+        const numTeams = rand < 0.6 ? 2 : rand < 0.95 ? 3 : 4;
+        
+        // Pick 1 random player from target team
         const shuffledTeamPlayers = [...teamPlayers].sort(() => Math.random() - 0.5);
         const targetPlayer = shuffledTeamPlayers[0];
         
-        const partnerTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
-        
-        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-        const team1Outgoing = targetPlayer.salary;
-        
-        const partnerPlayers = tradeablePlayers
-          .filter(p => p.team === partnerTeam)
-          .sort(() => Math.random() - 0.5);
-        
-        let team2PlayersOut = [];
-        let team2Outgoing = 0;
-        
-        // First try to find a single player that works (1-for-1)
-        const singleMatch = partnerPlayers.find(p => {
-          const wouldWork = p.salary >= team1Outgoing * 0.75 - 5000000 && 
-                           p.salary <= team1Outgoing * 1.25 + 5000000;
-          return wouldWork;
-        });
-        
-        if (singleMatch && Math.random() < 0.4) {
-          // 40% chance to use single player match if found
-          team2PlayersOut = [{ ...singleMatch, destination: 0 }];
-          team2Outgoing = singleMatch.salary;
-        } else {
-          // Build package with minimum players needed
-          for (const p of partnerPlayers) {
-            team2PlayersOut.push({ ...p, destination: 0 });
-            team2Outgoing += p.salary;
+        if (numTeams >= 3 && otherTeams.length >= numTeams - 1) {
+          // MULTI-TEAM TRADE (3 or 4 teams)
+          const shuffledOtherTeams = [...otherTeams].sort(() => Math.random() - 0.5);
+          const involvedTeams = [teamName, ...shuffledOtherTeams.slice(0, numTeams - 1)];
+          
+          // Target player goes to a random other team
+          const targetDestination = Math.floor(Math.random() * (numTeams - 1)) + 1;
+          const team1PlayersOut = [{ ...targetPlayer, destination: targetDestination }];
+          const team1Outgoing = targetPlayer.salary;
+          
+          // Build trade structure
+          const testTrade = involvedTeams.map((team, idx) => ({
+            teamName: team,
+            playersOut: idx === 0 ? team1PlayersOut : [],
+            playersIn: [],
+            tpeUsed: null,
+            picksOut: [],
+            rightsOut: [],
+            cashOut: []
+          }));
+          
+          // Other teams send players back to team 0 (target team)
+          let returnToTeam1 = 0;
+          
+          for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
+            const otherTeamPlayers = tradeablePlayers
+              .filter(p => p.team === involvedTeams[teamIdx])
+              .sort(() => Math.random() - 0.5);
             
-            // Stop once we have enough salary
-            if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
-            if (team2PlayersOut.length >= 3) break;
+            for (const p of otherTeamPlayers) {
+              if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
+                // Send to team 0 or another random team
+                const dest = Math.random() < 0.7 ? 0 : Math.floor(Math.random() * numTeams);
+                if (dest !== teamIdx) {
+                  testTrade[teamIdx].playersOut.push({ ...p, destination: dest });
+                  if (dest === 0) returnToTeam1 += p.salary;
+                }
+              }
+              if (testTrade[teamIdx].playersOut.length >= 2) break;
+            }
           }
-        }
-        
-        if (team2PlayersOut.length === 0) continue;
-        
-        const testTrade = [
-          { teamName: teamName, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-        ];
-        
-        tradeTeams = testTrade;
-        redistributePlayers();
-        
-        const validation = validateTrade();
-        if (validation.valid || validation.type.startsWith('pending')) {
-          return testTrade;
+          
+          // Check if we have enough players involved
+          const totalPlayersOut = testTrade.reduce((sum, t) => sum + t.playersOut.length, 0);
+          if (totalPlayersOut < numTeams) continue;
+          
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
+        } else {
+          // TWO-TEAM TRADE
+          const partnerTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+          
+          const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+          const team1Outgoing = targetPlayer.salary;
+          
+          const partnerPlayers = tradeablePlayers
+            .filter(p => p.team === partnerTeam)
+            .sort(() => Math.random() - 0.5);
+          
+          let team2PlayersOut = [];
+          let team2Outgoing = 0;
+          
+          // First try to find a single player that works (1-for-1)
+          const singleMatch = partnerPlayers.find(p => {
+            const wouldWork = p.salary >= team1Outgoing * 0.75 - 5000000 && 
+                             p.salary <= team1Outgoing * 1.25 + 5000000;
+            return wouldWork;
+          });
+          
+          if (singleMatch && Math.random() < 0.4) {
+            // 40% chance to use single player match if found
+            team2PlayersOut = [{ ...singleMatch, destination: 0 }];
+            team2Outgoing = singleMatch.salary;
+          } else {
+            // Build package with minimum players needed
+            for (const p of partnerPlayers) {
+              team2PlayersOut.push({ ...p, destination: 0 });
+              team2Outgoing += p.salary;
+              
+              // Stop once we have enough salary
+              if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
+              if (team2PlayersOut.length >= 3) break;
+            }
+          }
+          
+          if (team2PlayersOut.length === 0) continue;
+          
+          const testTrade = [
+            { teamName: teamName, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          
+          tradeTeams = testTrade;
+          redistributePlayers();
+          
+          const validation = validateTrade();
+          if (validation.valid || validation.type.startsWith('pending')) {
+            return testTrade;
+          }
         }
       }
       
