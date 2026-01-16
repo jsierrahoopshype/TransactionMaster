@@ -356,10 +356,30 @@
       width: 100%;
     }
 
+    .player-headshot {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+      background: var(--surface-hover);
+    }
+
+    .team-logo {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+    }
+
     .player-chip-info {
       display: flex;
       flex-direction: column;
       gap: 0.125rem;
+      flex: 1;
+      min-width: 0;
     }
 
     .player-chip-name {
@@ -1168,9 +1188,21 @@
           </div>
           <button class="btn btn-primary" id="tradeForTeamBtn">🏀 Trade Team</button>
         </div>
-        <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
-        <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
-        <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
+        <div class="trade-machine">
+          <div class="autocomplete-container">
+            <input type="text" id="playerToTeamPlayerInput" class="player-search-input" placeholder="Player..." autocomplete="off" style="width: 120px;">
+            <div class="autocomplete-dropdown" id="playerToTeamPlayerDropdown"></div>
+          </div>
+          <span style="color: var(--text-secondary);">→</span>
+          <div class="autocomplete-container">
+            <input type="text" id="playerToTeamTeamInput" class="player-search-input" placeholder="Team..." autocomplete="off" style="width: 120px;">
+            <div class="autocomplete-dropdown" id="playerToTeamTeamDropdown"></div>
+          </div>
+          <button class="btn btn-primary" id="playerToTeamBtn">🎯 Trade</button>
+        </div>
+        <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random</button>
+        <button class="btn btn-success" id="generateImageBtn">📸 Image</button>
+        <button class="btn btn-danger" id="resetBtn">Reset</button>
       </div>
     </header>
 
@@ -1265,8 +1297,15 @@
         apronRoom1st: teamPlayer.apronRoom1st,
         apronRoom2nd: teamPlayer.apronRoom2nd,
         isHardcap1st: teamPlayer.isHardcap1st,
-        isHardcap2nd: teamPlayer.isHardcap2nd
+        isHardcap2nd: teamPlayer.isHardcap2nd,
+        logo: teamPlayer.teamLogo
       };
+    }
+
+    // Get team logo URL
+    function getTeamLogo(teamName) {
+      const teamPlayer = players.find(p => p.team === teamName);
+      return teamPlayer?.teamLogo || '';
     }
 
     // Calculate trade salary (two-way players count as $0)
@@ -1844,6 +1883,71 @@
           }
         });
       });
+      
+      // Auto-add cash considerations for teams that are sending players but receiving nothing
+      tradeTeams.forEach((team, teamIndex) => {
+        if (!team.teamName) return;
+        
+        const isSendingPlayers = team.playersOut.length > 0;
+        const isReceivingPlayers = team.playersIn.length > 0;
+        
+        // Check if receiving any assets
+        let isReceivingAssets = false;
+        tradeTeams.forEach((otherTeam, otherIndex) => {
+          if (otherIndex !== teamIndex && otherTeam.teamName) {
+            // Check picks
+            if (otherTeam.picksOut) {
+              otherTeam.picksOut.forEach(pick => {
+                const dest = pick.destination !== undefined ? pick.destination : (tradeTeams.length === 2 ? teamIndex : undefined);
+                if (dest === teamIndex) isReceivingAssets = true;
+              });
+            }
+            // Check rights
+            if (otherTeam.rightsOut) {
+              otherTeam.rightsOut.forEach(rights => {
+                const dest = rights.destination !== undefined ? rights.destination : (tradeTeams.length === 2 ? teamIndex : undefined);
+                if (dest === teamIndex) isReceivingAssets = true;
+              });
+            }
+            // Check cash
+            if (otherTeam.cashOut && otherTeam.cashOut.length > 0) {
+              otherTeam.cashOut.forEach(cash => {
+                const dest = cash.destination !== undefined ? cash.destination : (tradeTeams.length === 2 ? teamIndex : undefined);
+                if (dest === teamIndex) isReceivingAssets = true;
+              });
+            }
+          }
+        });
+        
+        // If team is sending players but receiving nothing, add cash from teams receiving their players
+        if (isSendingPlayers && !isReceivingPlayers && !isReceivingAssets) {
+          // Find which teams are receiving this team's players
+          const destinationTeams = new Set();
+          team.playersOut.forEach(player => {
+            if (player.destination !== undefined && player.destination !== teamIndex) {
+              destinationTeams.add(player.destination);
+            }
+          });
+          
+          // For each destination team, check if they need to add cash
+          destinationTeams.forEach(destIdx => {
+            const destTeam = tradeTeams[destIdx];
+            if (!destTeam || !destTeam.teamName) return;
+            
+            // Check if dest team is already sending cash to this team
+            const alreadySendingCash = destTeam.cashOut && destTeam.cashOut.some(cash => {
+              const cashDest = cash.destination !== undefined ? cash.destination : (tradeTeams.length === 2 ? teamIndex : undefined);
+              return cashDest === teamIndex;
+            });
+            
+            if (!alreadySendingCash) {
+              // Auto-add cash from destination team to this team
+              if (!destTeam.cashOut) destTeam.cashOut = [];
+              destTeam.cashOut.push({ destination: teamIndex, autoAdded: true });
+            }
+          });
+        }
+      });
     }
 
     // Get other active teams (for destination dropdown)
@@ -1875,6 +1979,7 @@
       return `
         <div class="team-card ${cardClass}" data-index="${index}">
           <div class="team-header">
+            ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="team-logo" alt="" onerror="this.style.display='none'">` : ''}
             <select class="team-select" data-index="${index}">
               <option value="">Select Team...</option>
               ${availableTeams.map(t => `
@@ -1980,6 +2085,7 @@
                 ${tradeTeam.playersOut.map((p, pIndex) => `
                   <div class="player-chip">
                     <div class="player-chip-row">
+                      ${p.headshot ? `<img src="${p.headshot}" class="player-headshot" alt="" onerror="this.style.display='none'">` : ''}
                       <div class="player-chip-info">
                         <div class="player-chip-name">
                           ${p.player}
@@ -2142,6 +2248,7 @@
                   return `
                     <div class="player-chip incoming">
                       <div class="player-chip-row">
+                        ${p.headshot ? `<img src="${p.headshot}" class="player-headshot" alt="" onerror="this.style.display='none'">` : ''}
                         <div class="player-chip-info">
                           <div class="player-chip-name">
                             ${p.player}
@@ -3447,6 +3554,234 @@
       }
     });
     
+    // Player to Team autocomplete
+    const playerToTeamPlayerInput = document.getElementById('playerToTeamPlayerInput');
+    const playerToTeamPlayerDropdown = document.getElementById('playerToTeamPlayerDropdown');
+    const playerToTeamTeamInput = document.getElementById('playerToTeamTeamInput');
+    const playerToTeamTeamDropdown = document.getElementById('playerToTeamTeamDropdown');
+    const playerToTeamBtn = document.getElementById('playerToTeamBtn');
+    
+    let selectedPlayerToTeamPlayer = null;
+    let selectedPlayerToTeamTeam = null;
+    
+    // Player autocomplete for Player to Team
+    playerToTeamPlayerInput.addEventListener('input', () => {
+      const searchTerm = playerToTeamPlayerInput.value.toLowerCase().trim();
+      selectedPlayerToTeamPlayer = null;
+      
+      if (searchTerm.length < 2) {
+        playerToTeamPlayerDropdown.classList.remove('show');
+        return;
+      }
+      
+      const matches = players
+        .filter(p => 
+          p.team && 
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          (p.player.toLowerCase().includes(searchTerm) ||
+           p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm)))
+        )
+        .slice(0, 10);
+      
+      if (matches.length === 0) {
+        playerToTeamPlayerDropdown.classList.remove('show');
+        return;
+      }
+      
+      playerToTeamPlayerDropdown.innerHTML = matches.map(p => `
+        <div class="autocomplete-item" data-player="${p.player}" data-team="${p.team}">
+          <span>${p.player}</span>
+          <span class="player-team">${p.team}</span>
+        </div>
+      `).join('');
+      
+      playerToTeamPlayerDropdown.classList.add('show');
+      
+      playerToTeamPlayerDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectedPlayerToTeamPlayer = item.dataset.player;
+          playerToTeamPlayerInput.value = selectedPlayerToTeamPlayer;
+          playerToTeamPlayerDropdown.classList.remove('show');
+        });
+      });
+    });
+    
+    // Team autocomplete for Player to Team
+    playerToTeamTeamInput.addEventListener('input', () => {
+      const searchTerm = playerToTeamTeamInput.value.toLowerCase().trim();
+      selectedPlayerToTeamTeam = null;
+      
+      if (searchTerm.length < 2) {
+        playerToTeamTeamDropdown.classList.remove('show');
+        return;
+      }
+      
+      const matches = teams.filter(t => t.toLowerCase().includes(searchTerm)).slice(0, 10);
+      
+      if (matches.length === 0) {
+        playerToTeamTeamDropdown.classList.remove('show');
+        return;
+      }
+      
+      playerToTeamTeamDropdown.innerHTML = matches.map(t => `
+        <div class="autocomplete-item" data-team="${t}">
+          <span>${t}</span>
+        </div>
+      `).join('');
+      
+      playerToTeamTeamDropdown.classList.add('show');
+      
+      playerToTeamTeamDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectedPlayerToTeamTeam = item.dataset.team;
+          playerToTeamTeamInput.value = selectedPlayerToTeamTeam;
+          playerToTeamTeamDropdown.classList.remove('show');
+        });
+      });
+    });
+    
+    // Generate trade for specific player to specific team
+    function generateTradePlayerToTeam(playerName, destTeamName) {
+      const MAX_ATTEMPTS = 200;
+      
+      // Find the target player
+      const targetPlayer = players.find(p => 
+        p.player.toLowerCase() === playerName.toLowerCase()
+      );
+      
+      if (!targetPlayer) {
+        return { error: `Player "${playerName}" not found` };
+      }
+      
+      // Check if player is tradeable
+      if (targetPlayer.contractStatus?.toUpperCase() === 'TWO-WAY' ||
+          targetPlayer.contractStatus?.toUpperCase().includes('10-DAY') ||
+          targetPlayer.tradeAvailable?.toLowerCase() === 'not available') {
+        return { error: `${targetPlayer.player} is not available for trade` };
+      }
+      
+      const sourceTeam = targetPlayer.team;
+      
+      // Check destination team exists and is different
+      if (!teams.includes(destTeamName)) {
+        return { error: `Team "${destTeamName}" not found` };
+      }
+      
+      if (sourceTeam === destTeamName) {
+        return { error: `${targetPlayer.player} is already on ${destTeamName}` };
+      }
+      
+      // Get tradeable players from destination team
+      const destTeamPlayers = players.filter(p => 
+        p.team === destTeamName &&
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        p.salary > 0
+      ).sort((a, b) => b.salary - a.salary);
+      
+      if (destTeamPlayers.length === 0) {
+        return { error: `No tradeable players on ${destTeamName}` };
+      }
+      
+      // Try to find a valid trade
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Shuffle destination players for variety
+        const shuffledDestPlayers = [...destTeamPlayers].sort(() => Math.random() - 0.5);
+        
+        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+        const team1Outgoing = targetPlayer.salary;
+        
+        let team2PlayersOut = [];
+        let team2Outgoing = 0;
+        
+        // First try single player match (40% chance)
+        const singleMatch = shuffledDestPlayers.find(p => {
+          const wouldWork = p.salary >= team1Outgoing * 0.75 - 5000000 && 
+                           p.salary <= team1Outgoing * 1.25 + 5000000;
+          return wouldWork;
+        });
+        
+        if (singleMatch && Math.random() < 0.4) {
+          team2PlayersOut = [{ ...singleMatch, destination: 0 }];
+          team2Outgoing = singleMatch.salary;
+        } else {
+          // Build package with minimum players needed
+          for (const p of shuffledDestPlayers) {
+            team2PlayersOut.push({ ...p, destination: 0 });
+            team2Outgoing += p.salary;
+            
+            // Stop once we have enough salary
+            if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
+            if (team2PlayersOut.length >= 4) break;
+          }
+        }
+        
+        if (team2PlayersOut.length === 0) continue;
+        
+        const testTrade = [
+          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
+        
+        tradeTeams = testTrade;
+        redistributePlayers();
+        
+        const validation = validateTrade();
+        if (validation.valid || validation.type?.startsWith('pending')) {
+          return testTrade;
+        }
+      }
+      
+      return { error: `Could not find a valid trade to send ${targetPlayer.player} to ${destTeamName}. Try a different combination!` };
+    }
+    
+    // Handle Player to Team button
+    playerToTeamBtn.addEventListener('click', () => {
+      const playerName = playerToTeamPlayerInput.value.trim();
+      const teamName = playerToTeamTeamInput.value.trim();
+      
+      if (!playerName || !teamName) {
+        alert('Please select both a player and destination team');
+        return;
+      }
+      
+      // Verify exact matches
+      const exactPlayer = players.find(p => p.player.toLowerCase() === playerName.toLowerCase());
+      const exactTeam = teams.find(t => t.toLowerCase() === teamName.toLowerCase());
+      
+      if (!exactPlayer) {
+        alert('Please select a player from the dropdown');
+        return;
+      }
+      if (!exactTeam) {
+        alert('Please select a team from the dropdown');
+        return;
+      }
+      
+      const result = generateTradePlayerToTeam(exactPlayer.player, exactTeam);
+      
+      if (result && result.error) {
+        tradeStatus.style.display = 'flex';
+        tradeStatus.className = 'trade-status invalid';
+        document.getElementById('tradeStatusIcon').textContent = '✕';
+        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
+        document.getElementById('tradeStatusMessage').textContent = result.error;
+      } else {
+        tradeTeams = result;
+        render();
+      }
+    });
+    
+    // Close Player to Team dropdowns
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.autocomplete-container')) {
+        playerToTeamPlayerDropdown.classList.remove('show');
+        playerToTeamTeamDropdown.classList.remove('show');
+      }
+    });
+    
     // Handle random trade button
     const randomTradeBtn = document.getElementById('randomTradeBtn');
     randomTradeBtn.addEventListener('click', () => {
@@ -3973,7 +4308,9 @@
                   isHardcap2nd: (row['HARD CAP 2nd?'] || '').toString().trim().toLowerCase().includes('hc'),
                   tradeAvailable: row['RESTRICTIONS']?.trim() || '',
                   isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
-                  injuryReason: row['REASON']?.trim() || ''
+                  injuryReason: row['REASON']?.trim() || '',
+                  teamLogo: row['LOGO']?.trim() || '',
+                  headshot: row['HEADSHOT']?.trim() || ''
                 };
                 // Debug logging for Brooklyn players
                 if (player.team === 'Brooklyn') {
