@@ -1972,6 +1972,8 @@
                          (team.picksOut && team.picksOut.length > 0) || 
                          (team.rightsOut && team.rightsOut.length > 0);
         
+        if (!isSending) return;
+        
         // Check if team is receiving anything
         const isReceivingPlayers = team.playersIn.length > 0;
         const isReceivingPicks = tradeTeams.some((otherTeam, otherIdx) => 
@@ -1990,30 +1992,52 @@
         const isReceiving = isReceivingPlayers || isReceivingPicks || isReceivingRights || isReceivingCash;
         
         // If sending but not receiving, find a team to send cash from
-        if (isSending && !isReceiving) {
-          // Find teams that are receiving from this team
-          const receivingTeamIndices = new Set();
-          team.playersOut.forEach(p => {
-            if (p.destination !== undefined) receivingTeamIndices.add(p.destination);
-          });
-          team.picksOut?.forEach(p => {
-            if (p.destination !== undefined) receivingTeamIndices.add(p.destination);
-          });
-          team.rightsOut?.forEach(r => {
-            if (r.destination !== undefined) receivingTeamIndices.add(r.destination);
+        if (!isReceiving) {
+          // Find the team that receives the most value from this team (players)
+          let bestCashSender = -1;
+          let maxValueReceived = 0;
+          
+          tradeTeams.forEach((otherTeam, otherIdx) => {
+            if (otherIdx === teamIndex || !otherTeam.teamName) return;
+            
+            // Calculate value this team sends to otherTeam
+            let valueToOther = 0;
+            team.playersOut.forEach(p => {
+              if (p.destination === otherIdx) valueToOther += p.salary || 0;
+            });
+            
+            if (valueToOther > maxValueReceived) {
+              maxValueReceived = valueToOther;
+              bestCashSender = otherIdx;
+            }
           });
           
-          // Have one of those teams send cash back
-          if (receivingTeamIndices.size > 0) {
-            const cashSenderIndex = Array.from(receivingTeamIndices)[0];
-            const cashSenderTeam = tradeTeams[cashSenderIndex];
-            if (cashSenderTeam && cashSenderTeam.teamName) {
-              if (!cashSenderTeam.cashOut) cashSenderTeam.cashOut = [];
-              // Check if cash already being sent to this team
-              const alreadySendingCash = cashSenderTeam.cashOut.some(c => c.destination === teamIndex);
-              if (!alreadySendingCash) {
-                cashSenderTeam.cashOut.push({ destination: teamIndex });
+          // If no direct receiver found, just pick the team with most incoming overall
+          if (bestCashSender === -1) {
+            let maxIncoming = 0;
+            tradeTeams.forEach((otherTeam, otherIdx) => {
+              if (otherIdx === teamIndex || !otherTeam.teamName) return;
+              const incoming = otherTeam.playersIn.reduce((sum, p) => sum + (p.salary || 0), 0);
+              if (incoming > maxIncoming) {
+                maxIncoming = incoming;
+                bestCashSender = otherIdx;
               }
+            });
+          }
+          
+          // If still no sender found, just pick the first other team
+          if (bestCashSender === -1) {
+            bestCashSender = tradeTeams.findIndex((t, idx) => idx !== teamIndex && t.teamName);
+          }
+          
+          // Add cash from the best sender
+          if (bestCashSender >= 0) {
+            const cashSenderTeam = tradeTeams[bestCashSender];
+            if (!cashSenderTeam.cashOut) cashSenderTeam.cashOut = [];
+            // Check if cash already being sent to this team
+            const alreadySendingCash = cashSenderTeam.cashOut.some(c => c.destination === teamIndex);
+            if (!alreadySendingCash) {
+              cashSenderTeam.cashOut.push({ destination: teamIndex });
             }
           }
         }
