@@ -3608,7 +3608,7 @@
     
     // Generate trade for specific player to specific team
     function generateTradePlayerToTeam(playerName, destTeamName) {
-      const MAX_ATTEMPTS = 200;
+      const MAX_ATTEMPTS = 300;
       
       // Find the target player
       const targetPlayer = players.find(p => 
@@ -3637,58 +3637,45 @@
         return { error: `${targetPlayer.player} is already on ${destTeamName}` };
       }
       
-      // Get tradeable players from destination team
-      const destTeamPlayers = players.filter(p => 
-        p.team === destTeamName &&
-        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-        p.tradeAvailable?.toLowerCase() !== 'not available' &&
-        p.salary > 0
-      ).sort((a, b) => b.salary - a.salary);
+      // Track tried combinations to avoid repeats
+      const triedCombinations = new Set();
       
-      if (destTeamPlayers.length === 0) {
-        return { error: `No tradeable players on ${destTeamName}` };
+      function getTradeKey(trade) {
+        return trade.map(t => 
+          `${t.teamName}:${t.playersOut.map(p => p.player).sort().join(',')}`
+        ).sort().join('|');
       }
+      
+      // Get all other teams for potential 3rd/4th team
+      const otherTeams = teams.filter(t => t !== sourceTeam && t !== destTeamName);
       
       // Try to find a valid trade
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // Shuffle destination players for variety
-        const shuffledDestPlayers = [...destTeamPlayers].sort(() => Math.random() - 0.5);
-        
-        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-        const team1Outgoing = targetPlayer.salary;
-        
-        let team2PlayersOut = [];
-        let team2Outgoing = 0;
-        
-        // First try single player match (40% chance)
-        const singleMatch = shuffledDestPlayers.find(p => {
-          const wouldWork = p.salary >= team1Outgoing * 0.75 - 5000000 && 
-                           p.salary <= team1Outgoing * 1.25 + 5000000;
-          return wouldWork;
-        });
-        
-        if (singleMatch && Math.random() < 0.4) {
-          team2PlayersOut = [{ ...singleMatch, destination: 0 }];
-          team2Outgoing = singleMatch.salary;
-        } else {
-          // Build package with minimum players needed
-          for (const p of shuffledDestPlayers) {
-            team2PlayersOut.push({ ...p, destination: 0 });
-            team2Outgoing += p.salary;
-            
-            // Stop once we have enough salary
-            if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
-            if (team2PlayersOut.length >= 4) break;
-          }
+        // Determine trade type: 65% 2-team, 30% 3-team, 5% 4-team
+        const rand = Math.random();
+        let numTeams = 2;
+        if (rand > 0.95 && otherTeams.length >= 2) {
+          numTeams = 4;
+        } else if (rand > 0.65 && otherTeams.length >= 1) {
+          numTeams = 3;
         }
         
-        if (team2PlayersOut.length === 0) continue;
+        let testTrade;
         
-        const testTrade = [
-          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-        ];
+        if (numTeams === 2) {
+          testTrade = generate2TeamTrade(targetPlayer, sourceTeam, destTeamName);
+        } else if (numTeams === 3) {
+          testTrade = generate3TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams);
+        } else {
+          testTrade = generate4TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams);
+        }
+        
+        if (!testTrade) continue;
+        
+        // Check if we've tried this combination before
+        const tradeKey = getTradeKey(testTrade);
+        if (triedCombinations.has(tradeKey)) continue;
+        triedCombinations.add(tradeKey);
         
         tradeTeams = testTrade;
         redistributePlayers();
@@ -3700,6 +3687,162 @@
       }
       
       return { error: `Could not find a valid trade to send ${targetPlayer.player} to ${destTeamName}. Try a different combination!` };
+      
+      // Helper: Generate 2-team trade
+      function generate2TeamTrade(targetPlayer, sourceTeam, destTeamName) {
+        const destTeamPlayers = players.filter(p => 
+          p.team === destTeamName &&
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          p.salary > 0
+        ).sort(() => Math.random() - 0.5);
+        
+        if (destTeamPlayers.length === 0) return null;
+        
+        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+        const team1Outgoing = targetPlayer.salary;
+        
+        let team2PlayersOut = [];
+        let team2Outgoing = 0;
+        
+        // Try single player match (40% chance)
+        const singleMatch = destTeamPlayers.find(p => {
+          return p.salary >= team1Outgoing * 0.75 - 5000000 && 
+                 p.salary <= team1Outgoing * 1.25 + 5000000;
+        });
+        
+        if (singleMatch && Math.random() < 0.4) {
+          team2PlayersOut = [{ ...singleMatch, destination: 0 }];
+        } else {
+          // Build package
+          for (const p of destTeamPlayers) {
+            team2PlayersOut.push({ ...p, destination: 0 });
+            team2Outgoing += p.salary;
+            if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
+            if (team2PlayersOut.length >= 4) break;
+          }
+        }
+        
+        if (team2PlayersOut.length === 0) return null;
+        
+        return [
+          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
+      }
+      
+      // Helper: Generate 3-team trade
+      function generate3TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams) {
+        const thirdTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+        
+        const destTeamPlayers = players.filter(p => 
+          p.team === destTeamName &&
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          p.salary > 0
+        ).sort(() => Math.random() - 0.5);
+        
+        const thirdTeamPlayers = players.filter(p => 
+          p.team === thirdTeam &&
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          p.salary > 0
+        ).sort(() => Math.random() - 0.5);
+        
+        if (destTeamPlayers.length === 0 || thirdTeamPlayers.length === 0) return null;
+        
+        // Target player goes to destTeam
+        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+        
+        // DestTeam sends players to thirdTeam
+        let team2PlayersOut = [];
+        let team2Outgoing = 0;
+        const numFromDest = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < numFromDest && i < destTeamPlayers.length; i++) {
+          team2PlayersOut.push({ ...destTeamPlayers[i], destination: 2 });
+          team2Outgoing += destTeamPlayers[i].salary;
+        }
+        
+        // ThirdTeam sends players to sourceTeam
+        let team3PlayersOut = [];
+        let team3Outgoing = 0;
+        const targetSalary = targetPlayer.salary;
+        for (const p of thirdTeamPlayers) {
+          team3PlayersOut.push({ ...p, destination: 0 });
+          team3Outgoing += p.salary;
+          if (team3Outgoing >= targetSalary * 0.75 - 5000000) break;
+          if (team3PlayersOut.length >= 3) break;
+        }
+        
+        if (team2PlayersOut.length === 0 || team3PlayersOut.length === 0) return null;
+        
+        return [
+          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: thirdTeam, playersOut: team3PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
+      }
+      
+      // Helper: Generate 4-team trade
+      function generate4TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams) {
+        const shuffledOthers = [...otherTeams].sort(() => Math.random() - 0.5);
+        const thirdTeam = shuffledOthers[0];
+        const fourthTeam = shuffledOthers[1];
+        
+        if (!thirdTeam || !fourthTeam) return null;
+        
+        const getTradeablePlayers = (teamName) => players.filter(p => 
+          p.team === teamName &&
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          p.salary > 0
+        ).sort(() => Math.random() - 0.5);
+        
+        const destTeamPlayers = getTradeablePlayers(destTeamName);
+        const thirdTeamPlayers = getTradeablePlayers(thirdTeam);
+        const fourthTeamPlayers = getTradeablePlayers(fourthTeam);
+        
+        if (destTeamPlayers.length === 0 || thirdTeamPlayers.length === 0 || fourthTeamPlayers.length === 0) return null;
+        
+        // Target player goes to destTeam
+        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
+        
+        // DestTeam sends to thirdTeam
+        let team2PlayersOut = [];
+        if (destTeamPlayers.length > 0) {
+          team2PlayersOut.push({ ...destTeamPlayers[0], destination: 2 });
+        }
+        
+        // ThirdTeam sends to fourthTeam
+        let team3PlayersOut = [];
+        if (thirdTeamPlayers.length > 0) {
+          team3PlayersOut.push({ ...thirdTeamPlayers[0], destination: 3 });
+        }
+        
+        // FourthTeam sends to sourceTeam
+        let team4PlayersOut = [];
+        let team4Outgoing = 0;
+        const targetSalary = targetPlayer.salary;
+        for (const p of fourthTeamPlayers) {
+          team4PlayersOut.push({ ...p, destination: 0 });
+          team4Outgoing += p.salary;
+          if (team4Outgoing >= targetSalary * 0.75 - 5000000) break;
+          if (team4PlayersOut.length >= 3) break;
+        }
+        
+        if (team2PlayersOut.length === 0 || team3PlayersOut.length === 0 || team4PlayersOut.length === 0) return null;
+        
+        return [
+          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: thirdTeam, playersOut: team3PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: fourthTeam, playersOut: team4PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
+      }
     }
     
     // Handle Player to Team button
@@ -3778,7 +3921,7 @@
     const copyImageBtn = document.getElementById('copyImageBtn');
     const tradeCanvas = document.getElementById('tradeCanvas');
 
-    generateImageBtn.addEventListener('click', async () => {
+    generateImageBtn.addEventListener('click', () => {
       // Check if there's a valid trade
       const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
       if (activeTeams.length < 2) {
@@ -3786,14 +3929,7 @@
         return;
       }
 
-      // Show loading state
-      generateImageBtn.textContent = '⏳ Loading...';
-      generateImageBtn.disabled = true;
-      
-      await generateTradeImage();
-      
-      generateImageBtn.textContent = '📸 Generate Image';
-      generateImageBtn.disabled = false;
+      generateTradeImage();
       imageModal.style.display = 'flex';
     });
 
@@ -3829,81 +3965,17 @@
       }
     });
 
-    async function generateTradeImage() {
+    function generateTradeImage() {
       const ctx = tradeCanvas.getContext('2d');
       const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0 || (t.picksOut && t.picksOut.length > 0) || (t.rightsOut && t.rightsOut.length > 0)));
       
-      // Helper to load image - try with CORS first, then without
-      function loadImage(url) {
-        return new Promise((resolve) => {
-          if (!url) { resolve(null); return; }
-          
-          // First try with crossOrigin for canvas compatibility
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          
-          img.onload = () => {
-            // Test if we can actually draw it to canvas
-            try {
-              const testCanvas = document.createElement('canvas');
-              testCanvas.width = 1;
-              testCanvas.height = 1;
-              const testCtx = testCanvas.getContext('2d');
-              testCtx.drawImage(img, 0, 0);
-              testCtx.getImageData(0, 0, 1, 1); // This will throw if tainted
-              resolve(img);
-            } catch (e) {
-              // CORS blocked - try loading through a proxy
-              console.log('CORS blocked for:', url);
-              resolve(null);
-            }
-          };
-          
-          img.onerror = () => {
-            // Try without crossOrigin as fallback (won't work on canvas but might load)
-            console.log('Failed to load image:', url);
-            resolve(null);
-          };
-          
-          img.src = url;
-        });
-      }
-      
-      // Preload all images
-      const imageCache = new Map();
-      const imagesToLoad = [];
-      
-      // Collect all image URLs - dedupe
-      const urlSet = new Set();
-      activeTeams.forEach(team => {
-        const teamInfo = getTeamInfo(team.teamName);
-        if (teamInfo?.logo) urlSet.add(teamInfo.logo);
-        team.playersOut.forEach(p => { if (p.headshot) urlSet.add(p.headshot); });
-        team.playersIn.forEach(p => { if (p.headshot) urlSet.add(p.headshot); });
-      });
-      
-      console.log('Loading images:', Array.from(urlSet));
-      
-      // Load all images in parallel
-      await Promise.all(Array.from(urlSet).map(async url => {
-        const img = await loadImage(url);
-        if (img) {
-          imageCache.set(url, img);
-          console.log('Loaded:', url);
-        } else {
-          console.log('Failed:', url);
-        }
-      }));
-      
-      console.log('Image cache size:', imageCache.size);
-      
       // Calculate dimensions
-      const teamWidth = 320;
+      const teamWidth = 280;
       const teamGap = 16;
       const padding = 24;
       const headerHeight = 70;
-      const teamHeaderHeight = 52;
-      const playerRowHeight = 48;
+      const teamHeaderHeight = 48;
+      const playerRowHeight = 44;
       const assetRowHeight = 36;
       const sectionLabelHeight = 24;
       const summaryHeight = 80;
@@ -3953,7 +4025,6 @@
         
         let height = teamHeaderHeight;
         
-        // Sends out section
         const sendsOutCount = team.playersOut.length + 
           (team.picksOut ? team.picksOut.length : 0) + 
           (team.rightsOut ? team.rightsOut.length : 0) +
@@ -3966,7 +4037,6 @@
           height += (team.cashOut ? team.cashOut.length : 0) * assetRowHeight;
         }
         
-        // Receives section
         const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
         if (receivesCount > 0) {
           height += sectionLabelHeight;
@@ -3987,7 +4057,7 @@
       tradeCanvas.width = canvasWidth;
       tradeCanvas.height = canvasHeight;
       
-      // White background
+      // Background
       ctx.fillStyle = '#f5f5f7';
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       
@@ -4001,50 +4071,7 @@
       const validation = validateTrade();
       ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.fillStyle = validation.valid ? '#34c759' : '#ff453a';
-      const statusText = validation.valid ? '✓ Trade is valid' : '✕ Trade is invalid';
-      ctx.fillText(statusText, canvasWidth / 2, 58);
-      
-      // Helper to draw circular image with placeholder fallback
-      function drawCircularImage(img, x, y, size, name = '') {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-        
-        if (img) {
-          ctx.drawImage(img, x, y, size, size);
-        } else if (name) {
-          // Draw placeholder with initials
-          ctx.fillStyle = '#e5e5e7';
-          ctx.fillRect(x, y, size, size);
-          ctx.fillStyle = '#8e8e93';
-          ctx.font = `bold ${size * 0.4}px -apple-system, BlinkMacSystemFont, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('');
-          ctx.fillText(initials, x + size/2, y + size/2);
-        }
-        ctx.restore();
-      }
-      
-      // Helper to draw team logo with placeholder fallback
-      function drawTeamLogo(img, x, y, size, teamName = '') {
-        if (img) {
-          ctx.drawImage(img, x, y, size, size);
-        } else if (teamName) {
-          // Draw placeholder circle with team initial
-          ctx.fillStyle = '#e5e5e7';
-          ctx.beginPath();
-          ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#8e8e93';
-          ctx.font = `bold ${size * 0.5}px -apple-system, BlinkMacSystemFont, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(teamName[0], x + size/2, y + size/2);
-        }
-      }
+      ctx.fillText(validation.valid ? '✓ Trade is valid' : '✕ Trade is invalid', canvasWidth / 2, 58);
       
       // Draw each team card
       activeTeams.forEach((team, teamIdx) => {
@@ -4072,34 +4099,28 @@
         ctx.roundRect(x, y, teamWidth, cardHeight, 12);
         ctx.stroke();
         
-        // Team header background
+        // Team header
         ctx.fillStyle = '#fafafa';
         ctx.roundRect(x, y, teamWidth, teamHeaderHeight, [12, 12, 0, 0]);
         ctx.fill();
         
-        // Team header bottom border
         ctx.strokeStyle = '#e5e5e7';
         ctx.beginPath();
         ctx.moveTo(x, y + teamHeaderHeight);
         ctx.lineTo(x + teamWidth, y + teamHeaderHeight);
         ctx.stroke();
         
-        // Team logo (always show with placeholder if no image)
-        const logoImg = teamInfo?.logo ? imageCache.get(teamInfo.logo) : null;
-        drawTeamLogo(logoImg, x + 12, y + 10, 32, team.teamName);
-        const textStartX = x + 52;
-        
         // Team name
         ctx.fillStyle = '#1d1d1f';
         ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(team.teamName, textStartX, y + 28);
+        ctx.fillText(team.teamName, x + 16, y + 28);
         
         // Team status
         if (teamInfo) {
           ctx.fillStyle = '#6e6e73';
           ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText(teamInfo.status.toUpperCase(), textStartX, y + 44);
+          ctx.fillText(teamInfo.status.toUpperCase(), x + 16, y + 42);
         }
         
         let currentY = y + teamHeaderHeight + 16;
@@ -4127,18 +4148,13 @@
             ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 8);
             ctx.stroke();
             
-            // Player headshot (always show with placeholder)
-            const headshotImg = player.headshot ? imageCache.get(player.headshot) : null;
-            drawCircularImage(headshotImg, x + 18, currentY + 4, 32, player.player);
-            const playerTextX = x + 58;
-            
             ctx.fillStyle = '#1d1d1f';
             ctx.font = '500 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(player.player, playerTextX, currentY + 18);
+            ctx.fillText(player.player, x + 20, currentY + 18);
             ctx.fillStyle = '#6e6e73';
             ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(formatSalary(player.salary), playerTextX, currentY + 34);
+            ctx.fillText(formatSalary(player.salary), x + 20, currentY + 34);
             currentY += playerRowHeight;
           });
           
@@ -4222,18 +4238,13 @@
             ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 8);
             ctx.stroke();
             
-            // Player headshot (always show with placeholder)
-            const headshotImg = player.headshot ? imageCache.get(player.headshot) : null;
-            drawCircularImage(headshotImg, x + 18, currentY + 4, 32, player.player);
-            const playerTextX = x + 58;
-            
             ctx.fillStyle = '#1d1d1f';
             ctx.font = '500 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(player.player, playerTextX, currentY + 18);
+            ctx.fillText(player.player, x + 20, currentY + 18);
             ctx.fillStyle = '#6e6e73';
             ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(formatSalary(player.salary), playerTextX, currentY + 34);
+            ctx.fillText(formatSalary(player.salary), x + 20, currentY + 34);
             currentY += playerRowHeight;
           });
           
@@ -4289,10 +4300,9 @@
           }
         }
         
-        // Summary section at bottom
+        // Summary section
         const summaryY = y + cardHeight - summaryHeight;
         
-        // Dashed separator
         ctx.strokeStyle = '#d1d1d6';
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
@@ -4305,7 +4315,6 @@
         const incoming = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
         const net = incoming - outgoing;
         
-        // Outgoing row
         ctx.fillStyle = '#6e6e73';
         ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
@@ -4313,13 +4322,11 @@
         ctx.textAlign = 'right';
         ctx.fillText(formatSalary(outgoing), x + teamWidth - 16, summaryY + 20);
         
-        // Incoming row
         ctx.textAlign = 'left';
         ctx.fillText('Incoming', x + 16, summaryY + 38);
         ctx.textAlign = 'right';
         ctx.fillText(formatSalary(incoming), x + teamWidth - 16, summaryY + 38);
         
-        // Net row
         ctx.textAlign = 'left';
         ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.fillStyle = '#1d1d1f';
@@ -4331,7 +4338,7 @@
         ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 16, summaryY + 60);
       });
       
-      // Footer watermark
+      // Footer
       ctx.fillStyle = '#8e8e93';
       ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
