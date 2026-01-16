@@ -1473,26 +1473,26 @@
     }
 
     // Color gradient for rating (higher = green, lower = red)
-    // Rating range: 0-25, with 10 being neutral yellow
+    // Average RAT is 5.98, so that's our midpoint (yellow)
+    // Range: 0-12 (with 6 being neutral yellow, above = green, below = red)
     function getRatingColor(rating) {
       if (!rating || rating <= 0) return '#6b7280'; // gray for N/A
-      const minRating = 0;
-      const maxRating = 20;
-      const clampedRating = Math.max(minRating, Math.min(maxRating, rating));
-      const ratio = clampedRating / maxRating;
+      const midRating = 6; // Average is ~5.98
+      const maxRating = 12; // Elite players
       
-      // Red (low) -> Yellow (mid) -> Green (high)
-      if (ratio <= 0.5) {
-        // Red to Yellow
-        const r = Math.round(239 - (239 - 234) * (ratio * 2));
-        const g = Math.round(68 + (179 - 68) * (ratio * 2));
-        const b = Math.round(68 - (68 - 8) * (ratio * 2));
+      if (rating <= midRating) {
+        // Red to Yellow (0 to 6)
+        const ratio = rating / midRating;
+        const r = Math.round(239 - (239 - 234) * ratio);
+        const g = Math.round(68 + (179 - 68) * ratio);
+        const b = Math.round(68 - (68 - 8) * ratio);
         return `rgb(${r}, ${g}, ${b})`;
       } else {
-        // Yellow to Green
-        const r = Math.round(234 - (234 - 34) * ((ratio - 0.5) * 2));
-        const g = Math.round(179 + (197 - 179) * ((ratio - 0.5) * 2));
-        const b = Math.round(8 + (94 - 8) * ((ratio - 0.5) * 2));
+        // Yellow to Green (6 to 12)
+        const ratio = Math.min((rating - midRating) / (maxRating - midRating), 1);
+        const r = Math.round(234 - (234 - 34) * ratio);
+        const g = Math.round(179 + (197 - 179) * ratio);
+        const b = Math.round(8 + (94 - 8) * ratio);
         return `rgb(${r}, ${g}, ${b})`;
       }
     }
