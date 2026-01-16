@@ -1125,7 +1125,7 @@
 
     .player-info-tooltip {
       position: absolute;
-      bottom: calc(100% + 8px);
+      top: calc(100% + 8px);
       left: 50%;
       transform: translateX(-50%);
       background: var(--surface);
@@ -1149,11 +1149,11 @@
     .player-info-tooltip::after {
       content: '';
       position: absolute;
-      top: 100%;
+      bottom: 100%;
       left: 50%;
       transform: translateX(-50%);
       border: 6px solid transparent;
-      border-top-color: var(--border);
+      border-bottom-color: var(--border);
     }
 
     .player-info-name {
@@ -1325,11 +1325,6 @@
       <h1>🏀 NBA Trade Calculator</h1>
       <div class="header-actions">
         <div class="header-row">
-          <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
-          <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
-          <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
-        </div>
-        <div class="header-row">
           <div class="trade-machine">
             <div class="autocomplete-container">
               <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Search player..." autocomplete="off">
@@ -1367,6 +1362,11 @@
             </div>
             <button class="btn btn-primary" id="playerToTeamBtn">🎯 Player to Team</button>
           </div>
+        </div>
+        <div class="header-row">
+          <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
+          <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
+          <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
         </div>
       </div>
     </header>
@@ -1442,6 +1442,60 @@
       const absNum = Math.abs(num);
       const formatted = '$' + absNum.toLocaleString('en-US', { maximumFractionDigits: 0 });
       return num < 0 ? '-' + formatted : formatted;
+    }
+
+    // Color gradient for age (younger = green, older = red)
+    // Age range: 19-40, with 25 being neutral yellow
+    function getAgeColor(age) {
+      if (!age) return '#6b7280'; // gray for N/A
+      // Parse years from "23-321" format or just "23"
+      const years = parseInt(age.toString().split('-')[0]) || 0;
+      if (years <= 0) return '#6b7280';
+      
+      const minAge = 19;
+      const maxAge = 38;
+      const clampedAge = Math.max(minAge, Math.min(maxAge, years));
+      const ratio = (clampedAge - minAge) / (maxAge - minAge);
+      
+      // Green (young) -> Yellow (mid) -> Red (old)
+      if (ratio <= 0.5) {
+        // Green to Yellow
+        const r = Math.round(34 + (234 - 34) * (ratio * 2));
+        const g = Math.round(197 - (197 - 179) * (ratio * 2));
+        const b = Math.round(94 - (94 - 8) * (ratio * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+      } else {
+        // Yellow to Red
+        const r = Math.round(234 + (239 - 234) * ((ratio - 0.5) * 2));
+        const g = Math.round(179 - (179 - 68) * ((ratio - 0.5) * 2));
+        const b = Math.round(8 + (68 - 8) * ((ratio - 0.5) * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+    }
+
+    // Color gradient for rating (higher = green, lower = red)
+    // Rating range: 0-25, with 10 being neutral yellow
+    function getRatingColor(rating) {
+      if (!rating || rating <= 0) return '#6b7280'; // gray for N/A
+      const minRating = 0;
+      const maxRating = 20;
+      const clampedRating = Math.max(minRating, Math.min(maxRating, rating));
+      const ratio = clampedRating / maxRating;
+      
+      // Red (low) -> Yellow (mid) -> Green (high)
+      if (ratio <= 0.5) {
+        // Red to Yellow
+        const r = Math.round(239 - (239 - 234) * (ratio * 2));
+        const g = Math.round(68 + (179 - 68) * (ratio * 2));
+        const b = Math.round(68 - (68 - 8) * (ratio * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+      } else {
+        // Yellow to Green
+        const r = Math.round(234 - (234 - 34) * ((ratio - 0.5) * 2));
+        const g = Math.round(179 + (197 - 179) * ((ratio - 0.5) * 2));
+        const b = Math.round(8 + (94 - 8) * ((ratio - 0.5) * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+      }
     }
 
     // Get unique teams from players
@@ -2288,18 +2342,18 @@
                               <div class="player-info-team">${p.team}${p.position ? ` • ${p.position}` : ''}</div>
                               <div class="player-info-row">
                                 <span class="player-info-label">Age</span>
-                                <span class="player-info-value">${p.age || 'N/A'}</span>
+                                <span class="player-info-value" style="color: ${getAgeColor(p.age)}">${p.age || 'N/A'}</span>
                               </div>
                               <div class="player-info-row">
                                 <span class="player-info-label">Last 365 days</span>
-                                <span class="player-info-value">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
+                                <span class="player-info-value" style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
                               </div>
                               <div class="player-info-row">
                                 <span class="player-info-label">Contract ends</span>
                                 <span class="player-info-value">${p.contractEnd || 'N/A'}</span>
                               </div>
                               <div class="player-info-row">
-                                <span class="player-info-label">Guaranteed</span>
+                                <span class="player-info-label">Total Guaranteed</span>
                                 <span class="player-info-value">${p.guaranteedMoney ? formatSalary(p.guaranteedMoney) : 'N/A'}</span>
                               </div>
                             </div>
@@ -2475,18 +2529,18 @@
                                 <div class="player-info-team">${p.team}${p.position ? ` • ${p.position}` : ''}</div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Age</span>
-                                  <span class="player-info-value">${p.age || 'N/A'}</span>
+                                  <span class="player-info-value" style="color: ${getAgeColor(p.age)}">${p.age || 'N/A'}</span>
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Last 365 days</span>
-                                  <span class="player-info-value">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
+                                  <span class="player-info-value" style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Contract ends</span>
                                   <span class="player-info-value">${p.contractEnd || 'N/A'}</span>
                                 </div>
                                 <div class="player-info-row">
-                                  <span class="player-info-label">Guaranteed</span>
+                                  <span class="player-info-label">Total Guaranteed</span>
                                   <span class="player-info-value">${p.guaranteedMoney ? formatSalary(p.guaranteedMoney) : 'N/A'}</span>
                                 </div>
                               </div>
@@ -2619,18 +2673,18 @@
                                 <div class="player-info-team">${p.team}${p.position ? ` • ${p.position}` : ''}</div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Age</span>
-                                  <span class="player-info-value">${p.age || 'N/A'}</span>
+                                  <span class="player-info-value" style="color: ${getAgeColor(p.age)}">${p.age || 'N/A'}</span>
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Last 365 days</span>
-                                  <span class="player-info-value">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
+                                  <span class="player-info-value" style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Contract ends</span>
                                   <span class="player-info-value">${p.contractEnd || 'N/A'}</span>
                                 </div>
                                 <div class="player-info-row">
-                                  <span class="player-info-label">Guaranteed</span>
+                                  <span class="player-info-label">Total Guaranteed</span>
                                   <span class="player-info-value">${p.guaranteedMoney ? formatSalary(p.guaranteedMoney) : 'N/A'}</span>
                                 </div>
                               </div>
@@ -4863,7 +4917,7 @@
                   globalRating: parseFloat(row['RAT 365'] || 0) || 0,
                   gamesPlayed: parseInt(row['GAMES'] || 0) || 0,
                   position: row['POSITION']?.trim() || '',
-                  age: parseInt(row['AGE'] || 0) || 0,
+                  age: row['AGE']?.toString().trim() || '',
                   contractEnd: row['END']?.trim() || '',
                   guaranteedMoney: parseSalary(row['TOTAL GUARANTEED'] || 0),
                   noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
