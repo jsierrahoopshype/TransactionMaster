@@ -2184,7 +2184,10 @@
             <div class="trade-content" data-trade-content="${index}">
               <div class="players-out">
                 <div class="section-label">Sends Out</div>
-                ${tradeTeam.playersOut.map((p, pIndex) => `
+                ${tradeTeam.playersOut.map((p, pIndex) => {
+                  const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
+                  const outgoingValue = getOutgoingSalary(p);
+                  return `
                   <div class="player-chip">
                     <div class="player-chip-row">
                       ${p.headshot ? `<img src="${p.headshot}" class="player-headshot" alt="" onerror="this.style.display='none'">` : ''}
@@ -2193,14 +2196,14 @@
                           ${p.player}
                           ${p.globalRating ? `<span class="rating-badge" title="Global Rating: Last 365 days">${p.globalRating.toFixed(1)}</span>` : ''}
                           ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
-                          ${p.contractStatus?.toUpperCase() === 'TWO-WAY' ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
+                          ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                           ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
                           ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                         </div>
-                        <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
+                        <div class="player-chip-salary">${formatSalary(outgoingValue)}${isTwoWay && p.salary > 0 ? ` <span style="color: #6366f1; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                       </div>
                       <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
                     </div>
@@ -2216,7 +2219,7 @@
                       </div>
                     ` : ''}
                   </div>
-                `).join('')}
+                `}).join('')}
                 ${(tradeTeam.picksOut || []).map((pick, pickIdx) => {
                   const isConditional = pick.surePick !== 'YES';
                   return `
@@ -2346,7 +2349,9 @@
                 <div class="section-label">Receives</div>
                 ${tradeTeam.playersIn.map(p => {
                   const incomingValue = getIncomingSalary(p);
-                  const showAdjusted = p.poisonPill > 0 || p.isMinimum;
+                  const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
+                  const showAdjusted = p.poisonPill > 0 || p.isMinimum || (isTwoWay && p.salary > 0);
+                  const adjustedColor = p.isMinimum ? '#22c55e' : (isTwoWay ? '#6366f1' : '#ec4899');
                   return `
                     <div class="player-chip incoming">
                       <div class="player-chip-row">
@@ -2356,11 +2361,11 @@
                             ${p.player}
                             ${p.globalRating ? `<span class="rating-badge" title="Global Rating: Last 365 days">${p.globalRating.toFixed(1)}</span>` : ''}
                             ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
-                            ${p.contractStatus?.toUpperCase() === 'TWO-WAY' ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
+                            ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
                             ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           </div>
-                          <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${p.isMinimum ? '#22c55e' : '#ec4899'}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
+                          <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${adjustedColor}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
                         </div>
                       </div>
                     </div>
