@@ -1497,6 +1497,31 @@
       }
     }
 
+    // Color gradient for games played (more games = green, fewer = red)
+    // Games range: 0-82, with ~40 being neutral yellow
+    function getGamesColor(games) {
+      if (!games || games <= 0) return '#6b7280'; // gray for N/A
+      const minGames = 0;
+      const maxGames = 82;
+      const clampedGames = Math.max(minGames, Math.min(maxGames, games));
+      const ratio = clampedGames / maxGames;
+      
+      // Red (few games) -> Yellow (mid) -> Green (many games)
+      if (ratio <= 0.5) {
+        // Red to Yellow
+        const r = Math.round(239 - (239 - 234) * (ratio * 2));
+        const g = Math.round(68 + (179 - 68) * (ratio * 2));
+        const b = Math.round(68 - (68 - 8) * (ratio * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+      } else {
+        // Yellow to Green
+        const r = Math.round(234 - (234 - 34) * ((ratio - 0.5) * 2));
+        const g = Math.round(179 + (197 - 179) * ((ratio - 0.5) * 2));
+        const b = Math.round(8 + (94 - 8) * ((ratio - 0.5) * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+    }
+
     // Get unique teams from players
     function getUniqueTeams() {
       const teamSet = new Set(players.map(p => p.team));
@@ -2345,7 +2370,7 @@
                               </div>
                               <div class="player-info-row">
                                 <span class="player-info-label">Last 365 days</span>
-                                <span class="player-info-value" style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
+                                <span class="player-info-value"><span style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT</span>${p.gamesPlayed ? ` • <span style="color: ${getGamesColor(p.gamesPlayed)}">${p.gamesPlayed} G</span>` : ''}</span>
                               </div>
                               <div class="player-info-row">
                                 <span class="player-info-label">Contract ends</span>
@@ -2532,7 +2557,7 @@
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Last 365 days</span>
-                                  <span class="player-info-value" style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
+                                  <span class="player-info-value"><span style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT</span>${p.gamesPlayed ? ` • <span style="color: ${getGamesColor(p.gamesPlayed)}">${p.gamesPlayed} G</span>` : ''}</span>
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Contract ends</span>
@@ -2676,7 +2701,7 @@
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Last 365 days</span>
-                                  <span class="player-info-value" style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT${p.gamesPlayed ? ` • ${p.gamesPlayed} G` : ''}</span>
+                                  <span class="player-info-value"><span style="color: ${getRatingColor(p.globalRating)}">${p.globalRating ? p.globalRating.toFixed(1) : 'N/A'} RAT</span>${p.gamesPlayed ? ` • <span style="color: ${getGamesColor(p.gamesPlayed)}">${p.gamesPlayed} G</span>` : ''}</span>
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Contract ends</span>
