@@ -1961,6 +1961,63 @@
           }
         });
       });
+      
+      // Auto-add cash considerations for teams that send assets but receive nothing
+      // This makes generated trades legal (every team must receive something)
+      tradeTeams.forEach((team, teamIndex) => {
+        if (!team.teamName) return;
+        
+        // Check if team is sending anything
+        const isSending = team.playersOut.length > 0 || 
+                         (team.picksOut && team.picksOut.length > 0) || 
+                         (team.rightsOut && team.rightsOut.length > 0);
+        
+        // Check if team is receiving anything
+        const isReceivingPlayers = team.playersIn.length > 0;
+        const isReceivingPicks = tradeTeams.some((otherTeam, otherIdx) => 
+          otherIdx !== teamIndex && 
+          otherTeam.picksOut?.some(p => p.destination === teamIndex)
+        );
+        const isReceivingRights = tradeTeams.some((otherTeam, otherIdx) => 
+          otherIdx !== teamIndex && 
+          otherTeam.rightsOut?.some(r => r.destination === teamIndex)
+        );
+        const isReceivingCash = tradeTeams.some((otherTeam, otherIdx) => 
+          otherIdx !== teamIndex && 
+          otherTeam.cashOut?.some(c => c.destination === teamIndex)
+        );
+        
+        const isReceiving = isReceivingPlayers || isReceivingPicks || isReceivingRights || isReceivingCash;
+        
+        // If sending but not receiving, find a team to send cash from
+        if (isSending && !isReceiving) {
+          // Find teams that are receiving from this team
+          const receivingTeamIndices = new Set();
+          team.playersOut.forEach(p => {
+            if (p.destination !== undefined) receivingTeamIndices.add(p.destination);
+          });
+          team.picksOut?.forEach(p => {
+            if (p.destination !== undefined) receivingTeamIndices.add(p.destination);
+          });
+          team.rightsOut?.forEach(r => {
+            if (r.destination !== undefined) receivingTeamIndices.add(r.destination);
+          });
+          
+          // Have one of those teams send cash back
+          if (receivingTeamIndices.size > 0) {
+            const cashSenderIndex = Array.from(receivingTeamIndices)[0];
+            const cashSenderTeam = tradeTeams[cashSenderIndex];
+            if (cashSenderTeam && cashSenderTeam.teamName) {
+              if (!cashSenderTeam.cashOut) cashSenderTeam.cashOut = [];
+              // Check if cash already being sent to this team
+              const alreadySendingCash = cashSenderTeam.cashOut.some(c => c.destination === teamIndex);
+              if (!alreadySendingCash) {
+                cashSenderTeam.cashOut.push({ destination: teamIndex });
+              }
+            }
+          }
+        }
+      });
     }
 
     // Get other active teams (for destination dropdown)
