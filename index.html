@@ -1993,39 +1993,47 @@
         
         // If sending but not receiving, find a team to send cash from
         if (!isReceiving) {
-          // Find the team that receives the most value from this team (players)
+          // Strategy 1: Find the team that directly receives assets from this team
           let bestCashSender = -1;
           let maxValueReceived = 0;
           
-          tradeTeams.forEach((otherTeam, otherIdx) => {
-            if (otherIdx === teamIndex || !otherTeam.teamName) return;
-            
-            // Calculate value this team sends to otherTeam
-            let valueToOther = 0;
-            team.playersOut.forEach(p => {
-              if (p.destination === otherIdx) valueToOther += p.salary || 0;
-            });
-            
-            if (valueToOther > maxValueReceived) {
-              maxValueReceived = valueToOther;
-              bestCashSender = otherIdx;
+          team.playersOut.forEach(p => {
+            if (p.destination !== undefined && p.destination !== teamIndex) {
+              const value = p.salary || 0;
+              if (value > maxValueReceived) {
+                maxValueReceived = value;
+                bestCashSender = p.destination;
+              }
             }
           });
           
-          // If no direct receiver found, just pick the team with most incoming overall
+          // Also check picks and rights
           if (bestCashSender === -1) {
-            let maxIncoming = 0;
-            tradeTeams.forEach((otherTeam, otherIdx) => {
-              if (otherIdx === teamIndex || !otherTeam.teamName) return;
-              const incoming = otherTeam.playersIn.reduce((sum, p) => sum + (p.salary || 0), 0);
-              if (incoming > maxIncoming) {
-                maxIncoming = incoming;
-                bestCashSender = otherIdx;
+            team.picksOut?.forEach(p => {
+              if (p.destination !== undefined && p.destination !== teamIndex) {
+                bestCashSender = p.destination;
+              }
+            });
+          }
+          if (bestCashSender === -1) {
+            team.rightsOut?.forEach(r => {
+              if (r.destination !== undefined && r.destination !== teamIndex) {
+                bestCashSender = r.destination;
               }
             });
           }
           
-          // If still no sender found, just pick the first other team
+          // Strategy 2: If still no sender, pick any other team with players
+          if (bestCashSender === -1) {
+            for (let i = 0; i < tradeTeams.length; i++) {
+              if (i !== teamIndex && tradeTeams[i].teamName && tradeTeams[i].playersIn.length > 0) {
+                bestCashSender = i;
+                break;
+              }
+            }
+          }
+          
+          // Strategy 3: Just pick the first other active team
           if (bestCashSender === -1) {
             bestCashSender = tradeTeams.findIndex((t, idx) => idx !== teamIndex && t.teamName);
           }
@@ -4109,6 +4117,7 @@
         document.getElementById('tradeStatusMessage').textContent = result.error;
       } else {
         tradeTeams = result;
+        redistributePlayers(); // Ensure cash is added for teams receiving nothing
         render();
       }
     });
@@ -4125,15 +4134,78 @@
     // Handle random trade button
     const randomTradeBtn = document.getElementById('randomTradeBtn');
     randomTradeBtn.addEventListener('click', () => {
-      const randomTrade = generateRandomTrade();
+      let randomTrade = generateRandomTrade();
+      
+      // Fallback: if no complex trade found, do a simple 1-for-1 swap
+      if (!randomTrade) {
+        randomTrade = generateSimpleFallbackTrade();
+      }
       
       if (randomTrade) {
         tradeTeams = randomTrade;
+        redistributePlayers(); // Ensure cash is added for teams receiving nothing
         render();
-      } else {
-        alert('Could not generate a valid random trade. Try again!');
       }
     });
+    
+    // Simple fallback trade generator - finds two players with similar salaries
+    function generateSimpleFallbackTrade() {
+      const tradeablePlayers = players.filter(p => 
+        p.team && 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        p.salary >= 1000000
+      );
+      
+      // Shuffle players
+      const shuffled = [...tradeablePlayers].sort(() => Math.random() - 0.5);
+      
+      for (const player1 of shuffled) {
+        // Find a player from a different team with salary within 25% + $250K
+        for (const player2 of shuffled) {
+          if (player1.team === player2.team) continue;
+          if (player1.player === player2.player) continue;
+          
+          const salaryDiff = Math.abs(player1.salary - player2.salary);
+          const maxDiff = Math.max(player1.salary, player2.salary) * 0.25 + 250000;
+          
+          if (salaryDiff <= maxDiff) {
+            // Found a match!
+            const testTrade = [
+              { 
+                teamName: player1.team, 
+                playersOut: [{ ...player1, destination: 1 }], 
+                playersIn: [player2],
+                tpeUsed: null,
+                picksOut: [],
+                rightsOut: [],
+                cashOut: []
+              },
+              { 
+                teamName: player2.team, 
+                playersOut: [{ ...player2, destination: 0 }], 
+                playersIn: [player1],
+                tpeUsed: null,
+                picksOut: [],
+                rightsOut: [],
+                cashOut: []
+              }
+            ];
+            
+            // Quick validation
+            const team1Valid = validateTeamTrade(testTrade[0]);
+            const team2Valid = validateTeamTrade(testTrade[1]);
+            
+            if (team1Valid.valid && team2Valid.valid) {
+              return testTrade;
+            }
+          }
+        }
+      }
+      
+      return null;
+    }
 
     // Reset trade
     resetBtn.addEventListener('click', () => {
