@@ -3860,22 +3860,16 @@
         
         const validation = validateTrade();
         if (validation.valid || validation.type?.startsWith('pending')) {
-          validTrades.push({ trade: JSON.parse(JSON.stringify(testTrade)), key: tradeKey });
+          validTrades.push({ trade: JSON.parse(JSON.stringify(testTrade)), key: tradeKey, teams: 2 });
           if (validTrades.length >= MAX_VALID_TRADES) break;
         }
       }
       
-      // If we found valid 2-team trades, pick one randomly
-      if (validTrades.length > 0) {
-        const picked = validTrades[Math.floor(Math.random() * validTrades.length)];
-        previousPlayerToTeamTrades.add(picked.key);
-        return picked.trade;
-      }
-      
-      // Try 3-team trades
+      // Also collect 3-team trades
+      const valid3TeamTrades = [];
       let attempts3Team = 0;
       for (const thirdTeam of otherTeams) {
-        if (attempts3Team > 150 || validTrades.length >= MAX_VALID_TRADES) break;
+        if (attempts3Team > 100 || valid3TeamTrades.length >= 10) break;
         
         const thirdTeamPlayers = shuffle(getTradeablePlayers(thirdTeam));
         if (thirdTeamPlayers.length === 0) continue;
@@ -3884,11 +3878,11 @@
         // - Target player goes to destTeam
         // - DestTeam sends players to thirdTeam
         // - ThirdTeam sends players to sourceTeam
-        for (const destCombo of generateCombinations(destTeamPlayers.slice(0, 8), 1, 3)) {
-          if (attempts3Team > 150 || validTrades.length >= MAX_VALID_TRADES) break;
+        for (const destCombo of generateCombinations(destTeamPlayers.slice(0, 6), 1, 3)) {
+          if (attempts3Team > 100 || valid3TeamTrades.length >= 10) break;
           
-          for (const thirdCombo of generateCombinations(thirdTeamPlayers.slice(0, 8), 1, 4)) {
-            if (attempts3Team > 150 || validTrades.length >= MAX_VALID_TRADES) break;
+          for (const thirdCombo of generateCombinations(thirdTeamPlayers.slice(0, 6), 1, 4)) {
+            if (attempts3Team > 100 || valid3TeamTrades.length >= 10) break;
             attempts3Team++;
             
             const thirdComboSalary = thirdCombo.reduce((sum, p) => sum + p.salary, 0);
@@ -3908,23 +3902,19 @@
             
             const validation = validateTrade();
             if (validation.valid || validation.type?.startsWith('pending')) {
-              validTrades.push({ trade: JSON.parse(JSON.stringify(testTrade)), key: tradeKey });
+              valid3TeamTrades.push({ trade: JSON.parse(JSON.stringify(testTrade)), key: tradeKey, teams: 3 });
             }
           }
         }
       }
       
-      // If we found valid 3-team trades, pick one randomly
-      if (validTrades.length > 0) {
-        const picked = validTrades[Math.floor(Math.random() * validTrades.length)];
-        previousPlayerToTeamTrades.add(picked.key);
-        return picked.trade;
-      }
-      
-      // Try 4-team trades (limited attempts)
+      // Also collect 4-team trades
+      const valid4TeamTrades = [];
       let attempts4Team = 0;
-      for (let i = 0; i < otherTeams.length && attempts4Team < 100; i++) {
-        for (let j = i + 1; j < otherTeams.length && attempts4Team < 100; j++) {
+      for (let i = 0; i < otherTeams.length && attempts4Team < 50; i++) {
+        for (let j = i + 1; j < otherTeams.length && attempts4Team < 50; j++) {
+          if (valid4TeamTrades.length >= 5) break;
+          
           const thirdTeam = otherTeams[i];
           const fourthTeam = otherTeams[j];
           
@@ -3934,14 +3924,14 @@
           if (thirdTeamPlayers.length === 0 || fourthTeamPlayers.length === 0) continue;
           
           // Try a few combinations
-          for (const destCombo of generateCombinations(destTeamPlayers.slice(0, 5), 1, 2)) {
-            if (attempts4Team > 100 || validTrades.length >= MAX_VALID_TRADES) break;
+          for (const destCombo of generateCombinations(destTeamPlayers.slice(0, 4), 1, 2)) {
+            if (attempts4Team > 50 || valid4TeamTrades.length >= 5) break;
             
-            for (const thirdCombo of generateCombinations(thirdTeamPlayers.slice(0, 5), 1, 2)) {
-              if (attempts4Team > 100 || validTrades.length >= MAX_VALID_TRADES) break;
+            for (const thirdCombo of generateCombinations(thirdTeamPlayers.slice(0, 4), 1, 2)) {
+              if (attempts4Team > 50 || valid4TeamTrades.length >= 5) break;
               
-              for (const fourthCombo of generateCombinations(fourthTeamPlayers.slice(0, 5), 1, 3)) {
-                if (attempts4Team > 100 || validTrades.length >= MAX_VALID_TRADES) break;
+              for (const fourthCombo of generateCombinations(fourthTeamPlayers.slice(0, 4), 1, 3)) {
+                if (attempts4Team > 50 || valid4TeamTrades.length >= 5) break;
                 attempts4Team++;
                 
                 const fourthComboSalary = fourthCombo.reduce((sum, p) => sum + p.salary, 0);
@@ -3962,7 +3952,7 @@
                 
                 const validation = validateTrade();
                 if (validation.valid || validation.type?.startsWith('pending')) {
-                  validTrades.push({ trade: JSON.parse(JSON.stringify(testTrade)), key: tradeKey });
+                  valid4TeamTrades.push({ trade: JSON.parse(JSON.stringify(testTrade)), key: tradeKey, teams: 4 });
                 }
               }
             }
@@ -3970,9 +3960,28 @@
         }
       }
       
-      // If we found valid 4-team trades, pick one randomly
+      // Now pick from all valid trades with weighted probability: 65% 2-team, 30% 3-team, 5% 4-team
+      const allValidTrades = [];
+      
+      // Add trades with weights
       if (validTrades.length > 0) {
-        const picked = validTrades[Math.floor(Math.random() * validTrades.length)];
+        // Pick one random 2-team trade and give it 65% weight
+        const picked2 = validTrades[Math.floor(Math.random() * validTrades.length)];
+        for (let i = 0; i < 65; i++) allValidTrades.push(picked2);
+      }
+      if (valid3TeamTrades.length > 0) {
+        // Pick one random 3-team trade and give it 30% weight
+        const picked3 = valid3TeamTrades[Math.floor(Math.random() * valid3TeamTrades.length)];
+        for (let i = 0; i < 30; i++) allValidTrades.push(picked3);
+      }
+      if (valid4TeamTrades.length > 0) {
+        // Pick one random 4-team trade and give it 5% weight
+        const picked4 = valid4TeamTrades[Math.floor(Math.random() * valid4TeamTrades.length)];
+        for (let i = 0; i < 5; i++) allValidTrades.push(picked4);
+      }
+      
+      if (allValidTrades.length > 0) {
+        const picked = allValidTrades[Math.floor(Math.random() * allValidTrades.length)];
         previousPlayerToTeamTrades.add(picked.key);
         return picked.trade;
       }
