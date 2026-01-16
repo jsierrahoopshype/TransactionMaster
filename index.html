@@ -3735,7 +3735,7 @@
     
     // Generate trade for specific player to specific team
     function generateTradePlayerToTeam(playerName, destTeamName, excludedPlayerNames = []) {
-      const MAX_ATTEMPTS = 300;
+      const MAX_ATTEMPTS = 500;
       
       // Convert excluded names to lowercase for comparison
       const excludedSet = new Set(excludedPlayerNames.map(n => n.toLowerCase()));
@@ -3772,6 +3772,18 @@
         return excludedSet.has(playerObj.player.toLowerCase());
       }
       
+      // Get tradeable players from a team (excluding excluded players)
+      function getTradeablePlayers(teamName) {
+        return players.filter(p => 
+          p.team === teamName &&
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          p.salary > 0 &&
+          !isExcluded(p)
+        );
+      }
+      
       // Track tried combinations to avoid repeats
       const triedCombinations = new Set();
       
@@ -3784,30 +3796,48 @@
       // Get all other teams for potential 3rd/4th team
       const otherTeams = teams.filter(t => t !== sourceTeam && t !== destTeamName);
       
-      // Try to find a valid trade
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // Determine trade type: 65% 2-team, 30% 3-team, 5% 4-team
-        const rand = Math.random();
-        let numTeams = 2;
-        if (rand > 0.95 && otherTeams.length >= 2) {
-          numTeams = 4;
-        } else if (rand > 0.65 && otherTeams.length >= 1) {
-          numTeams = 3;
+      // Get destination team players sorted by salary
+      const destTeamPlayers = getTradeablePlayers(destTeamName).sort((a, b) => b.salary - a.salary);
+      
+      if (destTeamPlayers.length === 0) {
+        return { error: `No tradeable players on ${destTeamName} (after exclusions)` };
+      }
+      
+      const targetSalary = targetPlayer.salary;
+      
+      // Generate all possible 2-player, 3-player, 4-player, 5-player combinations
+      function* generateCombinations(arr, minSize, maxSize) {
+        for (let size = minSize; size <= Math.min(maxSize, arr.length); size++) {
+          yield* combinations(arr, size);
         }
-        
-        let testTrade;
-        
-        if (numTeams === 2) {
-          testTrade = generate2TeamTrade(targetPlayer, sourceTeam, destTeamName);
-        } else if (numTeams === 3) {
-          testTrade = generate3TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams);
+      }
+      
+      function* combinations(arr, size) {
+        if (size === 1) {
+          for (const item of arr) yield [item];
         } else {
-          testTrade = generate4TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams);
+          for (let i = 0; i <= arr.length - size; i++) {
+            for (const combo of combinations(arr.slice(i + 1), size - 1)) {
+              yield [arr[i], ...combo];
+            }
+          }
         }
+      }
+      
+      // Try 2-team trades first (most common)
+      for (const combo of generateCombinations(destTeamPlayers, 1, 5)) {
+        const comboSalary = combo.reduce((sum, p) => sum + p.salary, 0);
         
-        if (!testTrade) continue;
+        // Quick salary check - skip if obviously won't work
+        if (comboSalary < targetSalary * 0.5 || comboSalary > targetSalary * 2) continue;
         
-        // Check if we've tried this combination before
+        const team2PlayersOut = combo.map(p => ({ ...p, destination: 0 }));
+        
+        const testTrade = [
+          { teamName: sourceTeam, playersOut: [{ ...targetPlayer, destination: 1 }], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
+        
         const tradeKey = getTradeKey(testTrade);
         if (triedCombinations.has(tradeKey)) continue;
         triedCombinations.add(tradeKey);
@@ -3821,167 +3851,100 @@
         }
       }
       
-      return { error: `Could not find a valid trade to send ${targetPlayer.player} to ${destTeamName}. Try a different combination!` };
-      
-      // Helper: Generate 2-team trade
-      function generate2TeamTrade(targetPlayer, sourceTeam, destTeamName) {
-        const destTeamPlayers = players.filter(p => 
-          p.team === destTeamName &&
-          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-          p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0 &&
-          !isExcluded(p)
-        ).sort(() => Math.random() - 0.5);
+      // Try 3-team trades
+      let attempts3Team = 0;
+      for (const thirdTeam of otherTeams) {
+        if (attempts3Team > 150) break;
         
-        if (destTeamPlayers.length === 0) return null;
+        const thirdTeamPlayers = getTradeablePlayers(thirdTeam).sort((a, b) => b.salary - a.salary);
+        if (thirdTeamPlayers.length === 0) continue;
         
-        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-        const team1Outgoing = targetPlayer.salary;
-        
-        let team2PlayersOut = [];
-        let team2Outgoing = 0;
-        
-        // Try single player match (40% chance)
-        const singleMatch = destTeamPlayers.find(p => {
-          return p.salary >= team1Outgoing * 0.75 - 5000000 && 
-                 p.salary <= team1Outgoing * 1.25 + 5000000;
-        });
-        
-        if (singleMatch && Math.random() < 0.4) {
-          team2PlayersOut = [{ ...singleMatch, destination: 0 }];
-        } else {
-          // Build package
-          for (const p of destTeamPlayers) {
-            team2PlayersOut.push({ ...p, destination: 0 });
-            team2Outgoing += p.salary;
-            if (team2Outgoing >= team1Outgoing * 0.75 - 5000000) break;
-            if (team2PlayersOut.length >= 4) break;
+        // Try different combinations where:
+        // - Target player goes to destTeam
+        // - DestTeam sends players to thirdTeam
+        // - ThirdTeam sends players to sourceTeam
+        for (const destCombo of generateCombinations(destTeamPlayers.slice(0, 8), 1, 3)) {
+          if (attempts3Team > 150) break;
+          
+          for (const thirdCombo of generateCombinations(thirdTeamPlayers.slice(0, 8), 1, 4)) {
+            if (attempts3Team > 150) break;
+            attempts3Team++;
+            
+            const thirdComboSalary = thirdCombo.reduce((sum, p) => sum + p.salary, 0);
+            if (thirdComboSalary < targetSalary * 0.5 || thirdComboSalary > targetSalary * 2) continue;
+            
+            const testTrade = [
+              { teamName: sourceTeam, playersOut: [{ ...targetPlayer, destination: 1 }], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+              { teamName: destTeamName, playersOut: destCombo.map(p => ({ ...p, destination: 2 })), playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+              { teamName: thirdTeam, playersOut: thirdCombo.map(p => ({ ...p, destination: 0 })), playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+            ];
+            
+            const tradeKey = getTradeKey(testTrade);
+            if (triedCombinations.has(tradeKey)) continue;
+            triedCombinations.add(tradeKey);
+            
+            tradeTeams = testTrade;
+            redistributePlayers();
+            
+            const validation = validateTrade();
+            if (validation.valid || validation.type?.startsWith('pending')) {
+              return testTrade;
+            }
           }
         }
-        
-        if (team2PlayersOut.length === 0) return null;
-        
-        return [
-          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-        ];
       }
       
-      // Helper: Generate 3-team trade
-      function generate3TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams) {
-        const thirdTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
-        
-        const destTeamPlayers = players.filter(p => 
-          p.team === destTeamName &&
-          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-          p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0 &&
-          !isExcluded(p)
-        ).sort(() => Math.random() - 0.5);
-        
-        const thirdTeamPlayers = players.filter(p => 
-          p.team === thirdTeam &&
-          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-          p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0 &&
-          !isExcluded(p)
-        ).sort(() => Math.random() - 0.5);
-        
-        if (destTeamPlayers.length === 0 || thirdTeamPlayers.length === 0) return null;
-        
-        // Target player goes to destTeam
-        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-        
-        // DestTeam sends players to thirdTeam
-        let team2PlayersOut = [];
-        let team2Outgoing = 0;
-        const numFromDest = Math.floor(Math.random() * 2) + 1;
-        for (let i = 0; i < numFromDest && i < destTeamPlayers.length; i++) {
-          team2PlayersOut.push({ ...destTeamPlayers[i], destination: 2 });
-          team2Outgoing += destTeamPlayers[i].salary;
+      // Try 4-team trades (limited attempts)
+      let attempts4Team = 0;
+      for (let i = 0; i < otherTeams.length && attempts4Team < 100; i++) {
+        for (let j = i + 1; j < otherTeams.length && attempts4Team < 100; j++) {
+          const thirdTeam = otherTeams[i];
+          const fourthTeam = otherTeams[j];
+          
+          const thirdTeamPlayers = getTradeablePlayers(thirdTeam).sort((a, b) => b.salary - a.salary);
+          const fourthTeamPlayers = getTradeablePlayers(fourthTeam).sort((a, b) => b.salary - a.salary);
+          
+          if (thirdTeamPlayers.length === 0 || fourthTeamPlayers.length === 0) continue;
+          
+          // Try a few combinations
+          for (const destCombo of generateCombinations(destTeamPlayers.slice(0, 5), 1, 2)) {
+            if (attempts4Team > 100) break;
+            
+            for (const thirdCombo of generateCombinations(thirdTeamPlayers.slice(0, 5), 1, 2)) {
+              if (attempts4Team > 100) break;
+              
+              for (const fourthCombo of generateCombinations(fourthTeamPlayers.slice(0, 5), 1, 3)) {
+                if (attempts4Team > 100) break;
+                attempts4Team++;
+                
+                const fourthComboSalary = fourthCombo.reduce((sum, p) => sum + p.salary, 0);
+                if (fourthComboSalary < targetSalary * 0.5 || fourthComboSalary > targetSalary * 2) continue;
+                
+                const testTrade = [
+                  { teamName: sourceTeam, playersOut: [{ ...targetPlayer, destination: 1 }], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+                  { teamName: destTeamName, playersOut: destCombo.map(p => ({ ...p, destination: 2 })), playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+                  { teamName: thirdTeam, playersOut: thirdCombo.map(p => ({ ...p, destination: 3 })), playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+                  { teamName: fourthTeam, playersOut: fourthCombo.map(p => ({ ...p, destination: 0 })), playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+                ];
+                
+                const tradeKey = getTradeKey(testTrade);
+                if (triedCombinations.has(tradeKey)) continue;
+                triedCombinations.add(tradeKey);
+                
+                tradeTeams = testTrade;
+                redistributePlayers();
+                
+                const validation = validateTrade();
+                if (validation.valid || validation.type?.startsWith('pending')) {
+                  return testTrade;
+                }
+              }
+            }
+          }
         }
-        
-        // ThirdTeam sends players to sourceTeam
-        let team3PlayersOut = [];
-        let team3Outgoing = 0;
-        const targetSalary = targetPlayer.salary;
-        for (const p of thirdTeamPlayers) {
-          team3PlayersOut.push({ ...p, destination: 0 });
-          team3Outgoing += p.salary;
-          if (team3Outgoing >= targetSalary * 0.75 - 5000000) break;
-          if (team3PlayersOut.length >= 3) break;
-        }
-        
-        if (team2PlayersOut.length === 0 || team3PlayersOut.length === 0) return null;
-        
-        return [
-          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: thirdTeam, playersOut: team3PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-        ];
       }
       
-      // Helper: Generate 4-team trade
-      function generate4TeamTrade(targetPlayer, sourceTeam, destTeamName, otherTeams) {
-        const shuffledOthers = [...otherTeams].sort(() => Math.random() - 0.5);
-        const thirdTeam = shuffledOthers[0];
-        const fourthTeam = shuffledOthers[1];
-        
-        if (!thirdTeam || !fourthTeam) return null;
-        
-        const getTradeablePlayers = (teamName) => players.filter(p => 
-          p.team === teamName &&
-          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-          p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0 &&
-          !isExcluded(p)
-        ).sort(() => Math.random() - 0.5);
-        
-        const destTeamPlayers = getTradeablePlayers(destTeamName);
-        const thirdTeamPlayers = getTradeablePlayers(thirdTeam);
-        const fourthTeamPlayers = getTradeablePlayers(fourthTeam);
-        
-        if (destTeamPlayers.length === 0 || thirdTeamPlayers.length === 0 || fourthTeamPlayers.length === 0) return null;
-        
-        // Target player goes to destTeam
-        const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-        
-        // DestTeam sends to thirdTeam
-        let team2PlayersOut = [];
-        if (destTeamPlayers.length > 0) {
-          team2PlayersOut.push({ ...destTeamPlayers[0], destination: 2 });
-        }
-        
-        // ThirdTeam sends to fourthTeam
-        let team3PlayersOut = [];
-        if (thirdTeamPlayers.length > 0) {
-          team3PlayersOut.push({ ...thirdTeamPlayers[0], destination: 3 });
-        }
-        
-        // FourthTeam sends to sourceTeam
-        let team4PlayersOut = [];
-        let team4Outgoing = 0;
-        const targetSalary = targetPlayer.salary;
-        for (const p of fourthTeamPlayers) {
-          team4PlayersOut.push({ ...p, destination: 0 });
-          team4Outgoing += p.salary;
-          if (team4Outgoing >= targetSalary * 0.75 - 5000000) break;
-          if (team4PlayersOut.length >= 3) break;
-        }
-        
-        if (team2PlayersOut.length === 0 || team3PlayersOut.length === 0 || team4PlayersOut.length === 0) return null;
-        
-        return [
-          { teamName: sourceTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: destTeamName, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: thirdTeam, playersOut: team3PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: fourthTeam, playersOut: team4PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-        ];
-      }
+      return { error: `Could not find a valid trade to send ${targetPlayer.player} to ${destTeamName}. Try removing some exclusions or a different destination!` };
     }
     
     // Handle Player to Team button
