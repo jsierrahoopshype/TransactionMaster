@@ -1220,12 +1220,12 @@
         <div class="header-row">
           <div class="trade-machine">
             <div class="autocomplete-container">
-              <input type="text" id="playerToTeamPlayerInput" class="player-search-input" placeholder="Player..." autocomplete="off" style="width: 140px;">
+              <input type="text" id="playerToTeamPlayerInput" class="player-search-input" placeholder="Search player..." autocomplete="off">
               <div class="autocomplete-dropdown" id="playerToTeamPlayerDropdown"></div>
             </div>
             <span style="color: var(--text-secondary);">→</span>
             <div class="autocomplete-container">
-              <input type="text" id="playerToTeamTeamInput" class="player-search-input" placeholder="Team..." autocomplete="off" style="width: 140px;">
+              <input type="text" id="playerToTeamTeamInput" class="player-search-input" placeholder="Search team..." autocomplete="off">
               <div class="autocomplete-dropdown" id="playerToTeamTeamDropdown"></div>
             </div>
             <button class="btn btn-primary" id="playerToTeamBtn">🎯 Player to Team</button>
@@ -4418,9 +4418,15 @@
                   tradeAvailable: row['RESTRICTIONS']?.trim() || '',
                   isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
                   injuryReason: row['REASON']?.trim() || '',
-                  teamLogo: row['LOGO']?.trim() || '',
-                  headshot: row['HEADSHOT']?.trim() || ''
+                  teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
+                  headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || ''
                 };
+                // Debug logging for first player to see column names
+                if (player.player === 'Giannis Antetokounmpo') {
+                  console.log('Sample row keys:', Object.keys(row));
+                  console.log('LOGO value:', row['LOGO'], 'Logo value:', row['Logo']);
+                  console.log('Player logo:', player.teamLogo, 'headshot:', player.headshot);
+                }
                 // Debug logging for Brooklyn players
                 if (player.team === 'Brooklyn') {
                   console.log('Brooklyn player:', player.player, 'teamStatus:', player.teamStatus, 'capSpace:', player.capSpace, 'raw CAP SPACE:', row['CAP SPACE']);
