@@ -1498,11 +1498,11 @@
     }
 
     // Color gradient for games played (more games = green, fewer = red)
-    // Games range: 0-82, with ~40 being neutral yellow
+    // Games range: 0-100 (last 365 days including playoffs), with ~50 being neutral yellow
     function getGamesColor(games) {
       if (!games || games <= 0) return '#6b7280'; // gray for N/A
       const minGames = 0;
-      const maxGames = 82;
+      const maxGames = 100;
       const clampedGames = Math.max(minGames, Math.min(maxGames, games));
       const ratio = clampedGames / maxGames;
       
