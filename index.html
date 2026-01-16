@@ -155,6 +155,48 @@
       color: white;
     }
 
+    /* Exclusion container */
+    .exclusion-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      position: relative;
+    }
+
+    .exclusion-input {
+      width: 160px !important;
+    }
+
+    .excluded-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      max-width: 300px;
+    }
+
+    .excluded-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      color: var(--red);
+      white-space: nowrap;
+    }
+
+    .excluded-chip-remove {
+      cursor: pointer;
+      font-weight: bold;
+      opacity: 0.7;
+    }
+
+    .excluded-chip-remove:hover {
+      opacity: 1;
+    }
+
     /* Image Modal */
     .image-modal {
       position: fixed;
@@ -1227,6 +1269,13 @@
             <div class="autocomplete-container">
               <input type="text" id="playerToTeamTeamInput" class="player-search-input" placeholder="Search team..." autocomplete="off">
               <div class="autocomplete-dropdown" id="playerToTeamTeamDropdown"></div>
+            </div>
+            <div class="exclusion-container">
+              <div class="autocomplete-container">
+                <input type="text" id="excludePlayersInput" class="player-search-input exclusion-input" placeholder="Exclude players..." autocomplete="off">
+                <div class="autocomplete-dropdown" id="excludePlayersDropdown"></div>
+              </div>
+              <div class="excluded-chips" id="excludedChips"></div>
             </div>
             <button class="btn btn-primary" id="playerToTeamBtn">🎯 Player to Team</button>
           </div>
@@ -3525,9 +3574,87 @@
     const playerToTeamTeamInput = document.getElementById('playerToTeamTeamInput');
     const playerToTeamTeamDropdown = document.getElementById('playerToTeamTeamDropdown');
     const playerToTeamBtn = document.getElementById('playerToTeamBtn');
+    const excludePlayersInput = document.getElementById('excludePlayersInput');
+    const excludePlayersDropdown = document.getElementById('excludePlayersDropdown');
+    const excludedChipsContainer = document.getElementById('excludedChips');
     
     let selectedPlayerToTeamPlayer = null;
     let selectedPlayerToTeamTeam = null;
+    let excludedPlayers = []; // Array of excluded player names
+    
+    // Render excluded player chips
+    function renderExcludedChips() {
+      excludedChipsContainer.innerHTML = excludedPlayers.map(name => `
+        <span class="excluded-chip" data-player="${name}">
+          ${name.split(' ').pop()}
+          <span class="excluded-chip-remove" data-player="${name}">×</span>
+        </span>
+      `).join('');
+      
+      // Add click handlers for remove buttons
+      excludedChipsContainer.querySelectorAll('.excluded-chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const playerName = btn.dataset.player;
+          excludedPlayers = excludedPlayers.filter(p => p !== playerName);
+          renderExcludedChips();
+        });
+      });
+    }
+    
+    // Exclusion autocomplete
+    excludePlayersInput.addEventListener('input', () => {
+      const searchTerm = excludePlayersInput.value.toLowerCase().trim();
+      
+      if (searchTerm.length < 2) {
+        excludePlayersDropdown.classList.remove('show');
+        return;
+      }
+      
+      const matches = players
+        .filter(p => 
+          p.team && 
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          !excludedPlayers.includes(p.player) && // Don't show already excluded
+          (p.player.toLowerCase().includes(searchTerm) ||
+           p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm)))
+        )
+        .slice(0, 8);
+      
+      if (matches.length === 0) {
+        excludePlayersDropdown.classList.remove('show');
+        return;
+      }
+      
+      excludePlayersDropdown.innerHTML = matches.map(p => `
+        <div class="autocomplete-item" data-player="${p.player}">
+          <span>${p.player}</span>
+          <span style="color: var(--text-secondary); font-size: 0.8em;">${p.team}</span>
+        </div>
+      `).join('');
+      
+      excludePlayersDropdown.classList.add('show');
+      
+      excludePlayersDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const playerName = item.dataset.player;
+          if (!excludedPlayers.includes(playerName)) {
+            excludedPlayers.push(playerName);
+            renderExcludedChips();
+          }
+          excludePlayersInput.value = '';
+          excludePlayersDropdown.classList.remove('show');
+        });
+      });
+    });
+    
+    // Close exclusion dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#excludePlayersInput') && !e.target.closest('#excludePlayersDropdown')) {
+        excludePlayersDropdown.classList.remove('show');
+      }
+    });
     
     // Player autocomplete for Player to Team
     playerToTeamPlayerInput.addEventListener('input', () => {
@@ -3607,8 +3734,11 @@
     });
     
     // Generate trade for specific player to specific team
-    function generateTradePlayerToTeam(playerName, destTeamName) {
+    function generateTradePlayerToTeam(playerName, destTeamName, excludedPlayerNames = []) {
       const MAX_ATTEMPTS = 300;
+      
+      // Convert excluded names to lowercase for comparison
+      const excludedSet = new Set(excludedPlayerNames.map(n => n.toLowerCase()));
       
       // Find the target player
       const targetPlayer = players.find(p => 
@@ -3635,6 +3765,11 @@
       
       if (sourceTeam === destTeamName) {
         return { error: `${targetPlayer.player} is already on ${destTeamName}` };
+      }
+      
+      // Helper to check if player is excluded
+      function isExcluded(playerObj) {
+        return excludedSet.has(playerObj.player.toLowerCase());
       }
       
       // Track tried combinations to avoid repeats
@@ -3695,7 +3830,8 @@
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY') &&
           p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0
+          p.salary > 0 &&
+          !isExcluded(p)
         ).sort(() => Math.random() - 0.5);
         
         if (destTeamPlayers.length === 0) return null;
@@ -3741,7 +3877,8 @@
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY') &&
           p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0
+          p.salary > 0 &&
+          !isExcluded(p)
         ).sort(() => Math.random() - 0.5);
         
         const thirdTeamPlayers = players.filter(p => 
@@ -3749,7 +3886,8 @@
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY') &&
           p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0
+          p.salary > 0 &&
+          !isExcluded(p)
         ).sort(() => Math.random() - 0.5);
         
         if (destTeamPlayers.length === 0 || thirdTeamPlayers.length === 0) return null;
@@ -3799,7 +3937,8 @@
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY') &&
           p.tradeAvailable?.toLowerCase() !== 'not available' &&
-          p.salary > 0
+          p.salary > 0 &&
+          !isExcluded(p)
         ).sort(() => Math.random() - 0.5);
         
         const destTeamPlayers = getTradeablePlayers(destTeamName);
@@ -3868,7 +4007,7 @@
         return;
       }
       
-      const result = generateTradePlayerToTeam(exactPlayer.player, exactTeam);
+      const result = generateTradePlayerToTeam(exactPlayer.player, exactTeam, excludedPlayers);
       
       if (result && result.error) {
         tradeStatus.style.display = 'flex';
@@ -3884,9 +4023,10 @@
     
     // Close Player to Team dropdowns
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.autocomplete-container')) {
+      if (!e.target.closest('.autocomplete-container') && !e.target.closest('.excluded-chip')) {
         playerToTeamPlayerDropdown.classList.remove('show');
         playerToTeamTeamDropdown.classList.remove('show');
+        excludePlayersDropdown.classList.remove('show');
       }
     });
     
