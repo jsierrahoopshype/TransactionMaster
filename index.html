@@ -1597,7 +1597,8 @@
 
     // Get trade salary (Two-Way contracts count as $0)
     // For outgoing: use regular salary
-    // For incoming: use poison pill value if present, or league minimum if minimum contract, otherwise regular salary
+    // For incoming SALARY MATCHING: use poison pill value if present, $0 for MSE, league minimum if minimum contract, otherwise regular salary
+    // For incoming CAP IMPACT (Net): use actual salary (MSE players still count against cap)
     function getOutgoingSalary(player) {
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
         return 0;
@@ -1605,6 +1606,7 @@
       return player.salary;
     }
 
+    // For salary matching purposes
     function getIncomingSalary(player) {
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
         return 0;
@@ -1621,6 +1623,15 @@
       if (player.isMinimum) {
         return LEAGUE_MINIMUM;
       }
+      return player.salary;
+    }
+
+    // For cap impact / Net calculations (actual salary on books)
+    function getCapImpactSalary(player) {
+      if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
+        return 0;
+      }
+      // MSE players' actual salary still goes on the books
       return player.salary;
     }
 
@@ -2193,29 +2204,38 @@
         const hasDateWarnings = allWarnings.some(w => w.includes('available') && !w.includes('no-trade'));
         const hasNTCWarnings = allWarnings.some(w => w.includes('no-trade clause'));
         const hasBlockingWarnings = allWarnings.some(w => w.includes('cannot be traded before deadline'));
+        const hasTPECreationWarnings = allWarnings.some(w => w.includes('cannot create a TPE'));
+        
+        // Filter out TPE creation warnings - they're informational only and don't affect trade validity
+        const nonTPEWarnings = allWarnings.filter(w => !w.includes('cannot create a TPE'));
         
         if (hasBlockingWarnings) {
-          return { valid: true, message: allWarnings.join('; '), type: 'warning' };
+          return { valid: true, message: nonTPEWarnings.join('; '), type: 'warning' };
         }
         
         if (hasDateWarnings && !hasNTCWarnings) {
           // Extract the date from the warning message
-          const dateMatch = allWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
+          const dateMatch = nonTPEWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
           const date = dateMatch ? dateMatch[1] : 'a future date';
-          return { valid: true, message: allWarnings.join('; '), type: 'pending-date', pendingDate: date };
+          return { valid: true, message: nonTPEWarnings.join('; '), type: 'pending-date', pendingDate: date };
         }
         
         if (hasNTCWarnings && !hasDateWarnings) {
-          return { valid: true, message: allWarnings.join('; '), type: 'pending-ntc' };
+          return { valid: true, message: nonTPEWarnings.join('; '), type: 'pending-ntc' };
         }
         
         if (hasNTCWarnings && hasDateWarnings) {
-          const dateMatch = allWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
+          const dateMatch = nonTPEWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
           const date = dateMatch ? dateMatch[1] : 'a future date';
-          return { valid: true, message: allWarnings.join('; '), type: 'pending-both', pendingDate: date };
+          return { valid: true, message: nonTPEWarnings.join('; '), type: 'pending-both', pendingDate: date };
         }
         
-        return { valid: true, message: allWarnings.join('; '), type: 'warning' };
+        // If only TPE creation warnings remain, trade is fully valid (green)
+        if (nonTPEWarnings.length === 0) {
+          return { valid: true, message: 'All teams can complete this trade', type: 'valid' };
+        }
+        
+        return { valid: true, message: nonTPEWarnings.join('; '), type: 'warning' };
       }
 
       return { valid: true, message: 'All teams can complete this trade', type: 'valid' };
@@ -2344,7 +2364,9 @@
 
       const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
       const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
-      const netSalary = incomingSalary - outgoingSalary;
+      // For Net (cap impact), use actual salaries - MSE players still go on books
+      const incomingCapImpact = tradeTeam.playersIn.reduce((sum, p) => sum + getCapImpactSalary(p), 0);
+      const netSalary = incomingCapImpact - outgoingSalary;
 
       const cardClass = validation ? (validation.valid ? 'valid' : 'invalid') : '';
 
@@ -2498,7 +2520,7 @@
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                           ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                          ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}% (not factored in salary)">${p.tradeKicker}%</span>` : ''}
+                          ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
                           ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                           ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
@@ -2685,7 +2707,7 @@
                             ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
                             ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                            ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}% (not factored in salary)">${p.tradeKicker}%</span>` : ''}
+                            ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           </div>
@@ -2834,7 +2856,7 @@
                             ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                             ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                            ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}% (not factored in salary)">${p.tradeKicker}%</span>` : ''}
+                            ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                             ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
