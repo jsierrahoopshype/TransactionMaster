@@ -2043,6 +2043,34 @@
         return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
       }
 
+      // 2nd Apron specific restrictions
+      tradeTeams.forEach(t => {
+        if (!t.teamName) return;
+        const teamInfo = getTeamInfo(t.teamName);
+        if (!teamInfo) return;
+        
+        const status = teamInfo.teamStatus?.toUpperCase() || '';
+        const is2ndApron = status.includes('2ND APRON');
+        
+        if (is2ndApron) {
+          // 2nd Apron teams cannot send cash
+          if (t.cashOut && t.cashOut.length > 0) {
+            allValid = false;
+            invalidMessages.push(`${t.teamName} (2nd Apron) cannot send cash in a trade`);
+          }
+          
+          // 2nd Apron teams cannot aggregate salaries (more than 1 player out)
+          if (t.playersOut.length > 1) {
+            allValid = false;
+            invalidMessages.push(`${t.teamName} (2nd Apron) cannot aggregate player salaries`);
+          }
+        }
+      });
+
+      if (!allValid) {
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
+      }
+
       // Validate Stepien Rule for each team trading picks
       tradeTeams.forEach((t, teamIndex) => {
         if (t.teamName && t.picksOut && t.picksOut.length > 0) {
