@@ -1079,6 +1079,11 @@
       color: #22c55e;
     }
 
+    .mse-badge {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+    }
+
     .tw-badge {
       background: rgba(59, 130, 246, 0.15);
       color: #3b82f6;
@@ -1582,8 +1587,8 @@
       return rights;
     }
 
-    // League minimum salary for 2025-26 season
-    const LEAGUE_MINIMUM = 1157153;
+    // League minimum salary for 2025-26 season (0 years experience / rookie scale)
+    const LEAGUE_MINIMUM = 1272870;
 
     // Get trade salary (Two-Way contracts count as $0)
     // For outgoing: use regular salary
@@ -1597,6 +1602,10 @@
 
     function getIncomingSalary(player) {
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
+        return 0;
+      }
+      // Players signed with Minimum Salary Exception can be traded without matching salary
+      if (player.isMinSalaryException) {
         return 0;
       }
       // Poison pill takes priority
@@ -2449,10 +2458,11 @@
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                           ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                          ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                          ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
+                          ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                         </div>
-                        <div class="player-chip-salary">${formatSalary(outgoingValue)}${isTwoWay && p.salary > 0 ? ` <span style="color: #6366f1; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
+                        <div class="player-chip-salary">${formatSalary(outgoingValue)}${isTwoWay && p.salary > 0 ? ` <span style="color: #6366f1; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}${p.isMinSalaryException ? ` <span style="color: #10b981; font-size: 0.7em;">→ $0 incoming</span>` : ''}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill && !p.isMinSalaryException ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                       </div>
                       <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
                     </div>
@@ -2599,8 +2609,8 @@
                 ${tradeTeam.playersIn.map(p => {
                   const incomingValue = getIncomingSalary(p);
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
-                  const showAdjusted = p.poisonPill > 0 || p.isMinimum || (isTwoWay && p.salary > 0);
-                  const adjustedColor = p.isMinimum ? '#22c55e' : (isTwoWay ? '#6366f1' : '#ec4899');
+                  const showAdjusted = p.poisonPill > 0 || p.isMinimum || p.isMinSalaryException || (isTwoWay && p.salary > 0);
+                  const adjustedColor = (p.isMinimum || p.isMinSalaryException) ? '#10b981' : (isTwoWay ? '#6366f1' : '#ec4899');
                   return `
                     <div class="player-chip incoming">
                       <div class="player-chip-row">
@@ -2634,7 +2644,8 @@
                             ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
                             ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                            ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                            ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
+                            ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           </div>
                           <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${adjustedColor}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
                         </div>
@@ -2781,7 +2792,8 @@
                             ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                             ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
-                            ${p.isMinimum ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                            ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
+                            ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                             ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                           </span>
                           <span class="player-roster-salary">${formatSalary(p.salary)}</span>
@@ -5018,7 +5030,9 @@
                   notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
                   poisonPill: parseSalary(row['POISON PILL'] || 0),
                   otherNotes: otherNotes,
+                  exception: row['EXCEPTION']?.trim() || '',
                   isMinimum: otherNotes.toLowerCase().includes('minimum'),
+                  isMinSalaryException: (row['EXCEPTION']?.trim() || '').toLowerCase().includes('minimum salary exception'),
                   is10Day: is10Day,
                   taxRoom: parseSalary(row['TAX ROOM'] || 0),
                   apronRoom1st: parseSalary(row['1st APRON'] || 0),
