@@ -2071,6 +2071,40 @@
             invalidMessages.push(`${t.teamName} must send an asset (pick, rights, or cash) when using TPE`);
           }
         }
+        
+        // 1st and 2nd Apron teams cannot use TPEs (after regular season ends)
+        if (t.teamName && t.tpeUsed) {
+          const teamInfo = getTeamInfo(t.teamName);
+          if (teamInfo) {
+            const status = teamInfo.teamStatus?.toUpperCase() || '';
+            if (status.includes('1ST APRON') || status.includes('2ND APRON')) {
+              allValid = false;
+              invalidMessages.push(`${t.teamName} (${status.includes('2ND') ? '2nd' : '1st'} Apron) cannot use Trade Exceptions`);
+            }
+          }
+        }
+      });
+      
+      // Check if 1st/2nd Apron teams would create a TPE (outgoing > incoming)
+      // These teams cannot create new TPEs from trades
+      tradeTeams.forEach(t => {
+        if (!t.teamName) return;
+        const teamInfo = getTeamInfo(t.teamName);
+        if (!teamInfo) return;
+        
+        const status = teamInfo.teamStatus?.toUpperCase() || '';
+        if (status.includes('1ST APRON') || status.includes('2ND APRON')) {
+          const outgoing = t.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+          const incoming = t.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+          
+          // If sending more salary than receiving, they would create a TPE (which they can't)
+          if (outgoing > incoming && t.playersOut.length > 0 && t.playersIn.length > 0) {
+            const tpeAmount = outgoing - incoming;
+            if (tpeAmount > 250000) { // Only flag if significant TPE would be created
+              allWarnings.push(`${t.teamName} (${status.includes('2ND') ? '2nd' : '1st'} Apron) cannot create a TPE from this trade (would generate ${formatSalary(tpeAmount)} TPE)`);
+            }
+          }
+        }
       });
 
       if (!allValid) {
@@ -2730,23 +2764,31 @@
                 ${(() => {
                   const teamTPEs = getTeamTPEs(tradeTeam.teamName);
                   if (teamTPEs.length === 0) return '';
+                  
+                  // Check if team is 1st or 2nd Apron (can't use TPEs)
+                  const teamInfo = getTeamInfo(tradeTeam.teamName);
+                  const teamStatus = teamInfo?.teamStatus?.toUpperCase() || '';
+                  const isApronTeam = teamStatus.includes('1ST APRON') || teamStatus.includes('2ND APRON');
+                  
                   return `
-                    <div class="tpe-section">
+                    <div class="tpe-section" ${isApronTeam ? 'style="opacity: 0.5;"' : ''}>
                       <div class="tpe-section-header">
                         <span class="tpe-label">Trade Exceptions</span>
-                        ${tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
+                        ${isApronTeam ? '<span class="tpe-used-badge" style="background: var(--red-dim); color: var(--red);">APRON - CAN\'T USE</span>' : ''}
+                        ${!isApronTeam && tradeTeam.tpeUsed ? '<span class="tpe-used-badge">TPE IN USE</span>' : ''}
                       </div>
                       <div class="tpe-list">
                         ${teamTPEs.map((tpe, tpeIndex) => {
                           const isSelected = tradeTeam.tpeUsed && tradeTeam.tpeUsed.value === tpe.value && tradeTeam.tpeUsed.expirationDate === tpe.expirationDate;
                           const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && t.tpeUsed && t.tpeUsed.value === tpe.value && t.tpeUsed.team === tpe.team);
+                          const isDisabled = isUsedElsewhere || isApronTeam;
                           return `
-                            <div class="tpe-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                            <div class="tpe-item ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" 
                                  data-team="${index}" 
                                  data-tpe-index="${tpeIndex}"
                                  data-tpe-value="${tpe.value}"
                                  data-tpe-date="${tpe.expirationDate}"
-                                 ${isUsedElsewhere ? 'data-disabled="true"' : ''}>
+                                 ${isDisabled ? 'data-disabled="true"' : ''}>
                               <div>
                                 <span class="tpe-value">${formatSalary(tpe.value)}</span>
                                 ${tpe.expirationDate ? `<span class="tpe-expiry">expires ${tpe.expirationDate}</span>` : ''}
