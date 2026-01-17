@@ -2049,7 +2049,7 @@
         const teamInfo = getTeamInfo(t.teamName);
         if (!teamInfo) return;
         
-        const status = teamInfo.teamStatus?.toUpperCase() || '';
+        const status = teamInfo.status?.toUpperCase() || '';
         const is2ndApron = status.includes('2ND APRON');
         
         if (is2ndApron) {
@@ -2104,7 +2104,7 @@
         if (t.teamName && t.tpeUsed) {
           const teamInfo = getTeamInfo(t.teamName);
           if (teamInfo) {
-            const status = teamInfo.teamStatus?.toUpperCase() || '';
+            const status = teamInfo.status?.toUpperCase() || '';
             if (status.includes('1ST APRON') || status.includes('2ND APRON')) {
               allValid = false;
               invalidMessages.push(`${t.teamName} (${status.includes('2ND') ? '2nd' : '1st'} Apron) cannot use Trade Exceptions`);
@@ -2120,7 +2120,7 @@
         const teamInfo = getTeamInfo(t.teamName);
         if (!teamInfo) return;
         
-        const status = teamInfo.teamStatus?.toUpperCase() || '';
+        const status = teamInfo.status?.toUpperCase() || '';
         if (status.includes('1ST APRON') || status.includes('2ND APRON')) {
           const outgoing = t.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
           const incoming = t.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
@@ -2795,7 +2795,7 @@
                   
                   // Check if team is 1st or 2nd Apron (can't use TPEs)
                   const teamInfo = getTeamInfo(tradeTeam.teamName);
-                  const teamStatus = teamInfo?.teamStatus?.toUpperCase() || '';
+                  const teamStatus = teamInfo?.status?.toUpperCase() || '';
                   const isApronTeam = teamStatus.includes('1ST APRON') || teamStatus.includes('2ND APRON');
                   
                   return `
