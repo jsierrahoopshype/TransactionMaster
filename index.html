@@ -1084,6 +1084,11 @@
       color: #10b981;
     }
 
+    .tk-badge {
+      background: rgba(249, 115, 22, 0.15);
+      color: #f97316;
+    }
+
     .tw-badge {
       background: rgba(59, 130, 246, 0.15);
       color: #3b82f6;
@@ -2031,6 +2036,41 @@
         return { valid: false, message: 'Select destination team for all players', type: 'warning' };
       }
 
+      // Check that every team involved in the trade sends something
+      // A team is "involved" if they receive players, picks, rights, or cash
+      const teamsReceiving = tradeTeams.filter(t => {
+        if (!t.teamName) return false;
+        // Check if receiving players
+        if (t.playersIn.length > 0) return true;
+        // Check if receiving picks from other teams
+        const receivingPicks = tradeTeams.some((other, otherIdx) => 
+          other.picksOut?.some(p => p.destination === tradeTeams.indexOf(t))
+        );
+        if (receivingPicks) return true;
+        // Check if receiving rights from other teams
+        const receivingRights = tradeTeams.some((other, otherIdx) => 
+          other.rightsOut?.some(r => r.destination === tradeTeams.indexOf(t))
+        );
+        if (receivingRights) return true;
+        // Check if receiving cash from other teams
+        const receivingCash = tradeTeams.some((other, otherIdx) => 
+          other.cashOut?.some(c => c.destination === tradeTeams.indexOf(t))
+        );
+        if (receivingCash) return true;
+        return false;
+      });
+
+      // Check each receiving team sends something back
+      for (const t of teamsReceiving) {
+        const isSending = t.playersOut.length > 0 || 
+                         (t.picksOut && t.picksOut.length > 0) || 
+                         (t.rightsOut && t.rightsOut.length > 0) || 
+                         (t.cashOut && t.cashOut.length > 0);
+        if (!isSending) {
+          return { valid: false, message: `${t.teamName} must send something in return (players, picks, rights, or cash)`, type: 'invalid' };
+        }
+      }
+
       // Validate each team's side (only for teams with players)
       let allValid = true;
       let allWarnings = [];
@@ -2458,6 +2498,7 @@
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                           ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                          ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}% (not factored in salary)">${p.tradeKicker}%</span>` : ''}
                           ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                           ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
@@ -2644,6 +2685,7 @@
                             ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
                             ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                            ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}% (not factored in salary)">${p.tradeKicker}%</span>` : ''}
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                           </div>
@@ -2792,6 +2834,7 @@
                             ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                             ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
+                            ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}% (not factored in salary)">${p.tradeKicker}%</span>` : ''}
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                             ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
@@ -5013,6 +5056,7 @@
                 const otherNotes = row['OTHER NOTES']?.trim() || '';
                 const contractStatus = row['ST 25-26']?.trim() || '';
                 const is10Day = contractStatus.toLowerCase().includes('10-day');
+                const tradeKickerValue = parseFloat(row['TRADE KICKER'] || 0) || 0;
                 const player = {
                   player: row.PLAYER?.trim() || '',
                   team: row.TEAM?.trim() || '',
@@ -5029,6 +5073,7 @@
                   noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
                   notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
                   poisonPill: parseSalary(row['POISON PILL'] || 0),
+                  tradeKicker: tradeKickerValue,
                   otherNotes: otherNotes,
                   exception: row['EXCEPTION']?.trim() || '',
                   isMinimum: otherNotes.toLowerCase().includes('minimum'),
