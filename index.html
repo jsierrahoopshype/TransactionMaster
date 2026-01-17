@@ -1882,6 +1882,31 @@
       };
     }
 
+    // Check 2nd Apron specific restrictions for a team trade
+    // Returns { valid: boolean, message?: string }
+    function check2ndApronRestrictions(tradeTeam) {
+      if (!tradeTeam.teamName) return { valid: true };
+      const teamInfo = getTeamInfo(tradeTeam.teamName);
+      if (!teamInfo) return { valid: true };
+      
+      const status = teamInfo.status?.toUpperCase() || '';
+      const is2ndApron = status.includes('2ND APRON');
+      
+      if (is2ndApron) {
+        // 2nd Apron teams cannot send cash
+        if (tradeTeam.cashOut && tradeTeam.cashOut.length > 0) {
+          return { valid: false, message: `${tradeTeam.teamName} (2nd Apron) cannot send cash in a trade` };
+        }
+        
+        // 2nd Apron teams cannot aggregate salaries (more than 1 player out)
+        if (tradeTeam.playersOut.length > 1) {
+          return { valid: false, message: `${tradeTeam.teamName} (2nd Apron) cannot aggregate player salaries` };
+        }
+      }
+      
+      return { valid: true };
+    }
+
     // Validate entire trade
     // Stepien Rule validation
     // Teams must have at least one first-round pick in consecutive years
@@ -3484,12 +3509,16 @@
           );
           if (totalSalary < MIN_COMBINED_SALARY) continue;
           
-          // Validate all three sides
+          // Validate all three sides (salary matching + 2nd Apron restrictions)
           const team1Valid = validateTeamTrade(testTrade[0]);
           const team2Valid = validateTeamTrade(testTrade[1]);
           const team3Valid = validateTeamTrade(testTrade[2]);
+          const team1Apron = check2ndApronRestrictions(testTrade[0]);
+          const team2Apron = check2ndApronRestrictions(testTrade[1]);
+          const team3Apron = check2ndApronRestrictions(testTrade[2]);
           
-          if (team1Valid.valid && team2Valid.valid && team3Valid.valid) {
+          if (team1Valid.valid && team2Valid.valid && team3Valid.valid &&
+              team1Apron.valid && team2Apron.valid && team3Apron.valid) {
             return testTrade;
           }
         } else {
@@ -3524,13 +3553,18 @@
               }
             ];
             
-            // Validate both sides
+            // Validate both sides (salary matching + 2nd Apron restrictions)
             const team1Valid = validateTeamTrade(testTrade[0]);
             const team2Valid = validateTeamTrade(testTrade[1]);
+            const team1Apron = check2ndApronRestrictions(testTrade[0]);
+            const team2Apron = check2ndApronRestrictions(testTrade[1]);
             
-            if (team1Valid.valid && team2Valid.valid) {
-              // Maybe add a third player (50% chance)
-              if (Math.random() > 0.5) {
+            if (team1Valid.valid && team2Valid.valid && team1Apron.valid && team2Apron.valid) {
+              // Maybe add a third player (50% chance) - but only if neither team is 2nd Apron
+              const team1Is2ndApron = getTeamInfo(testTrade[0].teamName)?.status?.toUpperCase().includes('2ND APRON');
+              const team2Is2ndApron = getTeamInfo(testTrade[1].teamName)?.status?.toUpperCase().includes('2ND APRON');
+              
+              if (Math.random() > 0.5 && !team1Is2ndApron && !team2Is2ndApron) {
                 // Try to add another player to one side
                 const sideToAdd = Math.random() > 0.5 ? 0 : 1;
                 const teamToAddFrom = testTrade[sideToAdd].teamName;
@@ -3548,11 +3582,13 @@
                   testTrade[sideToAdd].playersOut.push({ ...additionalPlayer, destination: otherSide });
                   testTrade[otherSide].playersIn.push(additionalPlayer);
                   
-                  // Re-validate
+                  // Re-validate (including 2nd Apron check)
                   const retest1 = validateTeamTrade(testTrade[0]);
                   const retest2 = validateTeamTrade(testTrade[1]);
+                  const retest1Apron = check2ndApronRestrictions(testTrade[0]);
+                  const retest2Apron = check2ndApronRestrictions(testTrade[1]);
                   
-                  if (!retest1.valid || !retest2.valid) {
+                  if (!retest1.valid || !retest2.valid || !retest1Apron.valid || !retest2Apron.valid) {
                     // Remove the additional player if it breaks the trade
                     testTrade[sideToAdd].playersOut.pop();
                     testTrade[otherSide].playersIn.pop();
@@ -4581,11 +4617,13 @@
               }
             ];
             
-            // Quick validation
+            // Quick validation (including 2nd Apron check)
             const team1Valid = validateTeamTrade(testTrade[0]);
             const team2Valid = validateTeamTrade(testTrade[1]);
+            const team1Apron = check2ndApronRestrictions(testTrade[0]);
+            const team2Apron = check2ndApronRestrictions(testTrade[1]);
             
-            if (team1Valid.valid && team2Valid.valid) {
+            if (team1Valid.valid && team2Valid.valid && team1Apron.valid && team2Apron.valid) {
               return testTrade;
             }
           }
