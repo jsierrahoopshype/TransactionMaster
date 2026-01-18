@@ -5253,16 +5253,34 @@
     // HOOPSHYPE TRADE RUMORS INTEGRATION
     // ===========================================
     
-    const RUMORS_URL = 'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_latest.json';
+    // Load both latest (today/recent) and part7 (recent archive) for best coverage
+    const RUMORS_URLS = [
+      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_latest.json',
+      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_part7.json'
+    ];
     const MAX_RUMORS_PER_PLAYER = 10;
     let rumorsCache = null;
 
     async function fetchRumors() {
       if (rumorsCache) return rumorsCache;
       try {
-        const response = await fetch(RUMORS_URL);
-        if (!response.ok) throw new Error('Failed to fetch rumors');
-        rumorsCache = await response.json();
+        // Fetch both files in parallel
+        const responses = await Promise.all(RUMORS_URLS.map(url => fetch(url)));
+        const dataArrays = await Promise.all(responses.map(r => r.ok ? r.json() : []));
+        
+        // Combine all rumors into one array
+        const allRumors = dataArrays.flat();
+        
+        // Deduplicate based on source_url (same rumor shouldn't appear twice)
+        const seen = new Set();
+        rumorsCache = allRumors.filter(rumor => {
+          const key = rumor.source_url || (rumor.text + rumor.archive_date);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        
+        console.log('Loaded', rumorsCache.length, 'unique rumors');
         return rumorsCache;
       } catch (error) {
         console.error('Error fetching rumors:', error);
