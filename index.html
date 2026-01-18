@@ -3242,6 +3242,93 @@
       attachEventListeners();
       equalizeTradeContentHeights();
       displayTradeRumors(); // Load trade rumors for players in the trade
+      updateUrlAndTitle(); // Update URL and page title based on trade
+    }
+    
+    // Update URL and page title based on current trade
+    function updateUrlAndTitle() {
+      // Collect all players being traded
+      const allPlayersOut = [];
+      tradeTeams.forEach(team => {
+        if (team.playersOut && team.playersOut.length > 0) {
+          team.playersOut.forEach(p => {
+            allPlayersOut.push(p.player);
+          });
+        }
+      });
+      
+      // If no players in trade, reset to default
+      if (allPlayersOut.length === 0) {
+        document.title = 'NBA Trade Calculator';
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
+      
+      // Create page title from player names
+      let pageTitle;
+      if (allPlayersOut.length === 1) {
+        pageTitle = `${allPlayersOut[0]} Trade - NBA Trade Calculator`;
+      } else if (allPlayersOut.length === 2) {
+        pageTitle = `${allPlayersOut[0]} for ${allPlayersOut[1]} Trade - NBA Trade Calculator`;
+      } else {
+        // For 3+ players, show first two and "& more"
+        pageTitle = `${allPlayersOut[0]}, ${allPlayersOut[1]} & more - NBA Trade Calculator`;
+      }
+      document.title = pageTitle;
+      
+      // Create URL with trade data
+      const tradeData = {
+        teams: tradeTeams.map(t => ({
+          team: t.teamName,
+          players: t.playersOut.map(p => p.player),
+          picks: t.picksOut || [],
+          rights: t.rightsOut || [],
+          tpe: t.tpeUsed ? { value: t.tpeUsed.value, date: t.tpeUsed.expirationDate } : null
+        })).filter(t => t.team) // Only include teams that are selected
+      };
+      
+      // Encode trade data to URL
+      const tradeParam = encodeURIComponent(JSON.stringify(tradeData));
+      const newUrl = `${window.location.pathname}?trade=${tradeParam}`;
+      window.history.replaceState({}, '', newUrl);
+    }
+    
+    // Parse URL on page load to restore trade
+    function loadTradeFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tradeParam = urlParams.get('trade');
+      
+      if (!tradeParam) return false;
+      
+      try {
+        const tradeData = JSON.parse(decodeURIComponent(tradeParam));
+        
+        if (!tradeData.teams || tradeData.teams.length < 2) return false;
+        
+        // Restore trade teams
+        tradeTeams = tradeData.teams.map(t => ({
+          teamName: t.team || '',
+          playersOut: (t.players || []).map(playerName => {
+            const playerInfo = players.find(p => p.player === playerName);
+            return playerInfo ? { ...playerInfo } : { player: playerName };
+          }),
+          playersIn: [],
+          tpeUsed: t.tpe ? { value: t.tpe.value, expirationDate: t.tpe.date, team: t.team } : null,
+          picksOut: t.picks || [],
+          rightsOut: t.rights || [],
+          cashOut: []
+        }));
+        
+        // Ensure at least 2 teams
+        while (tradeTeams.length < 2) {
+          tradeTeams.push({ teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] });
+        }
+        
+        return true;
+      } catch (e) {
+        console.error('Error parsing trade URL:', e);
+        return false;
+      }
     }
 
     // Equalize trade content heights so roster sections align
@@ -5345,12 +5432,65 @@
     }
 
     function formatRumorDate(rumor) {
-      if (rumor.date && rumor.date.trim()) return rumor.date;
+      // Use archive_date for consistent formatting
       if (rumor.archive_date) {
-        const date = new Date(rumor.archive_date);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const date = new Date(rumor.archive_date + 'T12:00:00'); // Add time to avoid timezone issues
+        return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      }
+      // Fallback to display date if no archive_date
+      if (rumor.date && rumor.date.trim()) {
+        return rumor.date;
       }
       return '';
+    }
+
+    function removeOutletFromText(text, outlet) {
+      if (!text || !outlet) return text;
+      
+      // Clean outlet name variations
+      const outletClean = outlet
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/\.com$|\.org$|\.net$|\.co$/, '')
+        .trim();
+      
+      let result = text;
+      
+      // Remove outlet from end (various formats)
+      const patterns = [
+        // Exact outlet at end
+        new RegExp('\\s*[-–—]?\\s*' + outletClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i'),
+        // With domain extension
+        new RegExp('\\s*[-–—]?\\s*' + outletClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(com|org|net)\\s*$', 'i'),
+        // Full outlet name
+        new RegExp('\\s*[-–—]?\\s*' + outlet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i'),
+      ];
+      
+      for (const pattern of patterns) {
+        result = result.replace(pattern, '');
+      }
+      
+      return result.trim();
+    }
+    
+    function cleanupPunctuation(text) {
+      if (!text) return text;
+      
+      let result = text;
+      
+      // Add space after colon if missing (but not in URLs)
+      result = result.replace(/:([A-Za-z])/g, ': $1');
+      
+      // Add space after period if missing (but not in URLs or decimals)
+      result = result.replace(/\.([A-Z])/g, '. $1');
+      
+      // Add space after comma if missing
+      result = result.replace(/,([A-Za-z])/g, ', $1');
+      
+      // Remove double spaces
+      result = result.replace(/\s+/g, ' ');
+      
+      return result.trim();
     }
 
     function formatOutlet(outlet) {
@@ -5404,7 +5544,9 @@
           const date = formatRumorDate(rumor);
           const outlet = formatOutlet(rumor.outlet);
           const sourceUrl = rumor.source_url || '#';
-          const fullText = rumor.text || '';
+          const fullTextRaw = rumor.text || '';
+          const fullTextCleaned = removeOutletFromText(fullTextRaw, rumor.outlet);
+          const fullText = cleanupPunctuation(fullTextCleaned);
           const quote = rumor.quote || '';
           
           // If we have both full text and quote, highlight the quote in bold within the text
@@ -5667,15 +5809,23 @@
               console.log('CSV Headers:', Object.keys(results.data[0]));
             }
             
-            // Initialize with 2 random team slots
-            const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
-            const randomTeam1 = shuffledTeams[0] || '';
-            const randomTeam2 = shuffledTeams[1] || '';
+            // Try to load trade from URL first
+            const loadedFromUrl = loadTradeFromUrl();
             
-            tradeTeams = [
-              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-            ];
+            if (!loadedFromUrl) {
+              // Initialize with 2 random team slots
+              const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+              const randomTeam1 = shuffledTeams[0] || '';
+              const randomTeam2 = shuffledTeams[1] || '';
+              
+              tradeTeams = [
+                { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+                { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+              ];
+            }
+            
+            // Redistribute players to calculate incoming
+            redistributePlayers();
 
             loadingState.style.display = 'none';
             mainContent.style.display = 'block';
