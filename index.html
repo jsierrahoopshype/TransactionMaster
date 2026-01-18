@@ -5396,7 +5396,7 @@
           const date = formatRumorDate(rumor);
           const outlet = formatOutlet(rumor.outlet);
           const sourceUrl = rumor.source_url || '#';
-          const text = rumor.quote || rumor.text || '';
+          const text = rumor.text || rumor.quote || '';
           
           html += `
             <div class="rumor-item">
