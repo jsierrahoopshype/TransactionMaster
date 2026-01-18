@@ -5253,10 +5253,11 @@
     // HOOPSHYPE TRADE RUMORS INTEGRATION
     // ===========================================
     
-    // Load both latest (today/recent) and part7 (recent archive) for best coverage
+    // Load latest + part7 + part6 for comprehensive coverage
     const RUMORS_URLS = [
       'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_latest.json',
-      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_part7.json'
+      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_part7.json',
+      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_part6.json'
     ];
     const MAX_RUMORS_PER_PLAYER = 10;
     let rumorsCache = null;
@@ -5289,14 +5290,21 @@
     }
 
     function getTradeRumorsForEntity(rumors, entityName) {
+      const entityLower = entityName.toLowerCase();
+      
       const tradeRumors = rumors.filter(rumor => {
         const tags = rumor.tags || [];
+        
+        // Check if this is a trade rumor (tag includes Trade/Trades)
         const hasTradeTag = tags.some(tag => 
           tag.toLowerCase() === 'trade' || tag.toLowerCase() === 'trades'
         );
+        
+        // Check if entity is in tags
         const hasEntityTag = tags.some(tag => 
-          tag.toLowerCase() === entityName.toLowerCase()
+          tag.toLowerCase() === entityLower
         );
+        
         return hasTradeTag && hasEntityTag;
       });
       
@@ -5396,7 +5404,30 @@
           const date = formatRumorDate(rumor);
           const outlet = formatOutlet(rumor.outlet);
           const sourceUrl = rumor.source_url || '#';
-          const text = rumor.text || rumor.quote || '';
+          const fullText = rumor.text || '';
+          const quote = rumor.quote || '';
+          
+          // If we have both full text and quote, highlight the quote in bold within the text
+          let displayHtml = '';
+          if (fullText && quote && fullText.includes(quote)) {
+            // Replace the quote portion with a bold, linked version
+            const beforeQuote = escapeHtmlRumors(fullText.substring(0, fullText.indexOf(quote)));
+            const afterQuote = escapeHtmlRumors(fullText.substring(fullText.indexOf(quote) + quote.length));
+            const quotePart = sourceUrl && sourceUrl !== '#'
+              ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
+              : `<strong>${escapeHtmlRumors(quote)}</strong>`;
+            displayHtml = beforeQuote + quotePart + afterQuote;
+          } else if (fullText) {
+            // No quote, just show full text with link
+            displayHtml = sourceUrl && sourceUrl !== '#'
+              ? `<a href="${sourceUrl}" target="_blank" rel="noopener">${escapeHtmlRumors(fullText)}</a>`
+              : escapeHtmlRumors(fullText);
+          } else if (quote) {
+            // Only quote available
+            displayHtml = sourceUrl && sourceUrl !== '#'
+              ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
+              : `<strong>${escapeHtmlRumors(quote)}</strong>`;
+          }
           
           html += `
             <div class="rumor-item">
@@ -5405,10 +5436,7 @@
                 ${outlet ? `<span class="rumor-outlet">via ${outlet}</span>` : ''}
               </div>
               <div class="rumor-text">
-                ${sourceUrl && sourceUrl !== '#' 
-                  ? `<a href="${sourceUrl}" target="_blank" rel="noopener">"${escapeHtmlRumors(text)}"</a>`
-                  : `"${escapeHtmlRumors(text)}"`
-                }
+                ${displayHtml}
               </div>
             </div>
           `;
