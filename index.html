@@ -1326,6 +1326,152 @@
         flex: 1;
       }
     }
+
+    /* Trade Rumors Section Styles */
+    .rumors-section {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .rumors-section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rumors-section-header h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .rumors-section-header .icon {
+      font-size: 1.25rem;
+    }
+
+    .player-rumors {
+      margin-bottom: 1.5rem;
+    }
+
+    .player-rumors:last-child {
+      margin-bottom: 0;
+    }
+
+    .player-rumors-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .player-rumors-header h4 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 0;
+    }
+
+    .player-rumors-header .fallback-note {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .rumors-count-badge {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      padding: 0.125rem 0.5rem;
+      border-radius: 10px;
+      margin-left: auto;
+    }
+
+    .rumor-item {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 0.875rem 1rem;
+      margin-bottom: 0.625rem;
+      border-left: 3px solid var(--accent);
+    }
+
+    .rumor-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .rumor-meta {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .rumor-date {
+      color: var(--text-secondary);
+    }
+
+    .rumor-outlet {
+      color: var(--accent);
+    }
+
+    .rumor-text {
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .rumor-text a {
+      color: var(--text);
+      text-decoration: none;
+      border-bottom: 1px dotted var(--border);
+    }
+
+    .rumor-text a:hover {
+      border-bottom-color: var(--accent);
+    }
+
+    .rumors-footer {
+      text-align: center;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .rumors-footer a {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      text-decoration: none;
+    }
+
+    .rumors-footer a:hover {
+      color: var(--accent);
+    }
+
+    .rumors-loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+
+    .rumors-loading .spinner {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .no-rumors {
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
   </style>
 </head>
 <body>
@@ -1417,6 +1563,9 @@
       <div class="trade-container" id="tradeContainer">
         <!-- Team cards will be added here -->
       </div>
+      
+      <!-- Trade Rumors Section -->
+      <div id="tradeRumorsContainer"></div>
     </div>
   </div>
 
@@ -3092,6 +3241,7 @@
       renderTradeStatus();
       attachEventListeners();
       equalizeTradeContentHeights();
+      displayTradeRumors(); // Load trade rumors for players in the trade
     }
 
     // Equalize trade content heights so roster sections align
@@ -5097,6 +5247,215 @@
         this.quadraticCurveTo(x, y, x + tl, y);
         this.closePath();
       };
+    }
+
+    // ===========================================
+    // HOOPSHYPE TRADE RUMORS INTEGRATION
+    // ===========================================
+    
+    const RUMORS_URL = 'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_latest.json';
+    const MAX_RUMORS_PER_PLAYER = 10;
+    let rumorsCache = null;
+
+    async function fetchRumors() {
+      if (rumorsCache) return rumorsCache;
+      try {
+        const response = await fetch(RUMORS_URL);
+        if (!response.ok) throw new Error('Failed to fetch rumors');
+        rumorsCache = await response.json();
+        return rumorsCache;
+      } catch (error) {
+        console.error('Error fetching rumors:', error);
+        return [];
+      }
+    }
+
+    function getTradeRumorsForEntity(rumors, entityName) {
+      const tradeRumors = rumors.filter(rumor => {
+        const tags = rumor.tags || [];
+        const hasTradeTag = tags.some(tag => 
+          tag.toLowerCase() === 'trade' || tag.toLowerCase() === 'trades'
+        );
+        const hasEntityTag = tags.some(tag => 
+          tag.toLowerCase() === entityName.toLowerCase()
+        );
+        return hasTradeTag && hasEntityTag;
+      });
+      
+      tradeRumors.sort((a, b) => {
+        const dateA = new Date(a.archive_date || a.date);
+        const dateB = new Date(b.archive_date || b.date);
+        return dateB - dateA;
+      });
+      
+      return tradeRumors.slice(0, MAX_RUMORS_PER_PLAYER);
+    }
+
+    async function getRumorsForTrade(playersInTrade) {
+      const rumors = await fetchRumors();
+      if (!rumors.length) return {};
+      
+      const result = {};
+      
+      for (const player of playersInTrade) {
+        let playerRumors = getTradeRumorsForEntity(rumors, player.name);
+        
+        if (playerRumors.length === 0 && player.team) {
+          playerRumors = getTradeRumorsForEntity(rumors, player.team);
+          result[player.name] = {
+            rumors: playerRumors,
+            fallbackToTeam: true,
+            teamName: player.team
+          };
+        } else {
+          result[player.name] = {
+            rumors: playerRumors,
+            fallbackToTeam: false
+          };
+        }
+      }
+      
+      return result;
+    }
+
+    function formatRumorDate(rumor) {
+      if (rumor.date && rumor.date.trim()) return rumor.date;
+      if (rumor.archive_date) {
+        const date = new Date(rumor.archive_date);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      return '';
+    }
+
+    function formatOutlet(outlet) {
+      if (!outlet) return '';
+      return outlet
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/\.com$/, '')
+        .replace(/\.org$/, '')
+        .replace(/\.net$/, '');
+    }
+
+    function escapeHtmlRumors(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderRumorsSection(rumorsData) {
+      const playersWithRumors = Object.entries(rumorsData).filter(
+        ([_, data]) => data.rumors.length > 0
+      );
+      
+      if (playersWithRumors.length === 0) {
+        return '<div class="no-rumors">No recent trade rumors found for these players.</div>';
+      }
+      
+      let html = `
+        <div class="rumors-section">
+          <div class="rumors-section-header">
+            <span class="icon">📰</span>
+            <h3>Recent Trade Rumors</h3>
+          </div>
+      `;
+      
+      for (const [playerName, data] of playersWithRumors) {
+        const { rumors, fallbackToTeam, teamName } = data;
+        
+        html += `
+          <div class="player-rumors">
+            <div class="player-rumors-header">
+              <h4>${fallbackToTeam ? teamName : playerName}</h4>
+              ${fallbackToTeam ? `<span class="fallback-note">(no rumors for ${playerName})</span>` : ''}
+              <span class="rumors-count-badge">${rumors.length} rumor${rumors.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="rumors-list">
+        `;
+        
+        for (const rumor of rumors) {
+          const date = formatRumorDate(rumor);
+          const outlet = formatOutlet(rumor.outlet);
+          const sourceUrl = rumor.source_url || '#';
+          const text = rumor.quote || rumor.text || '';
+          
+          html += `
+            <div class="rumor-item">
+              <div class="rumor-meta">
+                ${date ? `<span class="rumor-date">${date}</span>` : ''}
+                ${outlet ? `<span class="rumor-outlet">via ${outlet}</span>` : ''}
+              </div>
+              <div class="rumor-text">
+                ${sourceUrl && sourceUrl !== '#' 
+                  ? `<a href="${sourceUrl}" target="_blank" rel="noopener">"${escapeHtmlRumors(text)}"</a>`
+                  : `"${escapeHtmlRumors(text)}"`
+                }
+              </div>
+            </div>
+          `;
+        }
+        
+        html += `
+            </div>
+          </div>
+        `;
+      }
+      
+      html += `
+          <div class="rumors-footer">
+            <a href="https://hoopshype.com/rumors/" target="_blank">Powered by HoopsHype Rumors</a>
+          </div>
+        </div>
+      `;
+      
+      return html;
+    }
+
+    async function displayTradeRumors() {
+      const container = document.getElementById('tradeRumorsContainer');
+      if (!container) return;
+      
+      // Collect all players in the trade
+      const playersInTrade = [];
+      tradeTeams.forEach(team => {
+        if (team.playersOut && team.playersOut.length > 0) {
+          team.playersOut.forEach(p => {
+            // Get full player info including team name
+            const playerInfo = players.find(pl => pl.player === p.player);
+            if (playerInfo) {
+              playersInTrade.push({
+                name: playerInfo.player,
+                team: playerInfo.team
+              });
+            }
+          });
+        }
+      });
+      
+      // If no players in trade, clear container
+      if (playersInTrade.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+      
+      // Show loading state
+      container.innerHTML = `
+        <div class="rumors-section">
+          <div class="rumors-loading">
+            <div class="spinner">⏳</div>
+            <div>Loading trade rumors...</div>
+          </div>
+        </div>
+      `;
+      
+      try {
+        const rumorsData = await getRumorsForTrade(playersInTrade);
+        container.innerHTML = renderRumorsSection(rumorsData);
+      } catch (error) {
+        console.error('Error displaying rumors:', error);
+        container.innerHTML = '';
+      }
     }
 
     // Load data
