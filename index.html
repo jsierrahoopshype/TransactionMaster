@@ -3282,15 +3282,65 @@
       renderTradeStatus();
       attachEventListeners();
       equalizeTradeContentHeights();
-      displayTradeRumors(); // Load trade rumors for players in the trade
       updateUrlAndTitle(); // Update URL and page title based on trade
+      
+      // Defer rumors loading to not block initial render
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => displayTradeRumors(), { timeout: 500 });
+      } else {
+        setTimeout(() => displayTradeRumors(), 100);
+      }
     }
     
     // Update URL and page title based on current trade
     function updateUrlAndTitle() {
-      // Keep title static
-      document.title = 'NBA Trade Calculator';
-      // Don't save trade to URL - refresh will return to initial state
+      // Collect all players being traded
+      const allPlayersOut = [];
+      const allTeams = new Set();
+      
+      tradeTeams.forEach(team => {
+        if (team.teamName) allTeams.add(team.teamName);
+        if (team.playersOut && team.playersOut.length > 0) {
+          team.playersOut.forEach(p => {
+            allPlayersOut.push(p.player);
+          });
+        }
+      });
+      
+      // If no players in trade, reset to default
+      if (allPlayersOut.length === 0) {
+        document.title = 'NBA Trade Calculator';
+        if (window.location.search) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+        return;
+      }
+      
+      // Create page title from player names
+      let pageTitle;
+      if (allPlayersOut.length === 1) {
+        pageTitle = `${allPlayersOut[0]} Trade - NBA Trade Calculator`;
+      } else if (allPlayersOut.length === 2) {
+        pageTitle = `${allPlayersOut[0]} for ${allPlayersOut[1]} - NBA Trade Calculator`;
+      } else {
+        pageTitle = `${allPlayersOut.slice(0, 2).join(', ')} & more - NBA Trade Calculator`;
+      }
+      document.title = pageTitle;
+      
+      // Create simple URL with player names as slugs
+      const playerSlugs = allPlayersOut.slice(0, 4).map(name => 
+        name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+      );
+      const teamSlugs = Array.from(allTeams).slice(0, 3).map(name =>
+        name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+      );
+      
+      const params = new URLSearchParams();
+      if (playerSlugs.length > 0) params.set('players', playerSlugs.join(','));
+      if (teamSlugs.length > 0) params.set('teams', teamSlugs.join(','));
+      
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, '', newUrl);
     }
 
     // Equalize trade content heights so roster sections align
@@ -4894,21 +4944,61 @@
       }
     });
 
-    function generateTradeImage() {
+    async function generateTradeImage() {
       const ctx = tradeCanvas.getContext('2d');
       const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0 || (t.picksOut && t.picksOut.length > 0) || (t.rightsOut && t.rightsOut.length > 0)));
       
+      // Collect all images to preload
+      const imagesToLoad = [];
+      const loadedImages = new Map();
+      
+      // Helper to load an image
+      const loadImage = (url) => {
+        if (!url) return Promise.resolve(null);
+        if (loadedImages.has(url)) return Promise.resolve(loadedImages.get(url));
+        
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            loadedImages.set(url, img);
+            resolve(img);
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      };
+      
+      // Collect team logos and player headshots
+      for (const team of activeTeams) {
+        const teamInfo = getTeamInfo(team.teamName);
+        if (teamInfo?.logo) imagesToLoad.push(loadImage(teamInfo.logo));
+        
+        for (const player of team.playersOut) {
+          if (player.headshot) imagesToLoad.push(loadImage(player.headshot));
+        }
+        for (const player of team.playersIn) {
+          if (player.headshot) imagesToLoad.push(loadImage(player.headshot));
+        }
+      }
+      
+      // Wait for all images to load (with timeout)
+      await Promise.race([
+        Promise.all(imagesToLoad),
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ]);
+      
       // Calculate dimensions
-      const teamWidth = 320;
-      const teamGap = 20;
-      const padding = 32;
-      const headerHeight = 80;
-      const teamHeaderHeight = 56;
-      const playerRowHeight = 52;
-      const assetRowHeight = 42;
-      const sectionLabelHeight = 28;
-      const summaryHeight = 90;
-      const footerHeight = 36;
+      const teamWidth = 340;
+      const teamGap = 24;
+      const padding = 40;
+      const headerHeight = 90;
+      const teamHeaderHeight = 70;
+      const playerRowHeight = 60;
+      const assetRowHeight = 44;
+      const sectionLabelHeight = 32;
+      const summaryHeight = 100;
+      const footerHeight = 44;
       
       // Helper to get incoming assets for a team
       function getIncomingAssets(teamIndex) {
@@ -4952,7 +5042,7 @@
         const teamIndex = tradeTeams.indexOf(team);
         const { incomingPicks, incomingRights, incomingCash } = getIncomingAssets(teamIndex);
         
-        let height = teamHeaderHeight + 16;
+        let height = teamHeaderHeight + 20;
         
         const sendsOutCount = team.playersOut.length + 
           (team.picksOut ? team.picksOut.length : 0) + 
@@ -4964,7 +5054,7 @@
           height += (team.picksOut ? team.picksOut.length : 0) * assetRowHeight;
           height += (team.rightsOut ? team.rightsOut.length : 0) * assetRowHeight;
           height += (team.cashOut ? team.cashOut.length : 0) * assetRowHeight;
-          height += 12;
+          height += 16;
         }
         
         const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
@@ -4979,29 +5069,80 @@
         height += summaryHeight;
         return height;
       });
-      const maxTeamHeight = Math.max(...teamHeights, 280);
+      const maxTeamHeight = Math.max(...teamHeights, 300);
       
       const canvasWidth = (teamWidth * activeTeams.length) + (teamGap * (activeTeams.length - 1)) + (padding * 2);
       const canvasHeight = headerHeight + maxTeamHeight + footerHeight + padding;
       
-      tradeCanvas.width = canvasWidth;
-      tradeCanvas.height = canvasHeight;
+      // Set canvas size with higher resolution for sharpness
+      const scale = 2;
+      tradeCanvas.width = canvasWidth * scale;
+      tradeCanvas.height = canvasHeight * scale;
+      tradeCanvas.style.width = canvasWidth + 'px';
+      tradeCanvas.style.height = canvasHeight + 'px';
+      ctx.scale(scale, scale);
       
-      // Background - light gray
-      ctx.fillStyle = '#f5f5f7';
+      // Enable smooth rendering
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      // Background gradient
+      const bgGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+      bgGradient.addColorStop(0, '#f8fafc');
+      bgGradient.addColorStop(1, '#e2e8f0');
+      ctx.fillStyle = bgGradient;
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       
-      // Header
-      ctx.fillStyle = '#1d1d1f';
-      ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('🏀 NBA Trade', canvasWidth / 2, 42);
+      // Header background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasWidth, headerHeight - 10);
       
-      // Trade status
+      // Header shadow
+      const shadowGradient = ctx.createLinearGradient(0, headerHeight - 10, 0, headerHeight);
+      shadowGradient.addColorStop(0, 'rgba(0,0,0,0.08)');
+      shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = shadowGradient;
+      ctx.fillRect(0, headerHeight - 10, canvasWidth, 10);
+      
+      // Header title
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('NBA TRADE', canvasWidth / 2, 45);
+      
+      // Trade status badge
       const validation = validateTrade();
-      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.fillStyle = validation.valid ? '#34c759' : '#ff453a';
-      ctx.fillText(validation.valid ? '✓ Trade is valid' : '✕ Trade is invalid', canvasWidth / 2, 66);
+      const statusText = validation.valid ? '✓ VALID TRADE' : '✕ INVALID';
+      const statusColor = validation.valid ? '#16a34a' : '#dc2626';
+      const badgeWidth = ctx.measureText(statusText).width + 24;
+      
+      ctx.fillStyle = validation.valid ? '#dcfce7' : '#fee2e2';
+      ctx.beginPath();
+      ctx.roundRect((canvasWidth - badgeWidth) / 2, 56, badgeWidth, 26, 13);
+      ctx.fill();
+      
+      ctx.fillStyle = statusColor;
+      ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillText(statusText, canvasWidth / 2, 74);
+      
+      // Helper to draw circular image
+      function drawCircularImage(img, x, y, size) {
+        if (!img) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(img, x, y, size, size);
+        ctx.restore();
+        
+        // Border
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       
       // Draw each team card
       activeTeams.forEach((team, teamIdx) => {
@@ -5013,53 +5154,68 @@
         const teamInfo = getTeamInfo(team.teamName);
         const { incomingPicks, incomingRights, incomingCash } = getIncomingAssets(teamIndex);
         
-        // Card background with shadow effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
-        ctx.beginPath();
-        ctx.roundRect(x + 3, y + 3, teamWidth, cardHeight, 16);
-        ctx.fill();
+        // Card shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+        ctx.shadowBlur = 20;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
         
-        // Card background - white
+        // Card background
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.roundRect(x, y, teamWidth, cardHeight, 16);
         ctx.fill();
         
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
         // Card border
-        ctx.strokeStyle = '#e5e5e7';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.roundRect(x, y, teamWidth, cardHeight, 16);
         ctx.stroke();
         
-        // Team header background - subtle gradient
-        ctx.fillStyle = '#fafafa';
+        // Team header gradient
+        const headerGradient = ctx.createLinearGradient(x, y, x, y + teamHeaderHeight);
+        headerGradient.addColorStop(0, '#fafbfc');
+        headerGradient.addColorStop(1, '#f1f5f9');
+        ctx.fillStyle = headerGradient;
         ctx.beginPath();
         ctx.roundRect(x + 1, y + 1, teamWidth - 2, teamHeaderHeight - 1, [15, 15, 0, 0]);
         ctx.fill();
         
         // Header bottom border
-        ctx.strokeStyle = '#e5e5e7';
+        ctx.strokeStyle = '#e2e8f0';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x, y + teamHeaderHeight);
         ctx.lineTo(x + teamWidth, y + teamHeaderHeight);
         ctx.stroke();
         
-        // Team name - bold
-        ctx.fillStyle = '#1d1d1f';
+        // Team logo
+        const logoImg = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
+        if (logoImg) {
+          ctx.drawImage(logoImg, x + 16, y + 12, 44, 44);
+        }
+        
+        // Team name
+        ctx.fillStyle = '#0f172a';
         ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(team.teamName, x + 20, y + 30);
+        ctx.fillText(team.teamName, x + (logoImg ? 68 : 20), y + 32);
         
         // Team status
         if (teamInfo) {
-          ctx.fillStyle = '#8e8e93';
+          ctx.fillStyle = '#64748b';
           ctx.font = '600 11px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText(teamInfo.status.toUpperCase(), x + 20, y + 46);
+          ctx.fillText(teamInfo.status.toUpperCase(), x + (logoImg ? 68 : 20), y + 50);
         }
         
-        let currentY = y + teamHeaderHeight + 16;
+        let currentY = y + teamHeaderHeight + 20;
         
         // Sends Out section
         const sendsOutCount = team.playersOut.length + 
@@ -5068,72 +5224,77 @@
           (team.cashOut ? team.cashOut.length : 0);
           
         if (sendsOutCount > 0) {
-          ctx.fillStyle = '#8e8e93';
-          ctx.font = '700 10px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillStyle = '#64748b';
+          ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.letterSpacing = '0.5px';
           ctx.fillText('SENDS OUT', x + 20, currentY);
-          currentY += 18;
+          currentY += 20;
           
-          // Players - red chips
+          // Players with headshots
           team.playersOut.forEach(player => {
             // Chip background
-            ctx.fillStyle = 'rgba(255, 69, 58, 0.12)';
+            ctx.fillStyle = '#fef2f2';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 10);
+            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
             ctx.fill();
             
             // Chip border
-            ctx.strokeStyle = 'rgba(255, 69, 58, 0.35)';
+            ctx.strokeStyle = '#fecaca';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 10);
+            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
             ctx.stroke();
             
+            // Player headshot
+            const headshotImg = player.headshot ? loadedImages.get(player.headshot) : null;
+            if (headshotImg) {
+              drawCircularImage(headshotImg, x + 24, currentY + 6, 38);
+            }
+            
             // Player name
-            ctx.fillStyle = '#1d1d1f';
+            ctx.fillStyle = '#0f172a';
             ctx.font = '600 14px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(player.player, x + 28, currentY + 20);
+            ctx.fillText(player.player, x + (headshotImg ? 70 : 28), currentY + 24);
             
             // Salary
-            ctx.fillStyle = '#6e6e73';
+            ctx.fillStyle = '#64748b';
             ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(formatSalary(player.salary), x + 28, currentY + 38);
+            ctx.fillText(formatSalary(player.salary), x + (headshotImg ? 70 : 28), currentY + 42);
             currentY += playerRowHeight;
           });
           
-          // Picks - orange chips
+          // Picks
           if (team.picksOut) {
             team.picksOut.forEach(pick => {
-              ctx.fillStyle = 'rgba(255, 159, 10, 0.15)';
+              ctx.fillStyle = '#fffbeb';
               ctx.beginPath();
               ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
               ctx.fill();
               
-              ctx.strokeStyle = 'rgba(255, 159, 10, 0.45)';
+              ctx.strokeStyle = '#fde68a';
               ctx.lineWidth = 1.5;
               ctx.beginPath();
               ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
               ctx.stroke();
               
-              ctx.fillStyle = '#cc7a00';
+              ctx.fillStyle = '#b45309';
               ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
-              ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 28, currentY + 22);
+              ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 28, currentY + 24);
               currentY += assetRowHeight;
             });
           }
           
-          // Rights - purple chips
+          // Rights
           if (team.rightsOut) {
             team.rightsOut.forEach(rights => {
-              ctx.fillStyle = 'rgba(168, 85, 247, 0.12)';
+              ctx.fillStyle = '#faf5ff';
               ctx.beginPath();
               ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
               ctx.fill();
               
-              ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+              ctx.strokeStyle = '#e9d5ff';
               ctx.lineWidth = 1.5;
               ctx.beginPath();
               ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
@@ -5142,20 +5303,20 @@
               ctx.fillStyle = '#7c3aed';
               ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
-              ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 28, currentY + 22);
+              ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 28, currentY + 24);
               currentY += assetRowHeight;
             });
           }
           
-          // Cash - green chips
+          // Cash
           if (team.cashOut) {
             team.cashOut.forEach(() => {
-              ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+              ctx.fillStyle = '#f0fdf4';
               ctx.beginPath();
               ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
               ctx.fill();
               
-              ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+              ctx.strokeStyle = '#bbf7d0';
               ctx.lineWidth = 1.5;
               ctx.beginPath();
               ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
@@ -5164,76 +5325,82 @@
               ctx.fillStyle = '#16a34a';
               ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
-              ctx.fillText('💵 Cash Considerations', x + 28, currentY + 22);
+              ctx.fillText('💵 Cash Considerations', x + 28, currentY + 24);
               currentY += assetRowHeight;
             });
           }
           
-          currentY += 12;
+          currentY += 16;
         }
         
         // Receives section
         const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
         
         if (receivesCount > 0) {
-          ctx.fillStyle = '#8e8e93';
-          ctx.font = '700 10px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillStyle = '#64748b';
+          ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
           ctx.fillText('RECEIVES', x + 20, currentY);
-          currentY += 18;
+          currentY += 20;
           
-          // Players - blue chips
+          // Players with headshots
           team.playersIn.forEach(player => {
-            ctx.fillStyle = 'rgba(59, 130, 246, 0.12)';
+            ctx.fillStyle = '#eff6ff';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 10);
+            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
             ctx.fill();
             
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
+            ctx.strokeStyle = '#bfdbfe';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 10);
+            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
             ctx.stroke();
             
-            ctx.fillStyle = '#1d1d1f';
+            // Player headshot
+            const headshotImg = player.headshot ? loadedImages.get(player.headshot) : null;
+            if (headshotImg) {
+              drawCircularImage(headshotImg, x + 24, currentY + 6, 38);
+            }
+            
+            ctx.fillStyle = '#0f172a';
             ctx.font = '600 14px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(player.player, x + 28, currentY + 20);
+            ctx.fillText(player.player, x + (headshotImg ? 70 : 28), currentY + 24);
             
-            ctx.fillStyle = '#6e6e73';
+            ctx.fillStyle = '#64748b';
             ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(formatSalary(player.salary), x + 28, currentY + 38);
+            ctx.fillText(formatSalary(player.salary), x + (headshotImg ? 70 : 28), currentY + 42);
             currentY += playerRowHeight;
           });
           
           // Incoming Picks
           incomingPicks.forEach(pick => {
-            ctx.fillStyle = 'rgba(255, 159, 10, 0.15)';
+            ctx.fillStyle = '#fffbeb';
             ctx.beginPath();
             ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
             ctx.fill();
             
-            ctx.strokeStyle = 'rgba(255, 159, 10, 0.45)';
+            ctx.strokeStyle = '#fde68a';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
             ctx.stroke();
             
-            ctx.fillStyle = '#cc7a00';
+            ctx.fillStyle = '#b45309';
             ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 28, currentY + 22);
+            ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 28, currentY + 24);
             currentY += assetRowHeight;
           });
           
           // Incoming Rights
           incomingRights.forEach(rights => {
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.12)';
+            ctx.fillStyle = '#faf5ff';
             ctx.beginPath();
             ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
             ctx.fill();
             
-            ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+            ctx.strokeStyle = '#e9d5ff';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
@@ -5242,18 +5409,18 @@
             ctx.fillStyle = '#7c3aed';
             ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 28, currentY + 22);
+            ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 28, currentY + 24);
             currentY += assetRowHeight;
           });
           
           // Incoming Cash
           for (let i = 0; i < incomingCash; i++) {
-            ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+            ctx.fillStyle = '#f0fdf4';
             ctx.beginPath();
             ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
             ctx.fill();
             
-            ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+            ctx.strokeStyle = '#bbf7d0';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
@@ -5262,7 +5429,7 @@
             ctx.fillStyle = '#16a34a';
             ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('💵 Cash Considerations', x + 28, currentY + 22);
+            ctx.fillText('💵 Cash Considerations', x + 28, currentY + 24);
             currentY += assetRowHeight;
           }
         }
@@ -5270,13 +5437,19 @@
         // Summary section at bottom
         const summaryY = y + cardHeight - summaryHeight;
         
-        // Dashed separator line
-        ctx.strokeStyle = '#d1d1d6';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
+        // Summary background
+        ctx.fillStyle = '#f8fafc';
         ctx.beginPath();
-        ctx.moveTo(x + 16, summaryY);
-        ctx.lineTo(x + teamWidth - 16, summaryY);
+        ctx.roundRect(x + 1, summaryY, teamWidth - 2, summaryHeight - 1, [0, 0, 15, 15]);
+        ctx.fill();
+        
+        // Dashed separator line
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x + 16, summaryY + 4);
+        ctx.lineTo(x + teamWidth - 16, summaryY + 4);
         ctx.stroke();
         ctx.setLineDash([]);
         
@@ -5285,36 +5458,36 @@
         const net = incomingCapImpact - outgoing;
         
         // Outgoing row
-        ctx.fillStyle = '#6e6e73';
+        ctx.fillStyle = '#64748b';
         ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('Outgoing', x + 20, summaryY + 24);
+        ctx.fillText('Outgoing', x + 20, summaryY + 30);
         ctx.textAlign = 'right';
-        ctx.fillText(formatSalary(outgoing), x + teamWidth - 20, summaryY + 24);
+        ctx.fillText(formatSalary(outgoing), x + teamWidth - 20, summaryY + 30);
         
         // Incoming row
         ctx.textAlign = 'left';
-        ctx.fillText('Incoming', x + 20, summaryY + 44);
+        ctx.fillText('Incoming', x + 20, summaryY + 52);
         ctx.textAlign = 'right';
-        ctx.fillText(formatSalary(incomingCapImpact), x + teamWidth - 20, summaryY + 44);
+        ctx.fillText(formatSalary(incomingCapImpact), x + teamWidth - 20, summaryY + 52);
         
-        // Net row - bold
+        // Net row
         ctx.textAlign = 'left';
-        ctx.font = '700 14px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillStyle = '#1d1d1f';
-        ctx.fillText('Net', x + 20, summaryY + 68);
+        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText('Net', x + 20, summaryY + 78);
         
         ctx.textAlign = 'right';
-        ctx.fillStyle = net > 0 ? '#ff453a' : net < 0 ? '#34c759' : '#6e6e73';
-        ctx.font = '700 14px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 20, summaryY + 68);
+        ctx.fillStyle = net > 0 ? '#dc2626' : net < 0 ? '#16a34a' : '#64748b';
+        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 20, summaryY + 78);
       });
       
       // Footer
-      ctx.fillStyle = '#8e8e93';
+      ctx.fillStyle = '#94a3b8';
       ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Made with NBA Trade Calculator', canvasWidth / 2, canvasHeight - 14);
+      ctx.fillText('Made with HoopsHype NBA Trade Calculator', canvasWidth / 2, canvasHeight - 16);
       
       // Set the image src
       generatedImage.src = tradeCanvas.toDataURL('image/png');
@@ -5357,9 +5530,19 @@
     async function fetchRumors() {
       if (rumorsCache) return rumorsCache;
       try {
-        // Fetch both files in parallel
-        const responses = await Promise.all(RUMORS_URLS.map(url => fetch(url)));
-        const dataArrays = await Promise.all(responses.map(r => r.ok ? r.json() : []));
+        // Fetch all files in parallel with cache-busting for latest
+        const cacheBuster = Date.now();
+        const urls = RUMORS_URLS.map((url, i) => 
+          i === 0 ? `${url}?cb=${cacheBuster}` : url
+        );
+        
+        const responses = await Promise.all(urls.map(url => 
+          fetch(url, { cache: 'no-store' }).catch(() => null)
+        ));
+        
+        const dataArrays = await Promise.all(
+          responses.map(r => r && r.ok ? r.json().catch(() => []) : [])
+        );
         
         // Combine all rumors into one array
         const allRumors = dataArrays.flat();
@@ -5373,7 +5556,7 @@
           return true;
         });
         
-        console.log('Loaded', rumorsCache.length, 'unique rumors');
+        console.log('Loaded', rumorsCache.length, 'unique rumors from', dataArrays.map(d => d.length).join('+'), 'files');
         return rumorsCache;
       } catch (error) {
         console.error('Error fetching rumors:', error);
@@ -5554,21 +5737,47 @@
           const fullText = cleanupPunctuation(fullTextCleaned);
           const quote = rumor.quote || '';
           
-          // If we have both full text and quote, highlight the quote in bold within the text
+          // Try to find quote in full text - check both cleaned and uncleaned versions
           let displayHtml = '';
-          if (fullText && quote && fullText.includes(quote)) {
+          let quoteIndex = fullText.indexOf(quote);
+          
+          // If exact match not found, try the uncleaned version
+          if (quoteIndex === -1 && quote) {
+            quoteIndex = fullTextCleaned.indexOf(quote);
+          }
+          
+          // If still not found, try finding in original text
+          if (quoteIndex === -1 && quote) {
+            quoteIndex = fullTextRaw.indexOf(quote);
+          }
+          
+          if (fullText && quote && quoteIndex !== -1) {
             // Replace the quote portion with a bold, linked version
-            const beforeQuote = escapeHtmlRumors(fullText.substring(0, fullText.indexOf(quote)));
-            const afterQuote = escapeHtmlRumors(fullText.substring(fullText.indexOf(quote) + quote.length));
+            const beforeQuote = escapeHtmlRumors(fullText.substring(0, quoteIndex));
+            const afterQuote = escapeHtmlRumors(fullText.substring(quoteIndex + quote.length));
             const quotePart = sourceUrl && sourceUrl !== '#'
               ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
               : `<strong>${escapeHtmlRumors(quote)}</strong>`;
             displayHtml = beforeQuote + quotePart + afterQuote;
+          } else if (fullText && quote) {
+            // Quote exists but couldn't find it in text - bold the quote and append context
+            const quotePart = sourceUrl && sourceUrl !== '#'
+              ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
+              : `<strong>${escapeHtmlRumors(quote)}</strong>`;
+            // Just show the quote bolded since we can't reliably place it
+            displayHtml = quotePart;
           } else if (fullText) {
-            // No quote, just show full text with link
-            displayHtml = sourceUrl && sourceUrl !== '#'
-              ? `<a href="${sourceUrl}" target="_blank" rel="noopener">${escapeHtmlRumors(fullText)}</a>`
-              : escapeHtmlRumors(fullText);
+            // No quote, just show full text with link on first sentence
+            const firstSentenceEnd = fullText.search(/[.!?]/) + 1;
+            if (firstSentenceEnd > 0 && sourceUrl && sourceUrl !== '#') {
+              const firstPart = fullText.substring(0, firstSentenceEnd);
+              const rest = fullText.substring(firstSentenceEnd);
+              displayHtml = `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(firstPart)}</strong></a>${escapeHtmlRumors(rest)}`;
+            } else {
+              displayHtml = sourceUrl && sourceUrl !== '#'
+                ? `<a href="${sourceUrl}" target="_blank" rel="noopener">${escapeHtmlRumors(fullText)}</a>`
+                : escapeHtmlRumors(fullText);
+            }
           } else if (quote) {
             // Only quote available
             displayHtml = sourceUrl && sourceUrl !== '#'
