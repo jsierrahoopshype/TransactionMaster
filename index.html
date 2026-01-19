@@ -659,6 +659,24 @@
       margin-top: 0.125rem;
     }
 
+    .check-rumors-link {
+      margin-left: auto;
+      padding: 0.5rem 1rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--accent);
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .check-rumors-link:hover {
+      background: var(--accent);
+      color: white;
+    }
+
     .add-team-card {
       min-width: 200px;
       max-width: 200px;
@@ -1558,6 +1576,7 @@
           <div class="trade-status-title" id="tradeStatusTitle">Trade is valid</div>
           <div class="trade-status-message" id="tradeStatusMessage"></div>
         </div>
+        <a href="#tradeRumorsContainer" class="check-rumors-link" id="checkRumorsLink" style="display: none;">📰 Check Rumors</a>
       </div>
 
       <div class="trade-container" id="tradeContainer">
@@ -3201,6 +3220,8 @@
       
       if (!hasAnyAssets) {
         tradeStatus.style.display = 'none';
+        const checkRumorsLink = document.getElementById('checkRumorsLink');
+        if (checkRumorsLink) checkRumorsLink.style.display = 'none';
         return;
       }
 
@@ -3233,6 +3254,13 @@
       document.getElementById('tradeStatusTitle').textContent = statusTitle;
       
       document.getElementById('tradeStatusMessage').textContent = validation.message;
+      
+      // Show/hide Check Rumors link based on whether there are players in the trade
+      const checkRumorsLink = document.getElementById('checkRumorsLink');
+      const hasPlayersInTrade = tradeTeams.some(t => t.playersOut && t.playersOut.length > 0);
+      if (checkRumorsLink) {
+        checkRumorsLink.style.display = hasPlayersInTrade ? 'block' : 'none';
+      }
     }
 
     // Main render function
