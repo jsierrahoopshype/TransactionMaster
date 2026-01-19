@@ -1564,12 +1564,12 @@
       </div>
     </div>
 
-    <div class="loading" id="loadingState">
+    <div class="loading" id="loadingState" style="display: none;">
       <div class="spinner"></div>
       <p>Loading player data...</p>
     </div>
 
-    <div id="mainContent" style="display: none;">
+    <div id="mainContent">
       <div class="trade-status" id="tradeStatus" style="display: none;">
         <div class="trade-status-icon" id="tradeStatusIcon">✓</div>
         <div class="trade-status-text">
@@ -1580,7 +1580,23 @@
       </div>
 
       <div class="trade-container" id="tradeContainer">
-        <!-- Team cards will be added here -->
+        <!-- Skeleton cards for instant display -->
+        <div class="trade-card skeleton-card" style="opacity: 0.6;">
+          <div class="team-header">
+            <select class="team-select" disabled><option>Loading teams...</option></select>
+          </div>
+          <div class="trade-content" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+            Loading player data...
+          </div>
+        </div>
+        <div class="trade-card skeleton-card" style="opacity: 0.6;">
+          <div class="team-header">
+            <select class="team-select" disabled><option>Loading teams...</option></select>
+          </div>
+          <div class="trade-content" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+            Loading player data...
+          </div>
+        </div>
       </div>
       
       <!-- Trade Rumors Section -->
@@ -5074,17 +5090,18 @@
       const canvasWidth = (teamWidth * activeTeams.length) + (teamGap * (activeTeams.length - 1)) + (padding * 2);
       const canvasHeight = headerHeight + maxTeamHeight + footerHeight + padding;
       
-      // Set canvas size with higher resolution for sharpness
-      const scale = 2;
+      // Set canvas size with 3x resolution for crisp output
+      const scale = 3;
       tradeCanvas.width = canvasWidth * scale;
       tradeCanvas.height = canvasHeight * scale;
       tradeCanvas.style.width = canvasWidth + 'px';
       tradeCanvas.style.height = canvasHeight + 'px';
       ctx.scale(scale, scale);
       
-      // Enable smooth rendering
+      // Crisp text rendering
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      ctx.textRendering = 'optimizeLegibility';
       
       // Background gradient
       const bgGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
@@ -5104,11 +5121,11 @@
       ctx.fillStyle = shadowGradient;
       ctx.fillRect(0, headerHeight - 10, canvasWidth, 10);
       
-      // Header title
+      // Header title - larger and bolder
       ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.font = '900 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('NBA TRADE', canvasWidth / 2, 45);
+      ctx.fillText('NBA TRADE', canvasWidth / 2, 48);
       
       // Trade status badge
       const validation = validateTrade();
@@ -5154,16 +5171,16 @@
         const teamInfo = getTeamInfo(team.teamName);
         const { incomingPicks, incomingRights, incomingCash } = getIncomingAssets(teamIndex);
         
-        // Card shadow
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
-        ctx.shadowBlur = 20;
+        // Card shadow - sharper, more defined
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+        ctx.shadowBlur = 12;
         ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowOffsetY = 3;
         
         // Card background
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.roundRect(x, y, teamWidth, cardHeight, 16);
+        ctx.roundRect(x, y, teamWidth, cardHeight, 14);
         ctx.fill();
         
         // Reset shadow
@@ -5172,11 +5189,11 @@
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
         
-        // Card border
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.lineWidth = 1;
+        // Card border - slightly thicker for definition
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.roundRect(x, y, teamWidth, cardHeight, 16);
+        ctx.roundRect(x, y, teamWidth, cardHeight, 14);
         ctx.stroke();
         
         // Team header gradient
@@ -5557,6 +5574,16 @@
         });
         
         console.log('Loaded', rumorsCache.length, 'unique rumors from', dataArrays.map(d => d.length).join('+'), 'files');
+        
+        // Debug: Show most recent rumor dates
+        const recentDates = rumorsCache
+          .map(r => r.archive_date)
+          .filter(Boolean)
+          .sort()
+          .reverse()
+          .slice(0, 5);
+        console.log('Most recent rumor dates:', recentDates);
+        
         return rumorsCache;
       } catch (error) {
         console.error('Error fetching rumors:', error);
@@ -6037,8 +6064,7 @@
             redistributePlayers();
 
             loadingState.style.display = 'none';
-            mainContent.style.display = 'block';
-            render();
+            render(); // Replace skeleton with real content
           },
           error: function(error) {
             console.error('Parse error:', error);
