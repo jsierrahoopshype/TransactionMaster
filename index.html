@@ -2737,10 +2737,15 @@
                 `}).join('')}
                 ${(tradeTeam.picksOut || []).map((pick, pickIdx) => {
                   const isConditional = pick.surePick !== 'YES';
-                  // For outgoing picks, show team name if notes is "Own pick" or similar
-                  const pickSource = (pick.notes && !pick.notes.toLowerCase().includes('own pick')) 
-                    ? pick.notes 
-                    : (pick.fromTeam === tradeTeam.teamName ? `${tradeTeam.teamName} pick` : `From ${pick.fromTeam}`);
+                  // For outgoing picks, show team name if notes is "Own pick" or similar, or if fromTeam is undefined/same as trading team
+                  let pickSource;
+                  if (pick.notes && !pick.notes.toLowerCase().includes('own pick')) {
+                    pickSource = pick.notes;
+                  } else if (!pick.fromTeam || pick.fromTeam === tradeTeam.teamName) {
+                    pickSource = `${tradeTeam.teamName} pick`;
+                  } else {
+                    pickSource = `From ${pick.fromTeam}`;
+                  }
                   return `
                     <div class="player-chip" style="background: var(--orange-dim); border-color: var(--orange);">
                       <div class="player-chip-row">
