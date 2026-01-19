@@ -2737,6 +2737,10 @@
                 `}).join('')}
                 ${(tradeTeam.picksOut || []).map((pick, pickIdx) => {
                   const isConditional = pick.surePick !== 'YES';
+                  // For outgoing picks, show team name if notes is "Own pick" or similar
+                  const pickSource = (pick.notes && !pick.notes.toLowerCase().includes('own pick')) 
+                    ? pick.notes 
+                    : (pick.fromTeam === tradeTeam.teamName ? `${tradeTeam.teamName} pick` : `From ${pick.fromTeam}`);
                   return `
                     <div class="player-chip" style="background: var(--orange-dim); border-color: var(--orange);">
                       <div class="player-chip-row">
@@ -2745,7 +2749,7 @@
                             📋 ${pick.year} ${pick.round} Round Pick
                             ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                           </div>
-                          <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pick.notes || (pick.fromTeam === tradeTeam.teamName ? `${tradeTeam.teamName} pick` : `From ${pick.fromTeam}`)}</div>
+                          <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pickSource}</div>
                         </div>
                         <button class="player-chip-remove pick-remove" data-team="${index}" data-pick="${pickIdx}">×</button>
                       </div>
@@ -2912,6 +2916,10 @@
                 }).join('')}
                 ${incomingPicks.map(pick => {
                   const isConditional = pick.surePick !== 'YES';
+                  // For incoming picks, show the team name if notes is "Own pick" or similar
+                  const pickSource = (pick.notes && !pick.notes.toLowerCase().includes('own pick')) 
+                    ? pick.notes 
+                    : `${pick.fromTeam} pick`;
                   return `
                     <div class="player-chip incoming" style="background: var(--orange-dim); border-color: var(--orange);">
                       <div class="player-chip-row">
@@ -2920,7 +2928,7 @@
                             📋 ${pick.year} ${pick.round} Round Pick
                             ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                           </div>
-                          <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pick.notes || `From ${pick.fromTeam}`}</div>
+                          <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pickSource}</div>
                         </div>
                       </div>
                     </div>
