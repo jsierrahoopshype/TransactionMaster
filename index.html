@@ -1742,7 +1742,7 @@
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="injury-badge" style="padding: 0 0.15rem; border-radius: 2px; font-size: 0.65rem; font-weight: 700; color: #ff0000; background: white; border: 1.5px solid #ff0000;">✚</span></span>
-            <span class="glossary-description"><strong>Injured</strong> — Player is currently out</span>
+            <span class="glossary-description"><strong>Inactive</strong> — Player is currently out</span>
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="pick-conditional" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600; background: rgba(251, 146, 60, 0.2); color: #ea580c;">COND</span></span>
@@ -1767,6 +1767,58 @@
     let draftPicks = []; // Array of { team, round, year, surePick, notes, linkedTo }
     let draftRights = []; // Array of { team, playerName, draftedYear }
     let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+
+    // Team nicknames for search
+    const teamNicknames = {
+      'Atlanta': ['Hawks'],
+      'Boston': ['Celtics'],
+      'Brooklyn': ['Nets'],
+      'Charlotte': ['Hornets'],
+      'Chicago': ['Bulls'],
+      'Cleveland': ['Cavaliers', 'Cavs'],
+      'Dallas': ['Mavericks', 'Mavs'],
+      'Denver': ['Nuggets'],
+      'Detroit': ['Pistons'],
+      'Golden State': ['Warriors', 'Dubs', 'GSW'],
+      'Houston': ['Rockets'],
+      'Indiana': ['Pacers'],
+      'LA Clippers': ['Clippers', 'LAC'],
+      'LA Lakers': ['Lakers', 'LAL'],
+      'Memphis': ['Grizzlies', 'Grizz'],
+      'Miami': ['Heat'],
+      'Milwaukee': ['Bucks'],
+      'Minnesota': ['Timberwolves', 'Wolves', 'T-Wolves'],
+      'New Orleans': ['Pelicans', 'Pels'],
+      'New York': ['Knicks', 'NYK'],
+      'Oklahoma City': ['Thunder', 'OKC'],
+      'Orlando': ['Magic'],
+      'Philadelphia': ['76ers', 'Sixers', 'Philly'],
+      'Phoenix': ['Suns'],
+      'Portland': ['Trail Blazers', 'Blazers'],
+      'Sacramento': ['Kings'],
+      'San Antonio': ['Spurs'],
+      'Toronto': ['Raptors'],
+      'Utah': ['Jazz'],
+      'Washington': ['Wizards']
+    };
+
+    // Function to search teams by name or nickname
+    function searchTeams(searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return teams.filter(t => {
+        // Check if team name matches
+        if (t.toLowerCase().includes(term)) return true;
+        // Check if any nickname matches
+        for (const [city, nicknames] of Object.entries(teamNicknames)) {
+          if (t.includes(city)) {
+            if (nicknames.some(nick => nick.toLowerCase().includes(term))) {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+    }
 
     // DOM Elements
     const loadingState = document.getElementById('loadingState');
@@ -2876,7 +2928,7 @@
                               </div>
                             </div>
                           </span>
-                          ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
+                          ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
                           ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge" title="Can\'t be aggregated">NA</span>' : ''}
@@ -3074,7 +3126,7 @@
                                 </div>
                               </div>
                             </span>
-                            ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
+                            ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
                             ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${p.poisonPill > 0 ? '<span class="pp-badge" title="Poison Pill Provision">PP</span>' : ''}
                             ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
@@ -3224,7 +3276,7 @@
                                 </div>
                               </div>
                             </span>
-                            ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Injured'}">✚</span>` : ''}
+                            ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
                             ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                             ${is10Day ? '<span class="tw-badge" title="10-Day Contract" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">10D</span>' : ''}
                             ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
@@ -4594,7 +4646,7 @@
         return;
       }
       
-      const matches = teams.filter(t => t.toLowerCase().includes(searchTerm)).slice(0, 10);
+      const matches = searchTeams(searchTerm).slice(0, 10);
       
       if (matches.length === 0) {
         teamDropdown.classList.remove('show');
@@ -4720,7 +4772,7 @@
     function renderExcludedChips() {
       excludedChipsContainer.innerHTML = excludedPlayers.map(name => `
         <span class="excluded-chip" data-player="${name}">
-          ${name.split(' ').pop()}
+          ${name}
           <span class="excluded-chip-remove" data-player="${name}">×</span>
         </span>
       `).join('');
@@ -4853,7 +4905,7 @@
         return;
       }
       
-      const matches = teams.filter(t => t.toLowerCase().includes(searchTerm)).slice(0, 10);
+      const matches = searchTeams(searchTerm).slice(0, 10);
       
       if (matches.length === 0) {
         playerToTeamTeamDropdown.classList.remove('show');
