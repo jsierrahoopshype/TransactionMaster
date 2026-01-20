@@ -6428,16 +6428,24 @@
 
     // Cache configuration
     const CACHE_KEY = 'nba_trade_calculator_data';
-    const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+    const CACHE_VERSION_KEY = 'nba_trade_calculator_version';
+
+    // Simple hash function for cache invalidation
+    function hashCode(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return hash.toString();
+    }
 
     function getCachedData() {
       try {
         const cached = localStorage.getItem(CACHE_KEY);
         if (!cached) return null;
-        const { timestamp, csvText } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) return csvText;
-        localStorage.removeItem(CACHE_KEY);
-        return null;
+        return JSON.parse(cached);
       } catch (e) {
         localStorage.removeItem(CACHE_KEY);
         return null;
@@ -6446,8 +6454,9 @@
 
     function setCachedData(csvText) {
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), csvText }));
-      } catch (e) { /* ignore */ }
+        const hash = hashCode(csvText);
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ hash, csvText }));
+      } catch (e) { /* localStorage full or disabled */ }
     }
 
     function processCSVData(results) {
@@ -6549,37 +6558,48 @@
     }
 
     async function loadData() {
-      try {
-        const cachedCSV = getCachedData();
-        
-        if (cachedCSV) {
-          Papa.parse(cachedCSV, {
-            header: true,
-            skipEmptyLines: true,
-            complete: processCSVData,
-            error: () => { localStorage.removeItem(CACHE_KEY); loadData(); }
-          });
-          // Refresh cache in background
-          fetch(CSV_URL).then(r => r.text()).then(setCachedData).catch(() => {});
-          return;
-        }
-        
-        const response = await fetch(CSV_URL);
-        const csvText = await response.text();
-        setCachedData(csvText);
-        
-        Papa.parse(csvText, {
+      const cached = getCachedData();
+      
+      // If we have cache, show it immediately while fetching fresh data
+      if (cached) {
+        Papa.parse(cached.csvText, {
           header: true,
           skipEmptyLines: true,
           complete: processCSVData,
-          error: (error) => {
-            console.error('Parse error:', error);
-            loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
-          }
+          error: () => {}
         });
+      }
+      
+      // Always fetch fresh data to check for updates
+      try {
+        const response = await fetch(CSV_URL);
+        const csvText = await response.text();
+        const newHash = hashCode(csvText);
+        
+        // If hash changed (or no cache), update the data
+        if (!cached || cached.hash !== newHash) {
+          setCachedData(csvText);
+          
+          // Only re-render if we already showed cached data and it changed
+          // Or if this is first load (no cache)
+          Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: processCSVData,
+            error: (error) => {
+              console.error('Parse error:', error);
+              if (!cached) {
+                loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+              }
+            }
+          });
+        }
       } catch (error) {
         console.error('Fetch error:', error);
-        loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+        // Only show error if we don't have cached data to show
+        if (!cached) {
+          loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+        }
       }
     }
 
