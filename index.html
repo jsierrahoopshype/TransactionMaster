@@ -6426,144 +6426,153 @@
       }
     }
 
-    // Load data
+    // Cache configuration
+    const CACHE_KEY = 'nba_trade_calculator_data';
+    const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+    function getCachedData() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (!cached) return null;
+        const { timestamp, csvText } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) return csvText;
+        localStorage.removeItem(CACHE_KEY);
+        return null;
+      } catch (e) {
+        localStorage.removeItem(CACHE_KEY);
+        return null;
+      }
+    }
+
+    function setCachedData(csvText) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), csvText }));
+      } catch (e) { /* ignore */ }
+    }
+
+    function processCSVData(results) {
+      players = results.data
+        .filter(row => row.PLAYER && row.PLAYER.trim())
+        .filter(row => row.TEAM && row.TEAM.trim())
+        .map(row => {
+          const otherNotes = row['OTHER NOTES']?.trim() || '';
+          const contractStatus = row['ST 25-26']?.trim() || '';
+          const is10Day = contractStatus.toLowerCase().includes('10-day');
+          const tradeKickerValue = parseFloat(row['TRADE KICKER'] || 0) || 0;
+          return {
+            player: row.PLAYER?.trim() || '',
+            team: row.TEAM?.trim() || '',
+            salary: parseSalary(row['2026']),
+            contractStatus: contractStatus,
+            teamStatus: row['TEAM STATUS']?.trim() || '',
+            capSpace: parseSalary(row['CAP SPACE'] || row['Cap Space'] || row['H'] || 0),
+            globalRating: parseFloat(row['RAT 365'] || 0) || 0,
+            gamesPlayed: parseInt(row['GAMES'] || 0) || 0,
+            position: row['POSITION']?.trim() || '',
+            age: (row['AGE'] != null ? row['AGE'].toString().trim() : ''),
+            contractEnd: row['END']?.trim() || '',
+            guaranteedMoney: parseSalary(row['TOTAL GUARANTEED'] || 0),
+            noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
+            notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
+            poisonPill: parseSalary(row['POISON PILL'] || 0),
+            tradeKicker: tradeKickerValue,
+            otherNotes: otherNotes,
+            exception: row['EXCEPTION']?.trim() || '',
+            isMinimum: otherNotes.toLowerCase().includes('minimum'),
+            isMinSalaryException: (row['EXCEPTION']?.trim() || '').toLowerCase().includes('minimum salary exception'),
+            is10Day: is10Day,
+            taxRoom: parseSalary(row['TAX ROOM'] || 0),
+            apronRoom1st: parseSalary(row['1st APRON'] || 0),
+            apronRoom2nd: parseSalary(row['2nd APRON'] || 0),
+            isHardcap1st: (row['HARD CAP 1st?'] || '').toString().trim().toLowerCase().includes('hc'),
+            isHardcap2nd: (row['HARD CAP 2nd?'] || '').toString().trim().toLowerCase().includes('hc'),
+            tradeAvailable: is10Day ? 'not available' : (row['RESTRICTIONS']?.trim() || ''),
+            isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
+            injuryReason: row['REASON']?.trim() || '',
+            teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
+            headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || ''
+          };
+        });
+
+      teams = getUniqueTeams();
+      
+      tradeExceptions = results.data
+        .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
+        .map(row => {
+          let value = parseSalary(row['VALUE'] || 0);
+          let date = row['DATE']?.trim() || '';
+          if (value < 100 && date && date.includes('$')) {
+            value = parseSalary(date);
+            date = row['VALUE']?.trim() || '';
+          }
+          return { team: row['TRADE EXCEPTION']?.trim() || '', value, expirationDate: date };
+        })
+        .filter(tpe => tpe.value > 0);
+      
+      draftPicks = results.data
+        .filter(row => {
+          if (!row['DRAFT TEAM']?.trim()) return false;
+          if (!row['DRAFT YEAR']?.toString().trim()) return false;
+          const round = row['ROUND']?.toString().trim().toLowerCase();
+          if (!round || (round !== '1st' && round !== '2nd')) return false;
+          const year = row['DRAFT YEAR']?.toString().trim();
+          if (!year || isNaN(parseInt(year))) return false;
+          const yearNum = parseInt(year);
+          return yearNum >= 2025 && yearNum <= 2035;
+        })
+        .map(row => ({
+          team: row['DRAFT TEAM']?.trim() || '',
+          round: row['ROUND']?.trim() || '1st',
+          year: row['DRAFT YEAR']?.toString().trim() || '',
+          surePick: row['SURE PICK?']?.toString().trim().toUpperCase() || 'NO',
+          notes: row['NOTES']?.trim() || '',
+          linkedTo: row['LINKED TO']?.toString().trim() || ''
+        }));
+      
+      draftRights = results.data
+        .filter(row => row['DRAFT RIGHTS']?.trim() && row['TEAM RIGHTS']?.trim())
+        .map(row => ({
+          playerName: row['DRAFT RIGHTS']?.trim() || '',
+          draftedYear: row['DRAFTED YEAR']?.toString().trim() || '',
+          team: row['TEAM RIGHTS']?.trim() || ''
+        }));
+      
+      const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+      tradeTeams = [
+        { teamName: shuffledTeams[0] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+        { teamName: shuffledTeams[1] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+      ];
+      
+      redistributePlayers();
+      loadingState.style.display = 'none';
+      render();
+    }
+
     async function loadData() {
       try {
+        const cachedCSV = getCachedData();
+        
+        if (cachedCSV) {
+          Papa.parse(cachedCSV, {
+            header: true,
+            skipEmptyLines: true,
+            complete: processCSVData,
+            error: () => { localStorage.removeItem(CACHE_KEY); loadData(); }
+          });
+          // Refresh cache in background
+          fetch(CSV_URL).then(r => r.text()).then(setCachedData).catch(() => {});
+          return;
+        }
+        
         const response = await fetch(CSV_URL);
         const csvText = await response.text();
+        setCachedData(csvText);
         
         Papa.parse(csvText, {
           header: true,
           skipEmptyLines: true,
-          complete: function(results) {
-            players = results.data
-              .filter(row => row.PLAYER && row.PLAYER.trim())
-              .filter(row => row.TEAM && row.TEAM.trim())
-              .map(row => {
-                const otherNotes = row['OTHER NOTES']?.trim() || '';
-                const contractStatus = row['ST 25-26']?.trim() || '';
-                const is10Day = contractStatus.toLowerCase().includes('10-day');
-                const tradeKickerValue = parseFloat(row['TRADE KICKER'] || 0) || 0;
-                const player = {
-                  player: row.PLAYER?.trim() || '',
-                  team: row.TEAM?.trim() || '',
-                  salary: parseSalary(row['2026']),
-                  contractStatus: contractStatus,
-                  teamStatus: row['TEAM STATUS']?.trim() || '',
-                  capSpace: parseSalary(row['CAP SPACE'] || row['Cap Space'] || row['H'] || 0),
-                  globalRating: parseFloat(row['RAT 365'] || 0) || 0,
-                  gamesPlayed: parseInt(row['GAMES'] || 0) || 0,
-                  position: row['POSITION']?.trim() || '',
-                  age: (row['AGE'] != null ? row['AGE'].toString().trim() : ''),
-                  contractEnd: row['END']?.trim() || '',
-                  guaranteedMoney: parseSalary(row['TOTAL GUARANTEED'] || 0),
-                  noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
-                  notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
-                  poisonPill: parseSalary(row['POISON PILL'] || 0),
-                  tradeKicker: tradeKickerValue,
-                  otherNotes: otherNotes,
-                  exception: row['EXCEPTION']?.trim() || '',
-                  isMinimum: otherNotes.toLowerCase().includes('minimum'),
-                  isMinSalaryException: (row['EXCEPTION']?.trim() || '').toLowerCase().includes('minimum salary exception'),
-                  is10Day: is10Day,
-                  taxRoom: parseSalary(row['TAX ROOM'] || 0),
-                  apronRoom1st: parseSalary(row['1st APRON'] || 0),
-                  apronRoom2nd: parseSalary(row['2nd APRON'] || 0),
-                  isHardcap1st: (row['HARD CAP 1st?'] || '').toString().trim().toLowerCase().includes('hc'),
-                  isHardcap2nd: (row['HARD CAP 2nd?'] || '').toString().trim().toLowerCase().includes('hc'),
-                  tradeAvailable: is10Day ? 'not available' : (row['RESTRICTIONS']?.trim() || ''),
-                  isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
-                  injuryReason: row['REASON']?.trim() || '',
-                  teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
-                  headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || ''
-                };
-                return player;
-              });
-
-            teams = getUniqueTeams();
-            
-            // Parse Trade Exceptions
-            // Columns: BF = TRADE EXCEPTION (team), BG = DATE, BH = VALUE
-            tradeExceptions = results.data
-              .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
-              .map(row => {
-                // Try to get value - it might be in VALUE or DATE column depending on header
-                let value = parseSalary(row['VALUE'] || 0);
-                let date = row['DATE']?.trim() || '';
-                
-                // If value looks like a date and date looks like money, swap them
-                if (value < 100 && date && date.includes('$')) {
-                  value = parseSalary(date);
-                  date = row['VALUE']?.trim() || '';
-                }
-                
-                return {
-                  team: row['TRADE EXCEPTION']?.trim() || '',
-                  value: value,
-                  expirationDate: date
-                };
-              })
-              .filter(tpe => tpe.value > 0);
-            
-            // Parse Draft Picks
-            // Columns: BJ = DRAFT TEAM, BK = ROUND, BL = DRAFT YEAR, BM = SURE PICK?, BN = NOTES
-            draftPicks = results.data
-              .filter(row => {
-                // Must have DRAFT TEAM and DRAFT YEAR
-                if (!row['DRAFT TEAM']?.trim()) return false;
-                if (!row['DRAFT YEAR']?.toString().trim()) return false;
-                
-                // Must have valid ROUND (1st or 2nd)
-                const round = row['ROUND']?.toString().trim().toLowerCase();
-                if (!round || (round !== '1st' && round !== '2nd')) return false;
-                
-                // Must have valid DRAFT YEAR (2025-2035)
-                const year = row['DRAFT YEAR']?.toString().trim();
-                if (!year || isNaN(parseInt(year))) return false;
-                const yearNum = parseInt(year);
-                if (yearNum < 2025 || yearNum > 2035) return false;
-                
-                return true;
-              })
-              .map(row => ({
-                team: row['DRAFT TEAM']?.trim() || '',
-                round: row['ROUND']?.trim() || '1st',
-                year: row['DRAFT YEAR']?.toString().trim() || '',
-                surePick: row['SURE PICK?']?.toString().trim().toUpperCase() || 'NO',
-                notes: row['NOTES']?.trim() || '',
-                linkedTo: row['LINKED TO']?.toString().trim() || ''
-              }));
-            
-            // Parse Draft Rights
-            draftRights = results.data
-              .filter(row => {
-                if (!row['DRAFT RIGHTS']?.trim()) return false;
-                if (!row['TEAM RIGHTS']?.trim()) return false;
-                return true;
-              })
-              .map(row => ({
-                playerName: row['DRAFT RIGHTS']?.trim() || '',
-                draftedYear: row['DRAFTED YEAR']?.toString().trim() || '',
-                team: row['TEAM RIGHTS']?.trim() || ''
-              }));
-            
-            // Always initialize with 2 random team slots (refresh returns to initial state)
-            const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
-            const randomTeam1 = shuffledTeams[0] || '';
-            const randomTeam2 = shuffledTeams[1] || '';
-            
-            tradeTeams = [
-              { teamName: randomTeam1, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-              { teamName: randomTeam2, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-            ];
-            
-            // Redistribute players to calculate incoming
-            redistributePlayers();
-
-            loadingState.style.display = 'none';
-            render(); // Replace skeleton with real content
-          },
-          error: function(error) {
+          complete: processCSVData,
+          error: (error) => {
             console.error('Parse error:', error);
             loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
           }
@@ -6574,7 +6583,6 @@
       }
     }
 
-    // Initialize
     loadData();
   </script>
 </body>
