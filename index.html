@@ -1957,27 +1957,15 @@
 
     // Get trade exceptions for a team
     function getTeamTPEs(teamName) {
-      const tpes = tradeExceptions.filter(tpe => tpe.team === teamName);
-      if (tpes.length > 0) {
-        console.log('TPEs for', teamName, ':', tpes);
-      }
-      return tpes;
+      return tradeExceptions.filter(tpe => tpe.team === teamName);
     }
 
     function getTeamDraftPicks(teamName) {
-      const picks = draftPicks.filter(pick => pick.team === teamName);
-      if (picks.length > 0) {
-        console.log('Draft picks for', teamName, ':', picks);
-      }
-      return picks;
+      return draftPicks.filter(pick => pick.team === teamName);
     }
 
     function getTeamDraftRights(teamName) {
-      const rights = draftRights.filter(r => r.team === teamName);
-      if (rights.length > 0) {
-        console.log('Draft rights for', teamName, ':', rights);
-      }
-      return rights;
+      return draftRights.filter(r => r.team === teamName);
     }
 
     // League minimum salary for 2025-26 season (0 years experience / rookie scale)
@@ -2340,11 +2328,6 @@
       // For each year, determine if team will have a "guaranteed" pick after trade
       const guaranteedPicksByYear = {};
       
-      console.log('Stepien check for', teamName);
-      console.log('First round picks out:', firstRoundPicksOut.map(p => `${p.year} ${p.round}`));
-      console.log('Incoming first round picks:', incomingFirstRoundPicks.map(p => `${p.year} ${p.round}`));
-      console.log('Team first round picks:', teamFirstRoundPicks.map(p => `${p.year} ${p.surePick} ${p.linkedTo || ''}`));
-      
       years.forEach(year => {
         const yearStr = year.toString();
         const picksThisYear = teamFirstRoundPicks.filter(p => p.year === yearStr);
@@ -2357,22 +2340,14 @@
           
           if (!beingTraded) {
             if (pick.surePick === 'YES') {
-              // Sure pick that's not being traded = guaranteed
               hasGuaranteedPick = true;
-              console.log(`  ${yearStr}: Has sure pick (not traded)`);
             } else if (pick.linkedTo) {
-              // Conditional pick - check if we're keeping either this OR the linked pick
               const linkedYear = pick.linkedTo;
               const linkedPicks = teamFirstRoundPicks.filter(p => p.year === linkedYear);
-              
-              // We have a guarantee if we're keeping this conditional pick AND 
-              // the linked pick is also not traded
               const linkedPickBeingTraded = linkedPicks.some(lp => isPickBeingTraded(lp));
               
               if (!linkedPickBeingTraded) {
-                // We're keeping both this pick and its linked pick - guaranteed to have one
                 hasGuaranteedPick = true;
-                console.log(`  ${yearStr}: Has linked pick pair with ${linkedYear} (both kept)`);
               }
             }
           }
@@ -2383,21 +2358,11 @@
         incomingThisYear.forEach(pick => {
           if (pick.surePick === 'YES') {
             hasGuaranteedPick = true;
-            console.log(`  ${yearStr}: Receiving sure pick`);
           }
-          // Note: For conditional incoming picks, we'd need more complex logic
-          // For now, only sure incoming picks count as guaranteed
         });
-        
-        // Also check if this year has no picks at all (team doesn't own any pick this year)
-        if (picksThisYear.length === 0 && incomingThisYear.length === 0) {
-          console.log(`  ${yearStr}: No picks owned or incoming`);
-        }
         
         guaranteedPicksByYear[yearStr] = hasGuaranteedPick;
       });
-      
-      console.log('Guaranteed picks by year:', guaranteedPicksByYear);
       
       // Check for consecutive years without a guaranteed pick
       for (let i = 0; i < years.length - 1; i++) {
@@ -2924,7 +2889,7 @@
                               </div>
                               <div class="player-info-row">
                                 <span class="player-info-label">Total Guaranteed</span>
-                                <span class="player-info-value">${p.guaranteedMoney ? formatSalary(p.guaranteedMoney) : 'N/A'}</span>
+                                <span class="player-info-value">${formatSalary(p.guaranteedMoney || 0)}</span>
                               </div>
                             </div>
                           </span>
@@ -3122,7 +3087,7 @@
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Total Guaranteed</span>
-                                  <span class="player-info-value">${p.guaranteedMoney ? formatSalary(p.guaranteedMoney) : 'N/A'}</span>
+                                  <span class="player-info-value">${formatSalary(p.guaranteedMoney || 0)}</span>
                                 </div>
                               </div>
                             </span>
@@ -3272,7 +3237,7 @@
                                 </div>
                                 <div class="player-info-row">
                                   <span class="player-info-label">Total Guaranteed</span>
-                                  <span class="player-info-value">${p.guaranteedMoney ? formatSalary(p.guaranteedMoney) : 'N/A'}</span>
+                                  <span class="player-info-value">${formatSalary(p.guaranteedMoney || 0)}</span>
                                 </div>
                               </div>
                             </span>
@@ -6158,17 +6123,6 @@
           return true;
         });
         
-        console.log('Loaded', rumorsCache.length, 'unique rumors from', dataArrays.map(d => d.length).join('+'), 'files');
-        
-        // Debug: Show most recent rumor dates
-        const recentDates = rumorsCache
-          .map(r => r.archive_date)
-          .filter(Boolean)
-          .sort()
-          .reverse()
-          .slice(0, 5);
-        console.log('Most recent rumor dates:', recentDates);
-        
         return rumorsCache;
       } catch (error) {
         console.error('Error fetching rumors:', error);
@@ -6523,16 +6477,6 @@
                   teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
                   headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || ''
                 };
-                // Debug logging for first player to see column names
-                if (player.player === 'Giannis Antetokounmpo') {
-                  console.log('Sample row keys:', Object.keys(row));
-                  console.log('LOGO value:', row['LOGO'], 'Logo value:', row['Logo']);
-                  console.log('Player logo:', player.teamLogo, 'headshot:', player.headshot);
-                }
-                // Debug logging for Brooklyn players
-                if (player.team === 'Brooklyn') {
-                  console.log('Brooklyn player:', player.player, 'teamStatus:', player.teamStatus, 'capSpace:', player.capSpace, 'raw CAP SPACE:', row['CAP SPACE']);
-                }
                 return player;
               });
 
@@ -6560,14 +6504,6 @@
                 };
               })
               .filter(tpe => tpe.value > 0);
-            
-            console.log('Trade Exceptions loaded:', tradeExceptions);
-            if (results.data.length > 0) {
-              const sampleRow = results.data.find(r => r['TRADE EXCEPTION']);
-              if (sampleRow) {
-                console.log('TPE Sample - TRADE EXCEPTION:', sampleRow['TRADE EXCEPTION'], 'DATE:', sampleRow['DATE'], 'VALUE:', sampleRow['VALUE']);
-              }
-            }
             
             // Parse Draft Picks
             // Columns: BJ = DRAFT TEAM, BK = ROUND, BL = DRAFT YEAR, BM = SURE PICK?, BN = NOTES
@@ -6598,23 +6534,9 @@
                 linkedTo: row['LINKED TO']?.toString().trim() || ''
               }));
             
-            console.log('Draft Picks loaded:', draftPicks.length, 'picks');
-            if (draftPicks.length > 0) {
-              console.log('Sample draft picks:', draftPicks.slice(0, 5));
-              // Log picks by team for debugging
-              const picksByTeam = {};
-              draftPicks.forEach(p => {
-                if (!picksByTeam[p.team]) picksByTeam[p.team] = [];
-                picksByTeam[p.team].push(`${p.year} ${p.round}`);
-              });
-              console.log('Picks by team:', picksByTeam);
-            }
-            
             // Parse Draft Rights
-            // Columns: BQ = DRAFT RIGHTS (player name), BR = DRAFTED YEAR, BS = TEAM RIGHTS
             draftRights = results.data
               .filter(row => {
-                // Must have player name and team
                 if (!row['DRAFT RIGHTS']?.trim()) return false;
                 if (!row['TEAM RIGHTS']?.trim()) return false;
                 return true;
@@ -6624,16 +6546,6 @@
                 draftedYear: row['DRAFTED YEAR']?.toString().trim() || '',
                 team: row['TEAM RIGHTS']?.trim() || ''
               }));
-            
-            console.log('Draft Rights loaded:', draftRights.length, 'rights');
-            if (draftRights.length > 0) {
-              console.log('Sample draft rights:', draftRights.slice(0, 5));
-            }
-            
-            // Log CSV headers
-            if (results.data.length > 0) {
-              console.log('CSV Headers:', Object.keys(results.data[0]));
-            }
             
             // Always initialize with 2 random team slots (refresh returns to initial state)
             const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
