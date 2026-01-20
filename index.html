@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trade Calculator</title>
+  <title>NBA Trade Calculator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -3462,7 +3462,10 @@
     
     // Update URL and page title based on current trade
     function updateUrlAndTitle() {
-      // Collect all players being traded
+      // Keep title static
+      document.title = 'NBA Trade Calculator';
+      
+      // Collect all players being traded for URL
       const allPlayersOut = [];
       const allTeams = new Set();
       
@@ -3475,25 +3478,13 @@
         }
       });
       
-      // If no players in trade, reset to default
+      // If no players in trade, reset URL
       if (allPlayersOut.length === 0) {
-        document.title = 'NBA Trade Calculator';
         if (window.location.search) {
           window.history.replaceState({}, '', window.location.pathname);
         }
         return;
       }
-      
-      // Create page title from player names
-      let pageTitle;
-      if (allPlayersOut.length === 1) {
-        pageTitle = `${allPlayersOut[0]} Trade - NBA Trade Calculator`;
-      } else if (allPlayersOut.length === 2) {
-        pageTitle = `${allPlayersOut[0]} for ${allPlayersOut[1]} - NBA Trade Calculator`;
-      } else {
-        pageTitle = `${allPlayersOut.slice(0, 2).join(', ')} & more - NBA Trade Calculator`;
-      }
-      document.title = pageTitle;
       
       // Create simple URL with player names as slugs
       const playerSlugs = allPlayersOut.slice(0, 4).map(name => 
