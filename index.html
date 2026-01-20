@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Trade Calculator</title>
+  <title>Trade Calculator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1718,11 +1718,11 @@
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="na-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">NA</span></span>
-            <span class="glossary-description"><strong>Not Aggregated</strong> — Can't be packaged with others</span>
+            <span class="glossary-description"><strong>Not Aggregated</strong> — Can't be packaged with other salaries</span>
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="pp-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">PP</span></span>
-            <span class="glossary-description"><strong>Poison Pill</strong> — Salary increases for receiver</span>
+            <span class="glossary-description"><strong>Poison Pill</strong> — Incoming value is average of current-year salary and the annual salary in each year of extension</span>
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="tk-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">TK</span></span>
@@ -1734,7 +1734,7 @@
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="min-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">MIN</span></span>
-            <span class="glossary-description"><strong>Minimum Salary</strong> — Counts as $1.27M for receiver</span>
+            <span class="glossary-description"><strong>Minimum Salary</strong></span>
           </div>
           <div class="glossary-item">
             <span class="glossary-badge"><span class="restriction-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">!</span></span>
@@ -4658,9 +4658,7 @@
         document.getElementById('tradeStatusMessage').textContent = result.error;
       } else {
         tradeTeams = result;
-        // Clear selected players
-        tradePlayerSelectedPlayers = [];
-        renderTradePlayerChips();
+        // Keep selected players so user can click again for different trade
         playerSearchInput.value = '';
         render();
       }
@@ -5348,9 +5346,7 @@
         document.getElementById('tradeStatusMessage').textContent = result.error;
       } else {
         tradeTeams = result;
-        // Clear selected players
-        playerToTeamSelectedPlayers = [];
-        renderPlayerToTeamChips();
+        // Keep selected players and team so user can click again for different trade
         playerToTeamPlayerInput.value = '';
         redistributePlayers();
         render();
