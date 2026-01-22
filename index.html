@@ -2856,7 +2856,7 @@
     }
 
     // Distribute players based on their assigned destinations
-    function redistributePlayers() {
+    function redistributePlayers(addAutoCash = false) {
       // Clear all incoming players
       tradeTeams.forEach(t => t.playersIn = []);
 
@@ -2873,7 +2873,9 @@
       });
       
       // Auto-add cash considerations for teams that send assets but receive nothing
-      // This makes generated trades legal (every team must receive something)
+      // Only for generated trades, not manual trades
+      if (!addAutoCash) return;
+      
       tradeTeams.forEach((team, teamIndex) => {
         if (!team.teamName) return;
         
@@ -4353,7 +4355,7 @@
           if (totalPlayersOut < numTeams) continue;
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type.startsWith('pending')) {
@@ -4408,7 +4410,7 @@
           
           // Redistribute and validate
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type.startsWith('pending')) {
@@ -4520,7 +4522,7 @@
           }
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type.startsWith('pending')) {
@@ -4561,7 +4563,7 @@
           ];
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type.startsWith('pending')) {
@@ -4657,7 +4659,7 @@
           if (totalPlayersOut < numTeams) continue;
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type.startsWith('pending')) {
@@ -4708,7 +4710,7 @@
           ];
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type.startsWith('pending')) {
@@ -5253,7 +5255,7 @@
         if (previousPlayerToTeamTrades.has(tradeKey)) continue;
         
         tradeTeams = testTrade;
-        redistributePlayers();
+        redistributePlayers(true);
         
         const validation = validateTrade();
         if (validation.valid || validation.type?.startsWith('pending')) {
@@ -5295,7 +5297,7 @@
             if (previousPlayerToTeamTrades.has(tradeKey)) continue;
             
             tradeTeams = testTrade;
-            redistributePlayers();
+            redistributePlayers(true);
             
             const validation = validateTrade();
             if (validation.valid || validation.type?.startsWith('pending')) {
@@ -5345,7 +5347,7 @@
                 if (previousPlayerToTeamTrades.has(tradeKey)) continue;
                 
                 tradeTeams = testTrade;
-                redistributePlayers();
+                redistributePlayers(true);
                 
                 const validation = validateTrade();
                 if (validation.valid || validation.type?.startsWith('pending')) {
@@ -5503,7 +5505,7 @@
           ];
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type?.startsWith('pending')) {
@@ -5542,7 +5544,7 @@
           ];
           
           tradeTeams = testTrade;
-          redistributePlayers();
+          redistributePlayers(true);
           
           const validation = validateTrade();
           if (validation.valid || validation.type?.startsWith('pending')) {
@@ -5592,7 +5594,7 @@
         tradeTeams = result;
         // Keep selected players and team so user can click again for different trade
         playerToTeamPlayerInput.value = '';
-        redistributePlayers();
+        redistributePlayers(true);
         render();
       }
     });
@@ -5618,7 +5620,7 @@
       
       if (randomTrade) {
         tradeTeams = randomTrade;
-        redistributePlayers(); // Ensure cash is added for teams receiving nothing
+        redistributePlayers(true); // Add auto-cash for teams receiving nothing
         render();
       }
     });
