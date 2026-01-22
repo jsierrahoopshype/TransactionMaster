@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBA Trade Calculator</title>
+  <!-- Preconnect to Google Sheets for faster CSV fetch -->
+  <link rel="preconnect" href="https://docs.google.com">
+  <link rel="dns-prefetch" href="https://docs.google.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1382,6 +1385,102 @@
       }
     }
 
+    /* Loading Screen Styles */
+    .loading-content {
+      display: flex;
+      gap: 1.5rem;
+      width: 100%;
+    }
+
+    .loading-card {
+      flex: 1;
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .loading-card-header {
+      background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
+      color: white;
+      padding: 1rem 1.25rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .loading-card-body {
+      padding: 0.75rem;
+    }
+
+    .loading-player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.75rem;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+
+    .loading-player-row:nth-child(odd) {
+      background: var(--bg);
+    }
+
+    .loading-player-rank {
+      font-weight: 700;
+      color: var(--accent);
+      width: 24px;
+      font-size: 0.85rem;
+    }
+
+    .loading-player-name {
+      flex: 1;
+      font-weight: 500;
+      font-size: 0.875rem;
+      color: var(--text);
+    }
+
+    .loading-player-team {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      margin-left: 0.5rem;
+    }
+
+    .loading-player-salary {
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--green);
+    }
+
+    .loading-status {
+      text-align: center;
+      padding: 1rem;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .loading-spinner {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 900px) {
+      .loading-content {
+        flex-direction: column;
+      }
+    }
+
     /* Badge Glossary Section */
     .glossary-section {
       margin-top: 2rem;
@@ -1678,22 +1777,141 @@
       </div>
 
       <div class="trade-container" id="tradeContainer">
-        <!-- Skeleton cards for instant display -->
-        <div class="trade-card skeleton-card" style="opacity: 0.6;">
-          <div class="team-header">
-            <select class="team-select" disabled><option>Loading teams...</option></select>
+        <!-- Loading content with NBA stats -->
+        <div class="loading-content" id="loadingContent">
+          <div class="loading-card">
+            <div class="loading-card-header">
+              💰 Highest-Paid Players 2025-26
+            </div>
+            <div class="loading-card-body">
+              <div class="loading-player-row">
+                <span class="loading-player-rank">1</span>
+                <span class="loading-player-name">Stephen Curry<span class="loading-player-team">GSW</span></span>
+                <span class="loading-player-salary">$59.6M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">2</span>
+                <span class="loading-player-name">Nikola Jokić<span class="loading-player-team">DEN</span></span>
+                <span class="loading-player-salary">$55.2M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">3</span>
+                <span class="loading-player-name">Joel Embiid<span class="loading-player-team">PHI</span></span>
+                <span class="loading-player-salary">$55.2M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">4</span>
+                <span class="loading-player-name">Kevin Durant<span class="loading-player-team">HOU</span></span>
+                <span class="loading-player-salary">$54.7M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">5</span>
+                <span class="loading-player-name">Jayson Tatum<span class="loading-player-team">BOS</span></span>
+                <span class="loading-player-salary">$54.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">6</span>
+                <span class="loading-player-name">Anthony Davis<span class="loading-player-team">DAL</span></span>
+                <span class="loading-player-salary">$54.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">7</span>
+                <span class="loading-player-name">Jimmy Butler<span class="loading-player-team">GSW</span></span>
+                <span class="loading-player-salary">$54.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">8</span>
+                <span class="loading-player-name">Giannis Antetokounmpo<span class="loading-player-team">MIL</span></span>
+                <span class="loading-player-salary">$54.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">9</span>
+                <span class="loading-player-name">Jaylen Brown<span class="loading-player-team">BOS</span></span>
+                <span class="loading-player-salary">$53.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">10</span>
+                <span class="loading-player-name">Karl-Anthony Towns<span class="loading-player-team">NYK</span></span>
+                <span class="loading-player-salary">$53.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">11</span>
+                <span class="loading-player-name">Devin Booker<span class="loading-player-team">PHX</span></span>
+                <span class="loading-player-salary">$53.1M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">12</span>
+                <span class="loading-player-name">LeBron James<span class="loading-player-team">LAL</span></span>
+                <span class="loading-player-salary">$52.6M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">13</span>
+                <span class="loading-player-name">Paul George<span class="loading-player-team">PHI</span></span>
+                <span class="loading-player-salary">$51.7M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">14</span>
+                <span class="loading-player-name">Kawhi Leonard<span class="loading-player-team">LAC</span></span>
+                <span class="loading-player-salary">$50.0M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-rank">15</span>
+                <span class="loading-player-name">Zach LaVine<span class="loading-player-team">SAC</span></span>
+                <span class="loading-player-salary">$47.5M</span>
+              </div>
+            </div>
           </div>
-          <div class="trade-content" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
-            Loading player data...
+          <div class="loading-card">
+            <div class="loading-card-header">
+              📊 2025-26 CBA Key Numbers
+            </div>
+            <div class="loading-card-body">
+              <div class="loading-player-row">
+                <span class="loading-player-name">Salary Cap</span>
+                <span class="loading-player-salary">$142.5M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Luxury Tax Line</span>
+                <span class="loading-player-salary">$173.0M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">First Apron</span>
+                <span class="loading-player-salary">$180.4M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Second Apron</span>
+                <span class="loading-player-salary">$191.2M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Rookie Minimum</span>
+                <span class="loading-player-salary">$1.27M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Veteran Minimum (10+ yrs)</span>
+                <span class="loading-player-salary">$3.55M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Mid-Level Exception</span>
+                <span class="loading-player-salary">$13.4M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Bi-Annual Exception</span>
+                <span class="loading-player-salary">$4.9M</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Max Contract (0-6 yrs)</span>
+                <span class="loading-player-salary">25% of cap</span>
+              </div>
+              <div class="loading-player-row">
+                <span class="loading-player-name">Supermax (10+ yrs)</span>
+                <span class="loading-player-salary">35% of cap</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="trade-card skeleton-card" style="opacity: 0.6;">
-          <div class="team-header">
-            <select class="team-select" disabled><option>Loading teams...</option></select>
-          </div>
-          <div class="trade-content" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
-            Loading player data...
-          </div>
+        <div class="loading-status" id="loadingStatus">
+          <span class="loading-spinner">⏳</span>
+          Loading latest player data...
         </div>
       </div>
       
@@ -1759,6 +1977,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSg6im6IYB6HXMGzQbmmBnLw9SfQLzxCSo8OfChxlJLhsB6BBCO0wPF_TMch0YgAbtFqYkwDWrsxRe7/pub?output=csv';
+    
+    // Start fetching immediately (don't await - runs in parallel with script parsing)
+    const csvFetchPromise = fetch(CSV_URL).then(r => r.text()).catch(() => null);
+    
     const MAX_TEAMS = 5;
 
     let players = [];
@@ -6570,18 +6792,17 @@
         });
       }
       
-      // Always fetch fresh data to check for updates
+      // Use the pre-started fetch (already running in parallel)
       try {
-        const response = await fetch(CSV_URL);
-        const csvText = await response.text();
+        const csvText = await csvFetchPromise;
+        if (!csvText) throw new Error('Fetch failed');
+        
         const newHash = hashCode(csvText);
         
         // If hash changed (or no cache), update the data
         if (!cached || cached.hash !== newHash) {
           setCachedData(csvText);
           
-          // Only re-render if we already showed cached data and it changed
-          // Or if this is first load (no cache)
           Papa.parse(csvText, {
             header: true,
             skipEmptyLines: true,
@@ -6596,7 +6817,6 @@
         }
       } catch (error) {
         console.error('Fetch error:', error);
-        // Only show error if we don't have cached data to show
         if (!cached) {
           loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
         }
