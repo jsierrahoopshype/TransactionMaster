@@ -1711,7 +1711,6 @@
         </div>
         <div class="header-row">
           <button class="btn btn-loop" id="loopTradeBtn" title="Auto-generate new trade every 8 seconds">▶ Trade Loop</button>
-          <button class="btn btn-loop" id="recordLoopBtn" title="Record loop as video">⏺ Record</button>
           <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
           <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
         </div>
@@ -4858,8 +4857,8 @@
         const playerNames = unifiedSelectedPlayers.map(p => p.player);
         result = generateTradeForPlayers(playerNames);
       } else if (hasOrigin && hasDest) {
-        // Trade between two specific teams (origin sends to dest)
-        result = generateTradeForTeam(hasOrigin ? unifiedOriginTeam : unifiedDestTeam);
+        // Trade between two specific teams
+        result = generateTeamToTeamTrade(unifiedOriginTeam, unifiedDestTeam);
       } else if (hasOrigin) {
         // Trade involving origin team
         result = generateTradeForTeam(unifiedOriginTeam);
@@ -4875,6 +4874,106 @@
       }
       
       return result;
+    }
+    
+    // Generate trade between two specific teams
+    function generateTeamToTeamTrade(originTeam, destTeam) {
+      const MAX_ATTEMPTS = 200;
+      
+      // Verify teams exist
+      if (!teams.includes(originTeam)) {
+        return { error: `Team "${originTeam}" not found` };
+      }
+      if (!teams.includes(destTeam)) {
+        return { error: `Team "${destTeam}" not found` };
+      }
+      
+      // Get tradeable players
+      const tradeablePlayers = players.filter(p => 
+        p.team && 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        p.salary >= 500000
+      );
+      
+      // Get players from both teams
+      const originPlayers = tradeablePlayers.filter(p => p.team === originTeam);
+      const destPlayers = tradeablePlayers.filter(p => p.team === destTeam);
+      
+      if (originPlayers.length === 0) {
+        return { error: `No tradeable players found for ${originTeam}` };
+      }
+      if (destPlayers.length === 0) {
+        return { error: `No tradeable players found for ${destTeam}` };
+      }
+      
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Shuffle players
+        const shuffledOrigin = [...originPlayers].sort(() => Math.random() - 0.5);
+        const shuffledDest = [...destPlayers].sort(() => Math.random() - 0.5);
+        
+        // Pick 1-2 players from origin team
+        const numOriginPlayers = Math.random() < 0.7 ? 1 : 2;
+        const originPlayersOut = shuffledOrigin.slice(0, numOriginPlayers).map(p => ({ ...p, destination: 1 }));
+        const originOutgoing = originPlayersOut.reduce((sum, p) => sum + p.salary, 0);
+        
+        // Find matching players from dest team
+        const destPlayersOut = [];
+        let destOutgoing = 0;
+        
+        for (const p of shuffledDest) {
+          // Check if adding this player helps match salaries
+          const newTotal = destOutgoing + p.salary;
+          
+          // Stop if we've matched enough
+          if (destOutgoing >= originOutgoing * 0.8 && destOutgoing <= originOutgoing * 1.25 + 5000000) {
+            break;
+          }
+          
+          // Add player if it helps
+          if (newTotal <= originOutgoing * 1.5 + 10000000) {
+            destPlayersOut.push({ ...p, destination: 0 });
+            destOutgoing = newTotal;
+          }
+          
+          if (destPlayersOut.length >= 3) break;
+        }
+        
+        if (destPlayersOut.length === 0) continue;
+        
+        // Build trade structure
+        const testTrade = [
+          { 
+            teamName: originTeam, 
+            playersOut: originPlayersOut, 
+            playersIn: [], 
+            tpeUsed: null, 
+            picksOut: [], 
+            rightsOut: [], 
+            cashOut: [] 
+          },
+          { 
+            teamName: destTeam, 
+            playersOut: destPlayersOut, 
+            playersIn: [], 
+            tpeUsed: null, 
+            picksOut: [], 
+            rightsOut: [], 
+            cashOut: [] 
+          }
+        ];
+        
+        tradeTeams = testTrade;
+        redistributePlayers(true);
+        
+        const validation = validateTrade();
+        if (validation.valid || validation.type.startsWith('pending')) {
+          return testTrade;
+        }
+      }
+      
+      return { error: `Could not generate a valid trade between ${originTeam} and ${destTeam}. Try different teams!` };
     }
     
     // Generate button handler
@@ -5338,10 +5437,7 @@
     
     // Loop feature - auto-generate trades every 8 seconds
     let loopInterval = null;
-    let isRecording = false;
-    let recordedFrames = [];
     const loopTradeBtn = document.getElementById('loopTradeBtn');
-    const recordLoopBtn = document.getElementById('recordLoopBtn');
     
     function stopLoop() {
       if (loopInterval) {
@@ -5376,11 +5472,6 @@
         tradeTeams = result;
         redistributePlayers(true);
         render();
-        
-        // If recording, capture this frame
-        if (isRecording) {
-          captureTradeFrame();
-        }
       }
     }
     
@@ -5392,171 +5483,9 @@
       }
     });
     
-    // Recording functionality
-    function captureTradeFrame() {
-      try {
-        const canvas = document.getElementById('tradeCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Check if we have valid trade data
-        const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
-        if (activeTeams.length < 2) return;
-        
-        const cardWidth = 400;
-        const cardPadding = 20;
-        const totalWidth = (cardWidth * activeTeams.length) + (cardPadding * (activeTeams.length + 1));
-        const canvasHeight = 600;
-        
-        canvas.width = totalWidth;
-        canvas.height = canvasHeight;
-        
-        // Background
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Simplified card rendering for recording
-        let x = cardPadding;
-        activeTeams.forEach((team) => {
-          // Card background (simple rect for compatibility)
-          ctx.fillStyle = '#16213e';
-          ctx.fillRect(x, 20, cardWidth, canvasHeight - 40);
-          
-          // Team name
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 18px sans-serif';
-          ctx.fillText(team.teamName || 'Unknown', x + 20, 55);
-          
-          // Players out
-          ctx.fillStyle = '#ef4444';
-          ctx.font = '14px sans-serif';
-          let y = 90;
-          (team.playersOut || []).forEach(p => {
-            ctx.fillText(`↑ ${p.player}`, x + 20, y);
-            y += 22;
-          });
-          
-          // Players in
-          ctx.fillStyle = '#22c55e';
-          y += 10;
-          (team.playersIn || []).forEach(p => {
-            ctx.fillText(`↓ ${p.player}`, x + 20, y);
-            y += 22;
-          });
-          
-          x += cardWidth + cardPadding;
-        });
-        
-        // Add timestamp
-        ctx.fillStyle = '#ffffff80';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(new Date().toLocaleTimeString(), canvas.width - 100, canvas.height - 20);
-        
-        const dataUrl = canvas.toDataURL('image/png');
-        recordedFrames.push(dataUrl);
-      } catch (e) {
-        console.error('Error capturing frame:', e);
-      }
-    }
-    
-    async function stopRecordingAndDownload() {
-      isRecording = false;
-      recordLoopBtn.classList.remove('active');
-      recordLoopBtn.textContent = '⏺ Record';
-      
-      if (recordedFrames.length === 0) {
-        alert('No frames recorded');
-        return;
-      }
-      
-      // Create a downloadable HTML file with all frames as a slideshow
-      const slideshowHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Trade Loop Recording</title>
-  <style>
-    body { margin: 0; background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
-    #slideshow { max-width: 100%; }
-    .controls { margin-top: 20px; display: flex; gap: 10px; }
-    button { padding: 10px 20px; font-size: 16px; cursor: pointer; border: none; border-radius: 8px; background: #3b82f6; color: white; }
-    button:hover { background: #2563eb; }
-    .counter { color: white; margin-top: 10px; }
-  </style>
-</head>
-<body>
-  <img id="slideshow" src="${recordedFrames[0]}" />
-  <div class="counter"><span id="current">1</span> / ${recordedFrames.length}</div>
-  <div class="controls">
-    <button onclick="prev()">← Prev</button>
-    <button onclick="togglePlay()" id="playBtn">▶ Play</button>
-    <button onclick="next()">Next →</button>
-  </div>
-  <scr` + `ipt>
-    const frames = ${JSON.stringify(recordedFrames)};
-    let idx = 0;
-    let playing = false;
-    let interval;
-    
-    function show() {
-      document.getElementById('slideshow').src = frames[idx];
-      document.getElementById('current').textContent = idx + 1;
-    }
-    
-    function next() { idx = (idx + 1) % frames.length; show(); }
-    function prev() { idx = (idx - 1 + frames.length) % frames.length; show(); }
-    
-    function togglePlay() {
-      playing = !playing;
-      document.getElementById('playBtn').textContent = playing ? '⏸ Pause' : '▶ Play';
-      if (playing) {
-        interval = setInterval(next, 3000);
-      } else {
-        clearInterval(interval);
-      }
-    }
-  </scr` + `ipt>
-</body>
-</html>`;
-      
-      const blob = new Blob([slideshowHtml], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `trade-loop-${new Date().toISOString().slice(0,10)}.html`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      recordedFrames = [];
-    }
-    
-    recordLoopBtn.addEventListener('click', () => {
-      if (isRecording) {
-        stopRecordingAndDownload();
-      } else {
-        isRecording = true;
-        recordedFrames = [];
-        recordLoopBtn.classList.add('active');
-        recordLoopBtn.textContent = '⏹ Stop Recording';
-        
-        // Start loop if not already running
-        if (!loopInterval) {
-          startLoop();
-        }
-        
-        // Capture current frame
-        captureTradeFrame();
-      }
-    });
-    
-    // Stop loop and recording when reset is clicked
+    // Stop loop when reset is clicked
     resetBtn.addEventListener('click', () => {
       stopLoop();
-      if (isRecording) {
-        isRecording = false;
-        recordLoopBtn.classList.remove('active');
-        recordLoopBtn.textContent = '⏺ Record';
-        recordedFrames = [];
-      }
       // Clear unified inputs
       unifiedSelectedPlayers = [];
       unifiedOriginTeam = null;
