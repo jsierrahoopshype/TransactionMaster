@@ -6782,8 +6782,13 @@
     async function loadData() {
       const cached = getCachedData();
       
-      // If we have cache, show it immediately while fetching fresh data
+      // Hide loading content if we have cache (will show real content instantly)
       if (cached) {
+        const loadingContent = document.getElementById('loadingContent');
+        const loadingStatus = document.getElementById('loadingStatus');
+        if (loadingContent) loadingContent.style.display = 'none';
+        if (loadingStatus) loadingStatus.style.display = 'none';
+        
         Papa.parse(cached.csvText, {
           header: true,
           skipEmptyLines: true,
