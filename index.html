@@ -1677,7 +1677,7 @@
             <div class="unified-input-group">
               <label class="unified-label">From</label>
               <div class="autocomplete-container">
-                <input type="text" id="unifiedOriginInput" class="player-search-input" placeholder="Any team..." autocomplete="off" disabled>
+                <input type="text" id="unifiedOriginInput" class="player-search-input" placeholder="Any team..." autocomplete="off">
                 <div class="autocomplete-dropdown" id="unifiedOriginDropdown"></div>
               </div>
             </div>
@@ -4583,14 +4583,14 @@
       
       if (unifiedSelectedPlayers.length === 0) {
         container.innerHTML = '';
-        originInput.value = '';
-        originInput.disabled = true;
+        // Keep origin input enabled for manual team selection
+        originInput.disabled = false;
         originInput.placeholder = 'Any team...';
-        unifiedOriginTeam = null;
+        // Don't clear unifiedOriginTeam if manually set
         return;
       }
       
-      // Auto-set origin team from first player
+      // Auto-set origin team from first player and disable input
       const firstPlayerTeam = unifiedSelectedPlayers[0].team;
       unifiedOriginTeam = firstPlayerTeam;
       originInput.value = firstPlayerTeam;
@@ -4666,6 +4666,54 @@
           }
           unifiedPlayerInput.value = '';
           unifiedPlayerDropdown.classList.remove('show');
+        });
+      });
+    });
+    
+    // Unified origin team autocomplete
+    const unifiedOriginInput = document.getElementById('unifiedOriginInput');
+    const unifiedOriginDropdown = document.getElementById('unifiedOriginDropdown');
+    
+    unifiedOriginInput.addEventListener('input', () => {
+      const searchTerm = unifiedOriginInput.value.toLowerCase().trim();
+      
+      // Only allow manual origin selection if no players selected
+      if (unifiedSelectedPlayers.length > 0) {
+        return;
+      }
+      
+      unifiedOriginTeam = null;
+      
+      if (searchTerm.length < 2) {
+        unifiedOriginDropdown.classList.remove('show');
+        return;
+      }
+      
+      // Exclude destination team from origins
+      let matches = searchTeams(searchTerm);
+      if (unifiedDestTeam) {
+        matches = matches.filter(t => t !== unifiedDestTeam);
+      }
+      matches = matches.slice(0, 10);
+      
+      if (matches.length === 0) {
+        unifiedOriginDropdown.classList.remove('show');
+        return;
+      }
+      
+      unifiedOriginDropdown.innerHTML = matches.map(t => `
+        <div class="autocomplete-item" data-team="${t}">
+          <span>${t}</span>
+        </div>
+      `).join('');
+      
+      unifiedOriginDropdown.classList.add('show');
+      
+      unifiedOriginDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          unifiedOriginTeam = item.dataset.team;
+          unifiedOriginInput.value = unifiedOriginTeam;
+          unifiedOriginDropdown.classList.remove('show');
         });
       });
     });
@@ -4787,6 +4835,7 @@
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.autocomplete-container') && !e.target.closest('.excluded-chip')) {
         unifiedPlayerDropdown.classList.remove('show');
+        unifiedOriginDropdown.classList.remove('show');
         unifiedDestDropdown.classList.remove('show');
         excludePlayersDropdown.classList.remove('show');
       }
@@ -4795,8 +4844,8 @@
     // Unified generate trade function
     function generateUnifiedTrade() {
       const hasPlayers = unifiedSelectedPlayers.length > 0;
-      const hasOrigin = unifiedOriginTeam !== null;
-      const hasDest = unifiedDestTeam !== null;
+      const hasOrigin = unifiedOriginTeam !== null && unifiedOriginTeam !== '';
+      const hasDest = unifiedDestTeam !== null && unifiedDestTeam !== '';
       
       let result = null;
       
@@ -4808,8 +4857,14 @@
         // Trade player(s) to any team
         const playerNames = unifiedSelectedPlayers.map(p => p.player);
         result = generateTradeForPlayers(playerNames);
+      } else if (hasOrigin && hasDest) {
+        // Trade between two specific teams (origin sends to dest)
+        result = generateTradeForTeam(hasOrigin ? unifiedOriginTeam : unifiedDestTeam);
+      } else if (hasOrigin) {
+        // Trade involving origin team
+        result = generateTradeForTeam(unifiedOriginTeam);
       } else if (hasDest) {
-        // Trade involving destination team (treat as "trade for this team")
+        // Trade involving destination team
         result = generateTradeForTeam(unifiedDestTeam);
       } else {
         // Pure random trade
@@ -5506,7 +5561,7 @@
       excludedPlayers = [];
       document.getElementById('unifiedPlayerInput').value = '';
       document.getElementById('unifiedOriginInput').value = '';
-      document.getElementById('unifiedOriginInput').disabled = true;
+      document.getElementById('unifiedOriginInput').disabled = false;
       document.getElementById('unifiedDestInput').value = '';
       renderUnifiedPlayerChips();
       renderExcludedChips();
