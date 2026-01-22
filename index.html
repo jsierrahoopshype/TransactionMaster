@@ -4,20 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBA Trade Calculator</title>
-  <!-- Hide loading content immediately if cache exists -->
-  <script>
-    try {
-      if (localStorage.getItem('nba_trade_calculator_data')) {
-        document.documentElement.classList.add('has-cache');
-      }
-    } catch(e) {}
-  </script>
-  <style>
-    .has-cache #loadingContent,
-    .has-cache #loadingStatus {
-      display: none !important;
-    }
-  </style>
   <!-- Preconnect to Google Sheets for faster CSV fetch -->
   <link rel="preconnect" href="https://docs.google.com">
   <link rel="dns-prefetch" href="https://docs.google.com">
@@ -170,6 +156,28 @@
     .btn-success:hover {
       background: var(--green);
       color: white;
+    }
+
+    .btn-loop {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-loop:hover {
+      background: var(--surface-hover);
+    }
+
+    .btn-loop.active {
+      background: var(--orange);
+      color: white;
+      border-color: var(--orange);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
     }
 
     /* Multi-player selection container */
@@ -1399,102 +1407,6 @@
       }
     }
 
-    /* Loading Screen Styles */
-    .loading-content {
-      display: flex;
-      gap: 1.5rem;
-      width: 100%;
-    }
-
-    .loading-card {
-      flex: 1;
-      background: var(--surface);
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    .loading-card-header {
-      background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
-      color: white;
-      padding: 1rem 1.25rem;
-      font-weight: 600;
-      font-size: 0.95rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .loading-card-body {
-      padding: 0.75rem;
-    }
-
-    .loading-player-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.6rem 0.75rem;
-      border-radius: 8px;
-      transition: background 0.15s;
-    }
-
-    .loading-player-row:nth-child(odd) {
-      background: var(--bg);
-    }
-
-    .loading-player-rank {
-      font-weight: 700;
-      color: var(--accent);
-      width: 24px;
-      font-size: 0.85rem;
-    }
-
-    .loading-player-name {
-      flex: 1;
-      font-weight: 500;
-      font-size: 0.875rem;
-      color: var(--text);
-    }
-
-    .loading-player-team {
-      color: var(--text-secondary);
-      font-size: 0.75rem;
-      margin-left: 0.5rem;
-    }
-
-    .loading-player-salary {
-      font-weight: 600;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
-      color: var(--green);
-    }
-
-    .loading-status {
-      text-align: center;
-      padding: 1rem;
-      color: var(--text-secondary);
-      font-size: 0.875rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-
-    .loading-spinner {
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @media (max-width: 900px) {
-      .loading-content {
-        flex-direction: column;
-      }
-    }
-
     /* Badge Glossary Section */
     .glossary-section {
       margin-top: 2rem;
@@ -1749,6 +1661,7 @@
         </div>
         <div class="header-row">
           <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
+          <button class="btn btn-loop" id="loopTradeBtn" title="Auto-generate new trade every 8 seconds">🔄 Loop</button>
           <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
           <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
         </div>
@@ -1791,141 +1704,22 @@
       </div>
 
       <div class="trade-container" id="tradeContainer">
-        <!-- Loading content with NBA stats - hidden via head script if cache exists -->
-        <div class="loading-content" id="loadingContent">
-          <div class="loading-card">
-            <div class="loading-card-header">
-              💰 Highest-Paid Players 2025-26
-            </div>
-            <div class="loading-card-body">
-              <div class="loading-player-row">
-                <span class="loading-player-rank">1</span>
-                <span class="loading-player-name">Stephen Curry<span class="loading-player-team">GSW</span></span>
-                <span class="loading-player-salary">$59.6M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">2</span>
-                <span class="loading-player-name">Nikola Jokić<span class="loading-player-team">DEN</span></span>
-                <span class="loading-player-salary">$55.2M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">3</span>
-                <span class="loading-player-name">Joel Embiid<span class="loading-player-team">PHI</span></span>
-                <span class="loading-player-salary">$55.2M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">4</span>
-                <span class="loading-player-name">Kevin Durant<span class="loading-player-team">HOU</span></span>
-                <span class="loading-player-salary">$54.7M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">5</span>
-                <span class="loading-player-name">Jayson Tatum<span class="loading-player-team">BOS</span></span>
-                <span class="loading-player-salary">$54.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">6</span>
-                <span class="loading-player-name">Anthony Davis<span class="loading-player-team">DAL</span></span>
-                <span class="loading-player-salary">$54.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">7</span>
-                <span class="loading-player-name">Jimmy Butler<span class="loading-player-team">GSW</span></span>
-                <span class="loading-player-salary">$54.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">8</span>
-                <span class="loading-player-name">Giannis Antetokounmpo<span class="loading-player-team">MIL</span></span>
-                <span class="loading-player-salary">$54.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">9</span>
-                <span class="loading-player-name">Jaylen Brown<span class="loading-player-team">BOS</span></span>
-                <span class="loading-player-salary">$53.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">10</span>
-                <span class="loading-player-name">Karl-Anthony Towns<span class="loading-player-team">NYK</span></span>
-                <span class="loading-player-salary">$53.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">11</span>
-                <span class="loading-player-name">Devin Booker<span class="loading-player-team">PHX</span></span>
-                <span class="loading-player-salary">$53.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">12</span>
-                <span class="loading-player-name">LeBron James<span class="loading-player-team">LAL</span></span>
-                <span class="loading-player-salary">$52.6M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">13</span>
-                <span class="loading-player-name">Paul George<span class="loading-player-team">PHI</span></span>
-                <span class="loading-player-salary">$51.7M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">14</span>
-                <span class="loading-player-name">Kawhi Leonard<span class="loading-player-team">LAC</span></span>
-                <span class="loading-player-salary">$50.0M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-rank">15</span>
-                <span class="loading-player-name">Zach LaVine<span class="loading-player-team">SAC</span></span>
-                <span class="loading-player-salary">$47.5M</span>
-              </div>
-            </div>
+        <!-- Skeleton loading cards -->
+        <div class="trade-card skeleton-card" style="opacity: 0.6;">
+          <div class="team-header">
+            <select class="team-select" disabled><option>Loading teams...</option></select>
           </div>
-          <div class="loading-card">
-            <div class="loading-card-header">
-              📊 2025-26 CBA Key Numbers
-            </div>
-            <div class="loading-card-body">
-              <div class="loading-player-row">
-                <span class="loading-player-name">Salary Cap</span>
-                <span class="loading-player-salary">$154.6M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Luxury Tax Line</span>
-                <span class="loading-player-salary">$187.9M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">First Apron</span>
-                <span class="loading-player-salary">$195.9M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Second Apron</span>
-                <span class="loading-player-salary">$207.8M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Minimum Team Salary</span>
-                <span class="loading-player-salary">$139.2M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Non-Taxpayer MLE</span>
-                <span class="loading-player-salary">$14.1M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Taxpayer MLE</span>
-                <span class="loading-player-salary">$5.7M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Room MLE</span>
-                <span class="loading-player-salary">$8.8M</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Max Contract (0-6 yrs)</span>
-                <span class="loading-player-salary">25% of cap</span>
-              </div>
-              <div class="loading-player-row">
-                <span class="loading-player-name">Supermax (10+ yrs)</span>
-                <span class="loading-player-salary">35% of cap</span>
-              </div>
-            </div>
+          <div class="trade-content" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+            Loading player data...
           </div>
         </div>
-        <div class="loading-status" id="loadingStatus">
-          <span class="loading-spinner">⏳</span>
-          Loading latest player data...
+        <div class="trade-card skeleton-card" style="opacity: 0.6;">
+          <div class="team-header">
+            <select class="team-select" disabled><option>Loading teams...</option></select>
+          </div>
+          <div class="trade-content" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+            Loading player data...
+          </div>
         </div>
       </div>
       
@@ -5624,6 +5418,95 @@
         render();
       }
     });
+    
+    // Loop feature - auto-generate trades every 8 seconds
+    let loopInterval = null;
+    let loopMode = null; // 'player', 'team', 'playerToTeam', 'random'
+    const loopTradeBtn = document.getElementById('loopTradeBtn');
+    
+    function stopLoop() {
+      if (loopInterval) {
+        clearInterval(loopInterval);
+        loopInterval = null;
+      }
+      loopMode = null;
+      loopTradeBtn.classList.remove('active');
+      loopTradeBtn.textContent = '🔄 Loop';
+    }
+    
+    function startLoop(mode) {
+      stopLoop(); // Clear any existing loop
+      loopMode = mode;
+      loopTradeBtn.classList.add('active');
+      loopTradeBtn.textContent = '⏹ Stop';
+      
+      // Execute immediately, then every 8 seconds
+      executeLoopTrade();
+      loopInterval = setInterval(executeLoopTrade, 8000);
+    }
+    
+    function executeLoopTrade() {
+      let result = null;
+      
+      switch (loopMode) {
+        case 'player':
+          if (tradePlayerSelectedPlayers.length > 0) {
+            result = generateTradeForPlayers(tradePlayerSelectedPlayers.map(p => p.player));
+          }
+          break;
+        case 'team':
+          const teamName = teamSearchInput.value.trim();
+          if (teamName) {
+            const exactMatch = teams.find(t => t.toLowerCase() === teamName.toLowerCase());
+            if (exactMatch) {
+              result = generateTradeForTeam(exactMatch);
+            }
+          }
+          break;
+        case 'playerToTeam':
+          if (playerToTeamSelectedPlayers.length > 0 && selectedPlayerToTeamTeam) {
+            result = generateTradePlayersToTeam(
+              playerToTeamSelectedPlayers.map(p => p.player),
+              selectedPlayerToTeamTeam,
+              excludedPlayers
+            );
+          }
+          break;
+        case 'random':
+          result = generateRandomTrade();
+          if (!result) {
+            result = generateSimpleFallbackTrade();
+          }
+          break;
+      }
+      
+      if (result && !result.error) {
+        tradeTeams = result;
+        redistributePlayers(true);
+        render();
+      }
+    }
+    
+    loopTradeBtn.addEventListener('click', () => {
+      if (loopInterval) {
+        // Stop the loop
+        stopLoop();
+      } else {
+        // Determine which mode to use based on current inputs
+        if (tradePlayerSelectedPlayers.length > 0) {
+          startLoop('player');
+        } else if (teamSearchInput.value.trim()) {
+          startLoop('team');
+        } else if (playerToTeamSelectedPlayers.length > 0 && selectedPlayerToTeamTeam) {
+          startLoop('playerToTeam');
+        } else {
+          startLoop('random');
+        }
+      }
+    });
+    
+    // Stop loop when reset is clicked
+    resetBtn.addEventListener('click', stopLoop, { capture: true });
     
     // Simple fallback trade generator - finds two players with similar salaries
     function generateSimpleFallbackTrade() {
