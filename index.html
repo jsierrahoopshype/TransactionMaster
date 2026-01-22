@@ -4,6 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBA Trade Calculator</title>
+  <!-- Hide loading content immediately if cache exists -->
+  <script>
+    try {
+      if (localStorage.getItem('nba_trade_calculator_data')) {
+        document.documentElement.classList.add('has-cache');
+      }
+    } catch(e) {}
+  </script>
+  <style>
+    .has-cache #loadingContent,
+    .has-cache #loadingStatus {
+      display: none !important;
+    }
+  </style>
   <!-- Preconnect to Google Sheets for faster CSV fetch -->
   <link rel="preconnect" href="https://docs.google.com">
   <link rel="dns-prefetch" href="https://docs.google.com">
@@ -1777,7 +1791,7 @@
       </div>
 
       <div class="trade-container" id="tradeContainer">
-        <!-- Loading content with NBA stats -->
+        <!-- Loading content with NBA stats - hidden via head script if cache exists -->
         <div class="loading-content" id="loadingContent">
           <div class="loading-card">
             <div class="loading-card-header">
