@@ -84,6 +84,51 @@
       align-items: center;
     }
 
+    .unified-trade-machine {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .unified-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .unified-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .unified-trade-machine .player-search-input {
+      width: 160px;
+    }
+
+    .unified-trade-machine .exclusion-input {
+      width: 120px !important;
+    }
+
+    .unified-trade-machine .btn-primary {
+      align-self: flex-end;
+      margin-bottom: 0;
+    }
+
+    .unified-trade-machine > span {
+      align-self: flex-end;
+      margin-bottom: 0.5rem;
+    }
+
+    .player-search-input:disabled {
+      background: var(--bg);
+      color: var(--text-secondary);
+      cursor: not-allowed;
+    }
+
     .player-search-input {
       padding: 0.625rem 1rem;
       font-size: 0.875rem;
@@ -1615,53 +1660,58 @@
       <h1>🏀 NBA Trade Calculator</h1>
       <div class="header-actions">
         <div class="header-row">
-          <div class="trade-machine">
-            <div class="multi-player-container">
-              <div class="autocomplete-container">
-                <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Add player..." autocomplete="off">
-                <div class="autocomplete-dropdown" id="playerDropdown"></div>
+          <div class="trade-machine unified-trade-machine">
+            <!-- Player input -->
+            <div class="unified-input-group">
+              <label class="unified-label">Player</label>
+              <div class="multi-player-container">
+                <div class="autocomplete-container">
+                  <input type="text" id="unifiedPlayerInput" class="player-search-input" placeholder="Any player..." autocomplete="off">
+                  <div class="autocomplete-dropdown" id="unifiedPlayerDropdown"></div>
+                </div>
+                <div class="selected-players-chips" id="unifiedPlayerChips"></div>
               </div>
-              <div class="selected-players-chips" id="tradePlayerChips"></div>
             </div>
-            <button class="btn btn-primary" id="tradeForPlayerBtn">🔄 Trade Player(s)</button>
+            
+            <!-- Origin team input -->
+            <div class="unified-input-group">
+              <label class="unified-label">From</label>
+              <div class="autocomplete-container">
+                <input type="text" id="unifiedOriginInput" class="player-search-input" placeholder="Any team..." autocomplete="off" disabled>
+                <div class="autocomplete-dropdown" id="unifiedOriginDropdown"></div>
+              </div>
+            </div>
+            
+            <span style="color: var(--text-secondary); font-size: 1.25rem;">→</span>
+            
+            <!-- Destination team input -->
+            <div class="unified-input-group">
+              <label class="unified-label">To</label>
+              <div class="autocomplete-container">
+                <input type="text" id="unifiedDestInput" class="player-search-input" placeholder="Any team..." autocomplete="off">
+                <div class="autocomplete-dropdown" id="unifiedDestDropdown"></div>
+              </div>
+            </div>
+            
+            <!-- Exclude players -->
+            <div class="unified-input-group">
+              <label class="unified-label">Exclude</label>
+              <div class="exclusion-container">
+                <div class="autocomplete-container">
+                  <input type="text" id="excludePlayersInput" class="player-search-input exclusion-input" placeholder="Exclude..." autocomplete="off">
+                  <div class="autocomplete-dropdown" id="excludePlayersDropdown"></div>
+                </div>
+                <div class="excluded-chips" id="excludedChips"></div>
+              </div>
+            </div>
+            
+            <!-- Generate button -->
+            <button class="btn btn-primary" id="generateTradeBtn">🎲 Generate</button>
           </div>
         </div>
         <div class="header-row">
-          <div class="trade-machine">
-            <div class="autocomplete-container">
-              <input type="text" id="teamSearchInput" class="player-search-input" placeholder="Search team..." autocomplete="off">
-              <div class="autocomplete-dropdown" id="teamDropdown"></div>
-            </div>
-            <button class="btn btn-primary" id="tradeForTeamBtn">🏀 Trade Team</button>
-          </div>
-        </div>
-        <div class="header-row">
-          <div class="trade-machine">
-            <div class="multi-player-container">
-              <div class="autocomplete-container">
-                <input type="text" id="playerToTeamPlayerInput" class="player-search-input" placeholder="Add player..." autocomplete="off">
-                <div class="autocomplete-dropdown" id="playerToTeamPlayerDropdown"></div>
-              </div>
-              <div class="selected-players-chips" id="playerToTeamChips"></div>
-            </div>
-            <span style="color: var(--text-secondary);">→</span>
-            <div class="autocomplete-container">
-              <input type="text" id="playerToTeamTeamInput" class="player-search-input" placeholder="Search team..." autocomplete="off">
-              <div class="autocomplete-dropdown" id="playerToTeamTeamDropdown"></div>
-            </div>
-            <div class="exclusion-container">
-              <div class="autocomplete-container">
-                <input type="text" id="excludePlayersInput" class="player-search-input exclusion-input" placeholder="Exclude players..." autocomplete="off">
-                <div class="autocomplete-dropdown" id="excludePlayersDropdown"></div>
-              </div>
-              <div class="excluded-chips" id="excludedChips"></div>
-            </div>
-            <button class="btn btn-primary" id="playerToTeamBtn">🎯 Player(s) to Team</button>
-          </div>
-        </div>
-        <div class="header-row">
-          <button class="btn btn-secondary" id="randomTradeBtn">🎲 Random Trade</button>
-          <button class="btn btn-loop" id="loopTradeBtn" title="Auto-generate new trade every 8 seconds">🔄 Loop</button>
+          <button class="btn btn-loop" id="loopTradeBtn" title="Auto-generate new trade every 8 seconds">▶ Trade Loop</button>
+          <button class="btn btn-loop" id="recordLoopBtn" title="Record loop as video">⏺ Record</button>
           <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
           <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
         </div>
@@ -4520,18 +4570,33 @@
     let selectedPlayer = null;
     let selectedTeam = null;
     
-    // Arrays for multiple player selection
-    let tradePlayerSelectedPlayers = []; // For Trade Player feature
-    let playerToTeamSelectedPlayers = []; // For Player to Team feature
+    // Unified trade generator variables
+    let unifiedSelectedPlayers = []; // Players to trade
+    let unifiedOriginTeam = null; // Auto-set from player, or manually set
+    let unifiedDestTeam = null; // Destination team
+    let excludedPlayers = []; // Players to exclude from trades
     
-    // Render selected player chips for Trade Player
-    function renderTradePlayerChips() {
-      const container = document.getElementById('tradePlayerChips');
-      if (tradePlayerSelectedPlayers.length === 0) {
+    // Render selected player chips for unified interface
+    function renderUnifiedPlayerChips() {
+      const container = document.getElementById('unifiedPlayerChips');
+      const originInput = document.getElementById('unifiedOriginInput');
+      
+      if (unifiedSelectedPlayers.length === 0) {
         container.innerHTML = '';
+        originInput.value = '';
+        originInput.disabled = true;
+        originInput.placeholder = 'Any team...';
+        unifiedOriginTeam = null;
         return;
       }
-      container.innerHTML = tradePlayerSelectedPlayers.map((p, idx) => `
+      
+      // Auto-set origin team from first player
+      const firstPlayerTeam = unifiedSelectedPlayers[0].team;
+      unifiedOriginTeam = firstPlayerTeam;
+      originInput.value = firstPlayerTeam;
+      originInput.disabled = true;
+      
+      container.innerHTML = unifiedSelectedPlayers.map((p, idx) => `
         <span class="selected-player-chip">
           ${p.player}
           <span class="selected-player-chip-remove" data-idx="${idx}">×</span>
@@ -4541,50 +4606,26 @@
       container.querySelectorAll('.selected-player-chip-remove').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const idx = parseInt(e.target.dataset.idx);
-          tradePlayerSelectedPlayers.splice(idx, 1);
-          renderTradePlayerChips();
+          unifiedSelectedPlayers.splice(idx, 1);
+          renderUnifiedPlayerChips();
         });
       });
     }
     
-    // Render selected player chips for Player to Team
-    function renderPlayerToTeamChips() {
-      const container = document.getElementById('playerToTeamChips');
-      if (playerToTeamSelectedPlayers.length === 0) {
-        container.innerHTML = '';
-        return;
-      }
-      container.innerHTML = playerToTeamSelectedPlayers.map((p, idx) => `
-        <span class="selected-player-chip">
-          ${p.player}
-          <span class="selected-player-chip-remove" data-idx="${idx}">×</span>
-        </span>
-      `).join('');
-      
-      container.querySelectorAll('.selected-player-chip-remove').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const idx = parseInt(e.target.dataset.idx);
-          playerToTeamSelectedPlayers.splice(idx, 1);
-          renderPlayerToTeamChips();
-        });
-      });
-    }
+    // Unified player autocomplete
+    const unifiedPlayerInput = document.getElementById('unifiedPlayerInput');
+    const unifiedPlayerDropdown = document.getElementById('unifiedPlayerDropdown');
     
-    // Player autocomplete for Trade Player
-    const playerSearchInput = document.getElementById('playerSearchInput');
-    const playerDropdown = document.getElementById('playerDropdown');
-    
-    playerSearchInput.addEventListener('input', () => {
-      const searchTerm = playerSearchInput.value.toLowerCase().trim();
-      selectedPlayer = null;
+    unifiedPlayerInput.addEventListener('input', () => {
+      const searchTerm = unifiedPlayerInput.value.toLowerCase().trim();
       
       if (searchTerm.length < 2) {
-        playerDropdown.classList.remove('show');
+        unifiedPlayerDropdown.classList.remove('show');
         return;
       }
       
       // Get the team of first selected player (if any) to filter same team only
-      const selectedTeamFilter = tradePlayerSelectedPlayers.length > 0 ? tradePlayerSelectedPlayers[0].team : null;
+      const selectedTeamFilter = unifiedSelectedPlayers.length > 0 ? unifiedSelectedPlayers[0].team : null;
       
       // Get tradeable players matching search
       const matches = players
@@ -4595,175 +4636,86 @@
           // If we already have players selected, only show same team
           (!selectedTeamFilter || p.team === selectedTeamFilter) &&
           // Don't show already selected players
-          !tradePlayerSelectedPlayers.some(sp => sp.player === p.player) &&
+          !unifiedSelectedPlayers.some(sp => sp.player === p.player) &&
           (p.player.toLowerCase().includes(searchTerm) ||
            p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm)))
         )
         .slice(0, 10);
       
       if (matches.length === 0) {
-        playerDropdown.classList.remove('show');
+        unifiedPlayerDropdown.classList.remove('show');
         return;
       }
       
-      playerDropdown.innerHTML = matches.map(p => `
+      unifiedPlayerDropdown.innerHTML = matches.map(p => `
         <div class="autocomplete-item" data-player="${p.player}" data-team="${p.team}">
           <span>${p.player}</span>
           <span class="player-team">${p.team}</span>
         </div>
       `).join('');
       
-      playerDropdown.classList.add('show');
+      unifiedPlayerDropdown.classList.add('show');
       
-      // Add click handlers - add to selected players array
-      playerDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+      unifiedPlayerDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
         item.addEventListener('click', () => {
           const playerName = item.dataset.player;
           const playerInfo = players.find(p => p.player === playerName);
-          if (playerInfo && !tradePlayerSelectedPlayers.some(sp => sp.player === playerName)) {
-            tradePlayerSelectedPlayers.push(playerInfo);
-            renderTradePlayerChips();
+          if (playerInfo && !unifiedSelectedPlayers.some(sp => sp.player === playerName)) {
+            unifiedSelectedPlayers.push(playerInfo);
+            renderUnifiedPlayerChips();
           }
-          playerSearchInput.value = '';
-          playerDropdown.classList.remove('show');
+          unifiedPlayerInput.value = '';
+          unifiedPlayerDropdown.classList.remove('show');
         });
       });
     });
     
-    // Team autocomplete
-    const teamSearchInput = document.getElementById('teamSearchInput');
-    const teamDropdown = document.getElementById('teamDropdown');
+    // Unified destination team autocomplete
+    const unifiedDestInput = document.getElementById('unifiedDestInput');
+    const unifiedDestDropdown = document.getElementById('unifiedDestDropdown');
     
-    teamSearchInput.addEventListener('input', () => {
-      const searchTerm = teamSearchInput.value.toLowerCase().trim();
-      selectedTeam = null;
+    unifiedDestInput.addEventListener('input', () => {
+      const searchTerm = unifiedDestInput.value.toLowerCase().trim();
+      unifiedDestTeam = null;
       
       if (searchTerm.length < 2) {
-        teamDropdown.classList.remove('show');
+        unifiedDestDropdown.classList.remove('show');
         return;
       }
       
-      const matches = searchTeams(searchTerm).slice(0, 10);
+      // Exclude origin team from destinations
+      let matches = searchTeams(searchTerm);
+      if (unifiedOriginTeam) {
+        matches = matches.filter(t => t !== unifiedOriginTeam);
+      }
+      matches = matches.slice(0, 10);
       
       if (matches.length === 0) {
-        teamDropdown.classList.remove('show');
+        unifiedDestDropdown.classList.remove('show');
         return;
       }
       
-      teamDropdown.innerHTML = matches.map(t => `
+      unifiedDestDropdown.innerHTML = matches.map(t => `
         <div class="autocomplete-item" data-team="${t}">
           <span>${t}</span>
         </div>
       `).join('');
       
-      teamDropdown.classList.add('show');
+      unifiedDestDropdown.classList.add('show');
       
-      teamDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+      unifiedDestDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
         item.addEventListener('click', () => {
-          selectedTeam = item.dataset.team;
-          teamSearchInput.value = selectedTeam;
-          teamDropdown.classList.remove('show');
+          unifiedDestTeam = item.dataset.team;
+          unifiedDestInput.value = unifiedDestTeam;
+          unifiedDestDropdown.classList.remove('show');
         });
       });
     });
     
-    // Close dropdowns when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.autocomplete-container')) {
-        playerDropdown.classList.remove('show');
-        teamDropdown.classList.remove('show');
-      }
-    });
-    
-    // Handle trade for player button
-    const tradeForPlayerBtn = document.getElementById('tradeForPlayerBtn');
-    
-    tradeForPlayerBtn.addEventListener('click', () => {
-      // Use selected players array
-      if (tradePlayerSelectedPlayers.length === 0) {
-        alert('Please search and select at least one player');
-        return;
-      }
-      
-      // Get player names
-      const playerNames = tradePlayerSelectedPlayers.map(p => p.player);
-      
-      const result = generateTradeForPlayers(playerNames);
-      
-      if (result && result.error) {
-        tradeStatus.style.display = 'flex';
-        tradeStatus.className = 'trade-status invalid';
-        document.getElementById('tradeStatusIcon').textContent = '✕';
-        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
-        document.getElementById('tradeStatusMessage').textContent = result.error;
-      } else {
-        tradeTeams = result;
-        // Keep selected players so user can click again for different trade
-        playerSearchInput.value = '';
-        render();
-      }
-    });
-    
-    // Handle trade for team button
-    const tradeForTeamBtn = document.getElementById('tradeForTeamBtn');
-    
-    tradeForTeamBtn.addEventListener('click', () => {
-      const teamName = teamSearchInput.value.trim();
-      if (!teamName) {
-        alert('Please search and select a team');
-        return;
-      }
-      
-      // Verify exact match exists
-      const exactMatch = teams.find(t => t.toLowerCase() === teamName.toLowerCase());
-      if (!exactMatch) {
-        alert('Please select a team from the dropdown');
-        return;
-      }
-      
-      const result = generateTradeForTeam(exactMatch);
-      
-      if (result && result.error) {
-        // Show error in trade status instead of alert
-        tradeStatus.style.display = 'flex';
-        tradeStatus.className = 'trade-status invalid';
-        document.getElementById('tradeStatusIcon').textContent = '✕';
-        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
-        document.getElementById('tradeStatusMessage').textContent = result.error;
-      } else {
-        tradeTeams = result;
-        render();
-      }
-    });
-    
-    // Trigger on Enter key
-    playerSearchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        playerDropdown.classList.remove('show');
-        tradeForPlayerBtn.click();
-      }
-    });
-    
-    teamSearchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        teamDropdown.classList.remove('show');
-        tradeForTeamBtn.click();
-      }
-    });
-    
-    // Player to Team autocomplete
-    const playerToTeamPlayerInput = document.getElementById('playerToTeamPlayerInput');
-    const playerToTeamPlayerDropdown = document.getElementById('playerToTeamPlayerDropdown');
-    const playerToTeamTeamInput = document.getElementById('playerToTeamTeamInput');
-    const playerToTeamTeamDropdown = document.getElementById('playerToTeamTeamDropdown');
-    const playerToTeamBtn = document.getElementById('playerToTeamBtn');
+    // Exclude players autocomplete
     const excludePlayersInput = document.getElementById('excludePlayersInput');
     const excludePlayersDropdown = document.getElementById('excludePlayersDropdown');
     const excludedChipsContainer = document.getElementById('excludedChips');
-    
-    let selectedPlayerToTeamPlayer = null;
-    let selectedPlayerToTeamTeam = null;
-    let excludedPlayers = []; // Array of excluded player names
     
     // Render excluded player chips
     function renderExcludedChips() {
@@ -4774,18 +4726,15 @@
         </span>
       `).join('');
       
-      // Add click handlers for remove buttons
       excludedChipsContainer.querySelectorAll('.excluded-chip-remove').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const playerName = btn.dataset.player;
+          const playerName = e.target.dataset.player;
           excludedPlayers = excludedPlayers.filter(p => p !== playerName);
           renderExcludedChips();
         });
       });
     }
     
-    // Exclusion autocomplete
     excludePlayersInput.addEventListener('input', () => {
       const searchTerm = excludePlayersInput.value.toLowerCase().trim();
       
@@ -4794,16 +4743,18 @@
         return;
       }
       
+      // Filter to destination team if set, otherwise show all
+      const teamFilter = unifiedDestTeam;
+      
       const matches = players
         .filter(p => 
           p.team && 
-          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-          !excludedPlayers.includes(p.player) && // Don't show already excluded
+          (!teamFilter || p.team === teamFilter) &&
+          !excludedPlayers.includes(p.player) &&
           (p.player.toLowerCase().includes(searchTerm) ||
            p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm)))
         )
-        .slice(0, 8);
+        .slice(0, 10);
       
       if (matches.length === 0) {
         excludePlayersDropdown.classList.remove('show');
@@ -4813,7 +4764,7 @@
       excludePlayersDropdown.innerHTML = matches.map(p => `
         <div class="autocomplete-item" data-player="${p.player}">
           <span>${p.player}</span>
-          <span style="color: var(--text-secondary); font-size: 0.8em;">${p.team}</span>
+          <span class="player-team">${p.team}</span>
         </div>
       `).join('');
       
@@ -4832,98 +4783,77 @@
       });
     });
     
-    // Close exclusion dropdown when clicking outside
+    // Close all dropdowns when clicking outside
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('#excludePlayersInput') && !e.target.closest('#excludePlayersDropdown')) {
+      if (!e.target.closest('.autocomplete-container') && !e.target.closest('.excluded-chip')) {
+        unifiedPlayerDropdown.classList.remove('show');
+        unifiedDestDropdown.classList.remove('show');
         excludePlayersDropdown.classList.remove('show');
       }
     });
     
-    // Player autocomplete for Player to Team
-    playerToTeamPlayerInput.addEventListener('input', () => {
-      const searchTerm = playerToTeamPlayerInput.value.toLowerCase().trim();
-      selectedPlayerToTeamPlayer = null;
+    // Unified generate trade function
+    function generateUnifiedTrade() {
+      const hasPlayers = unifiedSelectedPlayers.length > 0;
+      const hasOrigin = unifiedOriginTeam !== null;
+      const hasDest = unifiedDestTeam !== null;
       
-      if (searchTerm.length < 2) {
-        playerToTeamPlayerDropdown.classList.remove('show');
-        return;
+      let result = null;
+      
+      if (hasPlayers && hasDest) {
+        // Player(s) to specific team
+        const playerNames = unifiedSelectedPlayers.map(p => p.player);
+        result = generateTradePlayersToTeam(playerNames, unifiedDestTeam, excludedPlayers);
+      } else if (hasPlayers) {
+        // Trade player(s) to any team
+        const playerNames = unifiedSelectedPlayers.map(p => p.player);
+        result = generateTradeForPlayers(playerNames);
+      } else if (hasDest) {
+        // Trade involving destination team (treat as "trade for this team")
+        result = generateTradeForTeam(unifiedDestTeam);
+      } else {
+        // Pure random trade
+        result = generateRandomTrade();
+        if (!result) {
+          result = generateSimpleFallbackTrade();
+        }
       }
       
-      // Filter to same team if players already selected
-      const selectedTeamFilter = playerToTeamSelectedPlayers.length > 0 ? playerToTeamSelectedPlayers[0].team : null;
+      return result;
+    }
+    
+    // Generate button handler
+    const generateTradeBtn = document.getElementById('generateTradeBtn');
+    
+    generateTradeBtn.addEventListener('click', () => {
+      const result = generateUnifiedTrade();
       
-      const matches = players
-        .filter(p => 
-          p.team && 
-          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
-          (!selectedTeamFilter || p.team === selectedTeamFilter) &&
-          !playerToTeamSelectedPlayers.some(sp => sp.player === p.player) &&
-          (p.player.toLowerCase().includes(searchTerm) ||
-           p.player.toLowerCase().split(' ').some(part => part.startsWith(searchTerm)))
-        )
-        .slice(0, 10);
-      
-      if (matches.length === 0) {
-        playerToTeamPlayerDropdown.classList.remove('show');
-        return;
+      if (result && result.error) {
+        tradeStatus.style.display = 'flex';
+        tradeStatus.className = 'trade-status invalid';
+        document.getElementById('tradeStatusIcon').textContent = '✕';
+        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
+        document.getElementById('tradeStatusMessage').textContent = result.error;
+      } else if (result) {
+        tradeTeams = result;
+        redistributePlayers(true);
+        render();
       }
-      
-      playerToTeamPlayerDropdown.innerHTML = matches.map(p => `
-        <div class="autocomplete-item" data-player="${p.player}" data-team="${p.team}">
-          <span>${p.player}</span>
-          <span class="player-team">${p.team}</span>
-        </div>
-      `).join('');
-      
-      playerToTeamPlayerDropdown.classList.add('show');
-      
-      playerToTeamPlayerDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-        item.addEventListener('click', () => {
-          const playerName = item.dataset.player;
-          const playerInfo = players.find(p => p.player === playerName);
-          if (playerInfo && !playerToTeamSelectedPlayers.some(sp => sp.player === playerName)) {
-            playerToTeamSelectedPlayers.push(playerInfo);
-            renderPlayerToTeamChips();
-          }
-          playerToTeamPlayerInput.value = '';
-          playerToTeamPlayerDropdown.classList.remove('show');
-        });
-      });
     });
     
-    // Team autocomplete for Player to Team
-    playerToTeamTeamInput.addEventListener('input', () => {
-      const searchTerm = playerToTeamTeamInput.value.toLowerCase().trim();
-      selectedPlayerToTeamTeam = null;
-      
-      if (searchTerm.length < 2) {
-        playerToTeamTeamDropdown.classList.remove('show');
-        return;
+    // Enter key triggers generate
+    unifiedPlayerInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        unifiedPlayerDropdown.classList.remove('show');
+        generateTradeBtn.click();
       }
-      
-      const matches = searchTeams(searchTerm).slice(0, 10);
-      
-      if (matches.length === 0) {
-        playerToTeamTeamDropdown.classList.remove('show');
-        return;
+    });
+    
+    unifiedDestInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        unifiedDestDropdown.classList.remove('show');
+        generateTradeBtn.click();
       }
-      
-      playerToTeamTeamDropdown.innerHTML = matches.map(t => `
-        <div class="autocomplete-item" data-team="${t}">
-          <span>${t}</span>
-        </div>
-      `).join('');
-      
-      playerToTeamTeamDropdown.classList.add('show');
-      
-      playerToTeamTeamDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-        item.addEventListener('click', () => {
-          selectedPlayerToTeamTeam = item.dataset.team;
-          playerToTeamTeamInput.value = selectedPlayerToTeamTeam;
-          playerToTeamTeamDropdown.classList.remove('show');
-        });
-      });
     });
     
     // Track previously generated trades to avoid repeats on multiple clicks
@@ -5351,92 +5281,24 @@
       return { error: `Could not find a valid trade to send ${playerNamesStr} to ${destTeamName}. Try removing some exclusions!` };
     }
     
-    // Handle Player to Team button
-    playerToTeamBtn.addEventListener('click', () => {
-      const teamName = playerToTeamTeamInput.value.trim();
-      
-      // Use selected players array
-      if (playerToTeamSelectedPlayers.length === 0) {
-        alert('Please select at least one player');
-        return;
-      }
-      
-      if (!teamName) {
-        alert('Please select a destination team');
-        return;
-      }
-      
-      const exactTeam = teams.find(t => t.toLowerCase() === teamName.toLowerCase());
-      
-      if (!exactTeam) {
-        alert('Please select a team from the dropdown');
-        return;
-      }
-      
-      // Get player names
-      const playerNames = playerToTeamSelectedPlayers.map(p => p.player);
-      
-      const result = generateTradePlayersToTeam(playerNames, exactTeam, excludedPlayers);
-      
-      if (result && result.error) {
-        tradeStatus.style.display = 'flex';
-        tradeStatus.className = 'trade-status invalid';
-        document.getElementById('tradeStatusIcon').textContent = '✕';
-        document.getElementById('tradeStatusTitle').textContent = 'Cannot generate trade';
-        document.getElementById('tradeStatusMessage').textContent = result.error;
-      } else {
-        tradeTeams = result;
-        // Keep selected players and team so user can click again for different trade
-        playerToTeamPlayerInput.value = '';
-        redistributePlayers(true);
-        render();
-      }
-    });
-    
-    // Close Player to Team dropdowns
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.autocomplete-container') && !e.target.closest('.excluded-chip')) {
-        playerToTeamPlayerDropdown.classList.remove('show');
-        playerToTeamTeamDropdown.classList.remove('show');
-        excludePlayersDropdown.classList.remove('show');
-      }
-    });
-    
-    // Handle random trade button
-    const randomTradeBtn = document.getElementById('randomTradeBtn');
-    randomTradeBtn.addEventListener('click', () => {
-      let randomTrade = generateRandomTrade();
-      
-      // Fallback: if no complex trade found, do a simple 1-for-1 swap
-      if (!randomTrade) {
-        randomTrade = generateSimpleFallbackTrade();
-      }
-      
-      if (randomTrade) {
-        tradeTeams = randomTrade;
-        redistributePlayers(true); // Add auto-cash for teams receiving nothing
-        render();
-      }
-    });
-    
     // Loop feature - auto-generate trades every 8 seconds
     let loopInterval = null;
-    let loopMode = null; // 'player', 'team', 'playerToTeam', 'random'
+    let isRecording = false;
+    let recordedFrames = [];
     const loopTradeBtn = document.getElementById('loopTradeBtn');
+    const recordLoopBtn = document.getElementById('recordLoopBtn');
     
     function stopLoop() {
       if (loopInterval) {
         clearInterval(loopInterval);
         loopInterval = null;
       }
-      loopMode = null;
       loopTradeBtn.classList.remove('active');
-      loopTradeBtn.textContent = '🔄 Loop';
+      loopTradeBtn.textContent = '▶ Trade Loop';
     }
     
-    function startLoop(mode) {
+    function startLoop() {
       stopLoop(); // Clear any existing loop
-      loopMode = mode;
       loopTradeBtn.classList.add('active');
       loopTradeBtn.textContent = '⏹ Stop';
       
@@ -5446,67 +5308,209 @@
     }
     
     function executeLoopTrade() {
-      let result = null;
-      
-      switch (loopMode) {
-        case 'player':
-          if (tradePlayerSelectedPlayers.length > 0) {
-            result = generateTradeForPlayers(tradePlayerSelectedPlayers.map(p => p.player));
-          }
-          break;
-        case 'team':
-          const teamName = teamSearchInput.value.trim();
-          if (teamName) {
-            const exactMatch = teams.find(t => t.toLowerCase() === teamName.toLowerCase());
-            if (exactMatch) {
-              result = generateTradeForTeam(exactMatch);
-            }
-          }
-          break;
-        case 'playerToTeam':
-          if (playerToTeamSelectedPlayers.length > 0 && selectedPlayerToTeamTeam) {
-            result = generateTradePlayersToTeam(
-              playerToTeamSelectedPlayers.map(p => p.player),
-              selectedPlayerToTeamTeam,
-              excludedPlayers
-            );
-          }
-          break;
-        case 'random':
-          result = generateRandomTrade();
-          if (!result) {
-            result = generateSimpleFallbackTrade();
-          }
-          break;
-      }
+      const result = generateUnifiedTrade();
       
       if (result && !result.error) {
         tradeTeams = result;
         redistributePlayers(true);
         render();
+        
+        // If recording, capture this frame
+        if (isRecording) {
+          captureTradeFrame();
+        }
       }
     }
     
     loopTradeBtn.addEventListener('click', () => {
       if (loopInterval) {
-        // Stop the loop
         stopLoop();
       } else {
-        // Determine which mode to use based on current inputs
-        if (tradePlayerSelectedPlayers.length > 0) {
-          startLoop('player');
-        } else if (teamSearchInput.value.trim()) {
-          startLoop('team');
-        } else if (playerToTeamSelectedPlayers.length > 0 && selectedPlayerToTeamTeam) {
-          startLoop('playerToTeam');
-        } else {
-          startLoop('random');
-        }
+        startLoop();
       }
     });
     
-    // Stop loop when reset is clicked
-    resetBtn.addEventListener('click', stopLoop, { capture: true });
+    // Recording functionality
+    async function captureTradeFrame() {
+      try {
+        const canvas = document.getElementById('tradeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Use similar canvas generation as image generation
+        const tradeCards = document.querySelectorAll('.trade-card:not(.add-team-card)');
+        if (tradeCards.length === 0) return;
+        
+        const cardWidth = 400;
+        const cardPadding = 20;
+        const totalWidth = (cardWidth * tradeCards.length) + (cardPadding * (tradeCards.length + 1));
+        const canvasHeight = 600;
+        
+        canvas.width = totalWidth;
+        canvas.height = canvasHeight;
+        
+        // Background
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Simplified card rendering for recording
+        let x = cardPadding;
+        tradeCards.forEach((card, idx) => {
+          const team = tradeTeams[idx];
+          if (!team) return;
+          
+          // Card background
+          ctx.fillStyle = '#16213e';
+          ctx.beginPath();
+          ctx.roundRect(x, 20, cardWidth, canvasHeight - 40, 12);
+          ctx.fill();
+          
+          // Team name
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 18px DM Sans';
+          ctx.fillText(team.teamName || 'Unknown', x + 20, 55);
+          
+          // Players out
+          ctx.fillStyle = '#ef4444';
+          ctx.font = '14px DM Sans';
+          let y = 90;
+          team.playersOut.forEach(p => {
+            ctx.fillText(`↑ ${p.player}`, x + 20, y);
+            y += 22;
+          });
+          
+          // Players in
+          ctx.fillStyle = '#22c55e';
+          y += 10;
+          team.playersIn.forEach(p => {
+            ctx.fillText(`↓ ${p.player}`, x + 20, y);
+            y += 22;
+          });
+          
+          x += cardWidth + cardPadding;
+        });
+        
+        // Add timestamp
+        ctx.fillStyle = '#ffffff80';
+        ctx.font = '12px DM Sans';
+        ctx.fillText(new Date().toLocaleTimeString(), canvas.width - 100, canvas.height - 20);
+        
+        recordedFrames.push(canvas.toDataURL('image/png'));
+      } catch (e) {
+        console.error('Error capturing frame:', e);
+      }
+    }
+    
+    async function stopRecordingAndDownload() {
+      isRecording = false;
+      recordLoopBtn.classList.remove('active');
+      recordLoopBtn.textContent = '⏺ Record';
+      
+      if (recordedFrames.length === 0) {
+        alert('No frames recorded');
+        return;
+      }
+      
+      // Create a downloadable HTML file with all frames as a slideshow
+      const slideshowHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Trade Loop Recording</title>
+  <style>
+    body { margin: 0; background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
+    #slideshow { max-width: 100%; }
+    .controls { margin-top: 20px; display: flex; gap: 10px; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; border: none; border-radius: 8px; background: #3b82f6; color: white; }
+    button:hover { background: #2563eb; }
+    .counter { color: white; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <img id="slideshow" src="${recordedFrames[0]}" />
+  <div class="counter"><span id="current">1</span> / ${recordedFrames.length}</div>
+  <div class="controls">
+    <button onclick="prev()">← Prev</button>
+    <button onclick="togglePlay()" id="playBtn">▶ Play</button>
+    <button onclick="next()">Next →</button>
+  </div>
+  <script>
+    const frames = ${JSON.stringify(recordedFrames)};
+    let idx = 0;
+    let playing = false;
+    let interval;
+    
+    function show() {
+      document.getElementById('slideshow').src = frames[idx];
+      document.getElementById('current').textContent = idx + 1;
+    }
+    
+    function next() { idx = (idx + 1) % frames.length; show(); }
+    function prev() { idx = (idx - 1 + frames.length) % frames.length; show(); }
+    
+    function togglePlay() {
+      playing = !playing;
+      document.getElementById('playBtn').textContent = playing ? '⏸ Pause' : '▶ Play';
+      if (playing) {
+        interval = setInterval(next, 3000);
+      } else {
+        clearInterval(interval);
+      }
+    }
+  </script>
+</body>
+</html>`;
+      
+      const blob = new Blob([slideshowHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `trade-loop-${new Date().toISOString().slice(0,10)}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      recordedFrames = [];
+    }
+    
+    recordLoopBtn.addEventListener('click', () => {
+      if (isRecording) {
+        stopRecordingAndDownload();
+      } else {
+        isRecording = true;
+        recordedFrames = [];
+        recordLoopBtn.classList.add('active');
+        recordLoopBtn.textContent = '⏹ Stop Recording';
+        
+        // Start loop if not already running
+        if (!loopInterval) {
+          startLoop();
+        }
+        
+        // Capture current frame
+        captureTradeFrame();
+      }
+    });
+    
+    // Stop loop and recording when reset is clicked
+    resetBtn.addEventListener('click', () => {
+      stopLoop();
+      if (isRecording) {
+        isRecording = false;
+        recordLoopBtn.classList.remove('active');
+        recordLoopBtn.textContent = '⏺ Record';
+        recordedFrames = [];
+      }
+      // Clear unified inputs
+      unifiedSelectedPlayers = [];
+      unifiedOriginTeam = null;
+      unifiedDestTeam = null;
+      excludedPlayers = [];
+      document.getElementById('unifiedPlayerInput').value = '';
+      document.getElementById('unifiedOriginInput').value = '';
+      document.getElementById('unifiedOriginInput').disabled = true;
+      document.getElementById('unifiedDestInput').value = '';
+      renderUnifiedPlayerChips();
+      renderExcludedChips();
+    }, { capture: true });
     
     // Simple fallback trade generator - finds two players with similar salaries
     function generateSimpleFallbackTrade() {
