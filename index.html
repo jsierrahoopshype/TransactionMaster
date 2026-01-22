@@ -5345,7 +5345,8 @@
     
     function stopLoop() {
       if (loopInterval) {
-        clearInterval(loopInterval);
+        clearTimeout(loopInterval); // Clear timeout (for first 4-second wait)
+        clearInterval(loopInterval); // Clear interval (for 8-second repeats)
         loopInterval = null;
       }
       loopTradeBtn.classList.remove('active');
@@ -5357,9 +5358,15 @@
       loopTradeBtn.classList.add('active');
       loopTradeBtn.textContent = '⏹ Stop';
       
-      // Execute immediately, then every 8 seconds
+      // Execute immediately
       executeLoopTrade();
-      loopInterval = setInterval(executeLoopTrade, 8000);
+      
+      // Then after 4 seconds for the second trade, then 8 seconds thereafter
+      loopInterval = setTimeout(() => {
+        executeLoopTrade();
+        // Now switch to 8-second intervals
+        loopInterval = setInterval(executeLoopTrade, 8000);
+      }, 4000);
     }
     
     function executeLoopTrade() {
@@ -5386,18 +5393,18 @@
     });
     
     // Recording functionality
-    async function captureTradeFrame() {
+    function captureTradeFrame() {
       try {
         const canvas = document.getElementById('tradeCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Use similar canvas generation as image generation
-        const tradeCards = document.querySelectorAll('.trade-card:not(.add-team-card)');
-        if (tradeCards.length === 0) return;
+        // Check if we have valid trade data
+        const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+        if (activeTeams.length < 2) return;
         
         const cardWidth = 400;
         const cardPadding = 20;
-        const totalWidth = (cardWidth * tradeCards.length) + (cardPadding * (tradeCards.length + 1));
+        const totalWidth = (cardWidth * activeTeams.length) + (cardPadding * (activeTeams.length + 1));
         const canvasHeight = 600;
         
         canvas.width = totalWidth;
@@ -5409,26 +5416,21 @@
         
         // Simplified card rendering for recording
         let x = cardPadding;
-        tradeCards.forEach((card, idx) => {
-          const team = tradeTeams[idx];
-          if (!team) return;
-          
-          // Card background
+        activeTeams.forEach((team) => {
+          // Card background (simple rect for compatibility)
           ctx.fillStyle = '#16213e';
-          ctx.beginPath();
-          ctx.roundRect(x, 20, cardWidth, canvasHeight - 40, 12);
-          ctx.fill();
+          ctx.fillRect(x, 20, cardWidth, canvasHeight - 40);
           
           // Team name
           ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 18px DM Sans';
+          ctx.font = 'bold 18px sans-serif';
           ctx.fillText(team.teamName || 'Unknown', x + 20, 55);
           
           // Players out
           ctx.fillStyle = '#ef4444';
-          ctx.font = '14px DM Sans';
+          ctx.font = '14px sans-serif';
           let y = 90;
-          team.playersOut.forEach(p => {
+          (team.playersOut || []).forEach(p => {
             ctx.fillText(`↑ ${p.player}`, x + 20, y);
             y += 22;
           });
@@ -5436,7 +5438,7 @@
           // Players in
           ctx.fillStyle = '#22c55e';
           y += 10;
-          team.playersIn.forEach(p => {
+          (team.playersIn || []).forEach(p => {
             ctx.fillText(`↓ ${p.player}`, x + 20, y);
             y += 22;
           });
@@ -5446,10 +5448,11 @@
         
         // Add timestamp
         ctx.fillStyle = '#ffffff80';
-        ctx.font = '12px DM Sans';
+        ctx.font = '12px sans-serif';
         ctx.fillText(new Date().toLocaleTimeString(), canvas.width - 100, canvas.height - 20);
         
-        recordedFrames.push(canvas.toDataURL('image/png'));
+        const dataUrl = canvas.toDataURL('image/png');
+        recordedFrames.push(dataUrl);
       } catch (e) {
         console.error('Error capturing frame:', e);
       }
