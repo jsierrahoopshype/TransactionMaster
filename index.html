@@ -486,6 +486,47 @@
       font-weight: 600;
     }
 
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-header-logo {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+    }
+
+    .section-header-text {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .section-header-text.trades {
+      color: var(--red);
+    }
+
+    .section-header-text.acquires {
+      color: var(--green);
+    }
+
+    .section-header-select {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      font-family: inherit;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
     .players-out, .players-in {
       display: flex;
       flex-direction: column;
@@ -2837,110 +2878,31 @@
 
       return `
         <div class="team-card ${cardClass}" data-index="${index}">
-          <div class="team-header">
-            ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="team-logo" alt="" onerror="this.style.display='none'">` : ''}
-            <select class="team-select" data-index="${index}">
+          <div class="team-header" style="display: none;">
+            <select class="team-select" data-index="${index}" style="position: absolute; opacity: 0; pointer-events: none;">
               <option value="">Select Team...</option>
               ${availableTeams.map(t => `
                 <option value="${t}" ${t === tradeTeam.teamName ? 'selected' : ''}>${t}</option>
               `).join('')}
             </select>
-            ${tradeTeams.length > 2 ? `
-              <button class="remove-team-btn" data-index="${index}">×</button>
-            ` : ''}
           </div>
-          
-          ${teamInfo ? `
-            <div class="team-status">
-              <span class="team-status-item">
-                <strong>${teamInfo.status}</strong>${(() => {
-                  // Calculate post-trade status
-                  const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
-                  const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
-                  const netIncoming = incomingSalary - outgoingSalary;
-                  
-                  if (netIncoming === 0) return '';
-                  
-                  const status = teamInfo.status.toUpperCase();
-                  let newStatus = null;
-                  let color = 'var(--orange)'; // Default for moving up (more restrictive)
-                  
-                  if (netIncoming > 0) {
-                    // Team taking on salary - might move UP to more restrictive tier
-                    if (status === 'BELOW TAX') {
-                      if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
-                        newStatus = '2nd Apron';
-                      } else if (teamInfo.apronRoom1st > 0 && netIncoming > teamInfo.apronRoom1st) {
-                        newStatus = '1st Apron';
-                      } else if (teamInfo.taxRoom > 0 && netIncoming > teamInfo.taxRoom) {
-                        newStatus = 'Tax Team';
-                      }
-                    } else if (status === 'TAX TEAM') {
-                      if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
-                        newStatus = '2nd Apron';
-                      } else if (teamInfo.apronRoom1st > 0 && netIncoming > teamInfo.apronRoom1st) {
-                        newStatus = '1st Apron';
-                      }
-                    } else if (status === '1ST APRON') {
-                      if (teamInfo.apronRoom2nd > 0 && netIncoming > teamInfo.apronRoom2nd) {
-                        newStatus = '2nd Apron';
-                      }
-                    }
-                  } else {
-                    // Team shedding salary - might move DOWN to less restrictive tier
-                    const netOutgoing = Math.abs(netIncoming);
-                    color = 'var(--valid)'; // Green for moving down (less restrictive)
-                    
-                    if (status === '2ND APRON') {
-                      // Check if they drop below 2nd apron
-                      // They're currently X over 2nd apron line, if they shed more than X they drop
-                      if (teamInfo.apronRoom2nd < 0 && netOutgoing > Math.abs(teamInfo.apronRoom2nd)) {
-                        // Check if they also drop below 1st apron
-                        if (teamInfo.apronRoom1st < 0 && netOutgoing > Math.abs(teamInfo.apronRoom1st)) {
-                          // Check if they also drop below tax
-                          if (teamInfo.taxRoom < 0 && netOutgoing > Math.abs(teamInfo.taxRoom)) {
-                            newStatus = 'Below Tax';
-                          } else {
-                            newStatus = 'Tax Team';
-                          }
-                        } else {
-                          newStatus = '1st Apron';
-                        }
-                      }
-                    } else if (status === '1ST APRON') {
-                      // Check if they drop below 1st apron
-                      if (teamInfo.apronRoom1st < 0 && netOutgoing > Math.abs(teamInfo.apronRoom1st)) {
-                        // Check if they also drop below tax
-                        if (teamInfo.taxRoom < 0 && netOutgoing > Math.abs(teamInfo.taxRoom)) {
-                          newStatus = 'Below Tax';
-                        } else {
-                          newStatus = 'Tax Team';
-                        }
-                      }
-                    } else if (status === 'TAX TEAM') {
-                      // Check if they drop below tax line
-                      // taxRoom is negative when over tax, so if netOutgoing > |taxRoom| they drop below
-                      if (teamInfo.taxRoom < 0 && netOutgoing > Math.abs(teamInfo.taxRoom)) {
-                        newStatus = 'Below Tax';
-                      }
-                    }
-                  }
-                  
-                  if (newStatus) {
-                    return ` <span style="color: ${color};">→ ${newStatus}</span>`;
-                  }
-                  return '';
-                })()}
-              </span>
-              ${teamInfo.isHardcap1st ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 1st Apron</span>` : ''}
-              ${teamInfo.isHardcap2nd ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 2nd Apron</span>` : ''}
-            </div>
-          ` : ''}
           
           <div class="team-body">
             <div class="trade-content" data-trade-content="${index}">
               <div class="players-out">
-                <div class="section-label">Trades</div>
+                <div class="section-header">
+                  ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="section-header-logo" alt="" onerror="this.style.display='none'">` : ''}
+                  <span class="section-header-text trades">${tradeTeam.teamName || 'Select Team'} Trades</span>
+                  <select class="section-header-select team-select" data-index="${index}">
+                    <option value="">Select...</option>
+                    ${availableTeams.map(t => `
+                      <option value="${t}" ${t === tradeTeam.teamName ? 'selected' : ''}>${t}</option>
+                    `).join('')}
+                  </select>
+                  ${tradeTeams.length > 2 ? `
+                    <button class="remove-team-btn" data-index="${index}" style="margin-left: auto;">×</button>
+                  ` : ''}
+                </div>
                 ${tradeTeam.playersOut.map((p, pIndex) => {
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                   const outgoingValue = getOutgoingSalary(p);
@@ -3136,7 +3098,10 @@
               
               return `
               <div class="players-in">
-                <div class="section-label">Acquires</div>
+                <div class="section-header">
+                  ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="section-header-logo" alt="" onerror="this.style.display='none'">` : ''}
+                  <span class="section-header-text acquires">${tradeTeam.teamName || 'Team'} Acquires</span>
+                </div>
                 ${tradeTeam.playersIn.map(p => {
                   const incomingValue = getIncomingSalary(p);
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
@@ -3248,6 +3213,82 @@
             
             ${tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) ? `
               <div class="team-footer">
+                ${teamInfo ? `
+                  <div class="team-status" style="margin-bottom: 0.75rem;">
+                    <span class="team-status-item">
+                      <strong>${teamInfo.status}</strong>${(() => {
+                        // Calculate post-trade status
+                        const outSal = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+                        const inSal = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+                        const netIn = inSal - outSal;
+                        
+                        if (netIn === 0) return '';
+                        
+                        const status = teamInfo.status.toUpperCase();
+                        let newStatus = null;
+                        let color = 'var(--orange)';
+                        
+                        if (netIn > 0) {
+                          if (status === 'BELOW TAX') {
+                            if (teamInfo.apronRoom2nd > 0 && netIn > teamInfo.apronRoom2nd) {
+                              newStatus = '2nd Apron';
+                            } else if (teamInfo.apronRoom1st > 0 && netIn > teamInfo.apronRoom1st) {
+                              newStatus = '1st Apron';
+                            } else if (teamInfo.taxRoom > 0 && netIn > teamInfo.taxRoom) {
+                              newStatus = 'Tax Team';
+                            }
+                          } else if (status === 'TAX TEAM') {
+                            if (teamInfo.apronRoom2nd > 0 && netIn > teamInfo.apronRoom2nd) {
+                              newStatus = '2nd Apron';
+                            } else if (teamInfo.apronRoom1st > 0 && netIn > teamInfo.apronRoom1st) {
+                              newStatus = '1st Apron';
+                            }
+                          } else if (status === '1ST APRON') {
+                            if (teamInfo.apronRoom2nd > 0 && netIn > teamInfo.apronRoom2nd) {
+                              newStatus = '2nd Apron';
+                            }
+                          }
+                        } else {
+                          const netOut = Math.abs(netIn);
+                          color = 'var(--valid)';
+                          
+                          if (status === '2ND APRON') {
+                            if (teamInfo.apronRoom2nd < 0 && netOut > Math.abs(teamInfo.apronRoom2nd)) {
+                              if (teamInfo.apronRoom1st < 0 && netOut > Math.abs(teamInfo.apronRoom1st)) {
+                                if (teamInfo.taxRoom < 0 && netOut > Math.abs(teamInfo.taxRoom)) {
+                                  newStatus = 'Below Tax';
+                                } else {
+                                  newStatus = 'Tax Team';
+                                }
+                              } else {
+                                newStatus = '1st Apron';
+                              }
+                            }
+                          } else if (status === '1ST APRON') {
+                            if (teamInfo.apronRoom1st < 0 && netOut > Math.abs(teamInfo.apronRoom1st)) {
+                              if (teamInfo.taxRoom < 0 && netOut > Math.abs(teamInfo.taxRoom)) {
+                                newStatus = 'Below Tax';
+                              } else {
+                                newStatus = 'Tax Team';
+                              }
+                            }
+                          } else if (status === 'TAX TEAM') {
+                            if (teamInfo.taxRoom < 0 && netOut > Math.abs(teamInfo.taxRoom)) {
+                              newStatus = 'Below Tax';
+                            }
+                          }
+                        }
+                        
+                        if (newStatus) {
+                          return ` <span style="color: ${color};">→ ${newStatus}</span>`;
+                        }
+                        return '';
+                      })()}
+                    </span>
+                    ${teamInfo.isHardcap1st ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 1st Apron</span>` : ''}
+                    ${teamInfo.isHardcap2nd ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 2nd Apron</span>` : ''}
+                  </div>
+                ` : ''}
                 <div class="salary-summary">
                   <div class="salary-row">
                     <span class="salary-label">Outgoing</span>
@@ -5896,17 +5937,23 @@
         
         let currentY = y + teamHeaderHeight + 20;
         
-        // Sends Out section
+        // Trades section with team name
         const sendsOutCount = team.playersOut.length + 
           (team.picksOut ? team.picksOut.length : 0) + 
           (team.rightsOut ? team.rightsOut.length : 0) +
           (team.cashOut ? team.cashOut.length : 0);
           
         if (sendsOutCount > 0) {
-          ctx.fillStyle = '#64748b';
+          // Draw team logo if available
+          const logoImg = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
+          if (logoImg) {
+            ctx.drawImage(logoImg, x + 16, currentY - 12, 18, 18);
+          }
+          
+          ctx.fillStyle = '#ef4444';
           ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText('TRADES', x + 20, currentY);
+          ctx.fillText(`${team.teamName.toUpperCase()} TRADES`, x + (logoImg ? 40 : 20), currentY);
           currentY += 20;
           
           // Players with headshots
@@ -6012,14 +6059,20 @@
           currentY += 16;
         }
         
-        // Receives section
+        // Acquires section with team name
         const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
         
         if (receivesCount > 0) {
-          ctx.fillStyle = '#64748b';
+          // Draw team logo if available
+          const logoImg2 = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
+          if (logoImg2) {
+            ctx.drawImage(logoImg2, x + 16, currentY - 12, 18, 18);
+          }
+          
+          ctx.fillStyle = '#22c55e';
           ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText('ACQUIRES', x + 20, currentY);
+          ctx.fillText(`${team.teamName.toUpperCase()} ACQUIRES`, x + (logoImg2 ? 40 : 20), currentY);
           currentY += 20;
           
           // Players with headshots
