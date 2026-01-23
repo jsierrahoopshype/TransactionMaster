@@ -2940,7 +2940,7 @@
           <div class="team-body">
             <div class="trade-content" data-trade-content="${index}">
               <div class="players-out">
-                <div class="section-label">Sends Out</div>
+                <div class="section-label">Trades</div>
                 ${tradeTeam.playersOut.map((p, pIndex) => {
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                   const outgoingValue = getOutgoingSalary(p);
@@ -3136,7 +3136,7 @@
               
               return `
               <div class="players-in">
-                <div class="section-label">Receives</div>
+                <div class="section-label">Acquires</div>
                 ${tradeTeam.playersIn.map(p => {
                   const incomingValue = getIncomingSalary(p);
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
@@ -5906,7 +5906,7 @@
           ctx.fillStyle = '#64748b';
           ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText('SENDS OUT', x + 20, currentY);
+          ctx.fillText('TRADES', x + 20, currentY);
           currentY += 20;
           
           // Players with headshots
@@ -6019,7 +6019,7 @@
           ctx.fillStyle = '#64748b';
           ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText('RECEIVES', x + 20, currentY);
+          ctx.fillText('ACQUIRES', x + 20, currentY);
           currentY += 20;
           
           // Players with headshots
