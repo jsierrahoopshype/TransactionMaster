@@ -2883,7 +2883,7 @@
         <div class="team-card ${cardClass}" data-index="${index}">
           <!-- Team dropdown always on top -->
           <div class="team-header">
-            ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="team-logo" alt="" onerror="this.style.display='none'">` : ''}
+            ${!hasPlayers && teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="team-logo" alt="" onerror="this.style.display='none'">` : ''}
             <select class="team-select" data-index="${index}">
               <option value="">Select Team...</option>
               ${availableTeams.map(t => `
