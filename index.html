@@ -404,7 +404,7 @@
       padding: 1rem;
       border-bottom: 1px solid var(--border);
       display: flex;
-      justify-content: space-between;
+      gap: 0.5rem;
       align-items: center;
     }
 
@@ -2875,34 +2875,39 @@
       );
 
       const otherTeams = getOtherActiveTeams(index);
+      
+      const hasPlayers = tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0;
+      const hasTeam = !!tradeTeam.teamName;
 
       return `
         <div class="team-card ${cardClass}" data-index="${index}">
-          <div class="team-header" style="display: none;">
-            <select class="team-select" data-index="${index}" style="position: absolute; opacity: 0; pointer-events: none;">
+          <!-- Team dropdown always on top -->
+          <div class="team-header">
+            ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="team-logo" alt="" onerror="this.style.display='none'">` : ''}
+            <select class="team-select" data-index="${index}">
               <option value="">Select Team...</option>
               ${availableTeams.map(t => `
                 <option value="${t}" ${t === tradeTeam.teamName ? 'selected' : ''}>${t}</option>
               `).join('')}
             </select>
+            ${tradeTeams.length > 2 ? `
+              <button class="remove-team-btn" data-index="${index}">×</button>
+            ` : ''}
           </div>
           
           <div class="team-body">
             <div class="trade-content" data-trade-content="${index}">
+              ${hasPlayers ? `
+              <!-- State 3: Team with players - show TRADES header -->
               <div class="players-out">
                 <div class="section-header">
                   ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="section-header-logo" alt="" onerror="this.style.display='none'">` : ''}
-                  <span class="section-header-text trades">${tradeTeam.teamName || 'Select Team'} Trades</span>
-                  <select class="section-header-select team-select" data-index="${index}">
-                    <option value="">Select...</option>
-                    ${availableTeams.map(t => `
-                      <option value="${t}" ${t === tradeTeam.teamName ? 'selected' : ''}>${t}</option>
-                    `).join('')}
-                  </select>
-                  ${tradeTeams.length > 2 ? `
-                    <button class="remove-team-btn" data-index="${index}" style="margin-left: auto;">×</button>
-                  ` : ''}
+                  <span class="section-header-text trades">${tradeTeam.teamName} Trades</span>
                 </div>
+              ` : `
+              <!-- State 1 & 2: No players yet -->
+              <div class="players-out">
+              `}
                 ${tradeTeam.playersOut.map((p, pIndex) => {
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                   const outgoingValue = getOutgoingSalary(p);
