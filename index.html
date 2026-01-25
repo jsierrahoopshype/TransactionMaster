@@ -1874,7 +1874,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
-    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSg6im6IYB6HXMGzQbmmBnLw9SfQLzxCSo8OfChxlJLhsB6BBCO0wPF_TMch0YgAbtFqYkwDWrsxRe7/pub?output=csv';
+    const CSV_URL = 'https://nba-trade-data.tikotdroa.workers.dev/';
     
     // Start fetching immediately (don't await - runs in parallel with script parsing)
     const csvFetchPromise = fetch(CSV_URL).then(r => r.text()).catch(() => null);
