@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    // Redirect to protected Cloudflare version if accessed directly from GitHub
+    if (window.location.hostname.includes('github.io')) {
+      window.location.replace('https://nba-trade-calculator.tikotdroa.workers.dev/');
+    }
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBA Trade Calculator</title>
