@@ -2219,12 +2219,12 @@
       
       <!-- Contact Footer -->
       <div class="contact-footer">
-        Anything wrong? Contact us at <a href="mailto:hoopshype@hoopshype.com?cc=aderoa@hoopshype.com">hoopshype@hoopshype.com</a>
+        Anything wrong? Contact us at <a href="/cdn-cgi/l/email-protection#c4acababb4b7acbdb4a184acababb4b7acbdb4a1eaa7aba9fba7a7f9a5a0a1b6aba584acababb4b7acbdb4a1eaa7aba9"><span class="__cf_email__" data-cfemail="89e1e6e6f9fae1f0f9ecc9e1e6e6f9fae1f0f9eca7eae6e4">[email&#160;protected]</span></a>
       </div>
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -2605,8 +2605,15 @@
       // Actual incoming salary for cap/apron calculations (MSE players count full salary)
       const incomingCapImpact = tradeTeam.playersIn.reduce((sum, p) => sum + getCapImpactSalary(p), 0);
       
-      // Net incoming for hardcap/apron purposes (uses ACTUAL salary, not matching salary)
-      const netIncomingForHardcap = incomingCapImpact - outgoingSalary;
+      // Unlikely bonuses affect apron calculations
+      // Outgoing players' unlikely bonuses are removed from the team's cap
+      // Incoming players' unlikely bonuses are added to the team's cap
+      const outgoingUnlikelyBonus = tradeTeam.playersOut.reduce((sum, p) => sum + (p.unlikelyBonus || 0), 0);
+      const incomingUnlikelyBonus = tradeTeam.playersIn.reduce((sum, p) => sum + (p.unlikelyBonus || 0), 0);
+      const netUnlikelyBonus = incomingUnlikelyBonus - outgoingUnlikelyBonus;
+      
+      // Net incoming for hardcap/apron purposes (uses ACTUAL salary + unlikely bonus adjustment)
+      const netIncomingForHardcap = incomingCapImpact - outgoingSalary + netUnlikelyBonus;
 
       // Check hardcap FIRST - TPE doesn't help here, salary still counts against cap
       if (teamInfo.isHardcap1st && netIncomingForHardcap > teamInfo.apronRoom1st) {
@@ -7478,7 +7485,8 @@
             injuryReason: row['REASON']?.trim() || '',
             teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
             headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || '',
-            capHold: parseSalary(row['CH 25-26'] || row['CAP HOLD'] || 0)
+            capHold: parseSalary(row['CH 25-26'] || row['CAP HOLD'] || 0),
+            unlikelyBonus: parseSalary(row['UNLIKELY BONUS'] || 0)
           };
         });
 
@@ -7594,17 +7602,3 @@
                 loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
               }
             }
-          });
-        }
-      } catch (error) {
-        console.error('Fetch error:', error);
-        if (!cached) {
-          loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
-        }
-      }
-    }
-
-    loadData();
-  </script>
-</body>
-</html>
