@@ -28,8 +28,8 @@
       --accent-dim: rgba(59, 130, 246, 0.15);
       --green: #34c759;
       --green-dim: rgba(52, 199, 89, 0.15);
-      --orange: #ff9f0a;
-      --orange-dim: rgba(255, 159, 10, 0.15);
+      --orange: #b45309;
+      --orange-dim: rgba(180, 83, 9, 0.15);
       --red: #ff453a;
       --red-dim: rgba(255, 69, 58, 0.15);
       --valid: #34c759;
@@ -1699,6 +1699,23 @@
       color: var(--text-secondary);
       font-size: 0.875rem;
     }
+
+    .contact-footer {
+      margin-top: 2rem;
+      padding: 1rem;
+      text-align: center;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .contact-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .contact-footer a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -1875,6 +1892,11 @@
       
       <!-- Trade Rumors Section -->
       <div id="tradeRumorsContainer"></div>
+      
+      <!-- Contact Footer -->
+      <div class="contact-footer">
+        Anything wrong? Contact us at <a href="mailto:hoopshype@hoopshype.com">hoopshype@hoopshype.com</a>
+      </div>
     </div>
   </div>
 
@@ -6338,11 +6360,11 @@
     // HOOPSHYPE TRADE RUMORS INTEGRATION
     // ===========================================
     
-    // Load latest + part7 + part6 for comprehensive coverage
+    // Load latest + part7 + part6 for comprehensive coverage (via protected Cloudflare API)
     const RUMORS_URLS = [
-      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_latest.json',
-      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_part7.json',
-      'https://raw.githubusercontent.com/jsierrahoopshype/hoopshype-rumors/main/hoopshype_rumors_part6.json'
+      'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/latest',
+      'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/part/7',
+      'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/part/6'
     ];
     const MAX_RUMORS_PER_PLAYER = 10;
     let rumorsCache = null;
