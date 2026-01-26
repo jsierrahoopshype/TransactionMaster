@@ -2219,7 +2219,7 @@
       
       <!-- Contact Footer -->
       <div class="contact-footer">
-        Anything wrong? Contact us at <a href="/cdn-cgi/l/email-protection#a4cccbcbd4d7ccddd4c1e4cccbcbd4d7ccddd4c18ac7cbc9"><span class="__cf_email__" data-cfemail="9af2f5f5eae9f2e3eaffdaf2f5f5eae9f2e3eaffb4f9f5f7">[email&#160;protected]</span></a>
+        Anything wrong? Contact us at <a href="mailto:hoopshype@hoopshype.com?cc=aderoa@hoopshype.com">hoopshype@hoopshype.com</a>
       </div>
     </div>
   </div>
@@ -2254,6 +2254,74 @@
     let tradeTeams = []; // Array of { teamName, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
 
     // Team nicknames for search
+    // Team popularity weights for initial random selection
+    const teamWeights = {
+      'LA Lakers': 25,
+      'Golden State': 18,
+      'Boston': 12,
+      'New York': 10,
+      'Chicago': 8,
+      'Miami': 7,
+      'Dallas': 7,
+      'Philadelphia': 7,
+      'Denver': 7,
+      'Milwaukee': 7,
+      'Oklahoma City': 6,
+      'Phoenix': 6,
+      'LA Clippers': 6,
+      'Cleveland': 6,
+      'Orlando': 5,
+      'Detroit': 5,
+      'Houston': 5,
+      'Toronto': 5,
+      'Atlanta': 5,
+      'Sacramento': 5,
+      'Minnesota': 4,
+      'San Antonio': 4,
+      'Brooklyn': 4,
+      'Portland': 4,
+      'New Orleans': 4,
+      'Memphis': 4,
+      'Indiana': 4,
+      'Washington': 4,
+      'Utah': 4,
+      'Charlotte': 2
+    };
+
+    // Select a random team using weighted probabilities
+    function selectWeightedTeam(availableTeams) {
+      // Build weighted array for available teams
+      let totalWeight = 0;
+      const weightedTeams = availableTeams.map(team => {
+        // Find matching weight (team names in data may have full city names)
+        let weight = 1; // default weight
+        for (const [key, w] of Object.entries(teamWeights)) {
+          if (team.includes(key)) {
+            weight = w;
+            break;
+          }
+        }
+        totalWeight += weight;
+        return { team, weight };
+      });
+      
+      // Random selection based on weight
+      let random = Math.random() * totalWeight;
+      for (const { team, weight } of weightedTeams) {
+        random -= weight;
+        if (random <= 0) return team;
+      }
+      return availableTeams[0]; // fallback
+    }
+
+    // Select two different teams using weighted probabilities
+    function selectTwoWeightedTeams(availableTeams) {
+      const team1 = selectWeightedTeam(availableTeams);
+      const remainingTeams = availableTeams.filter(t => t !== team1);
+      const team2 = selectWeightedTeam(remainingTeams);
+      return [team1, team2];
+    }
+
     const teamNicknames = {
       'Atlanta': ['Hawks'],
       'Boston': ['Celtics'],
@@ -7457,15 +7525,15 @@
           team: row['TEAM RIGHTS']?.trim() || ''
         }));
       
-      // Try to build initial trade from rumors, fall back to random teams
+      // Try to build initial trade from rumors, fall back to weighted random teams
       const rumorsBasedTrade = buildTradeFromRumors();
       if (rumorsBasedTrade) {
         tradeTeams = rumorsBasedTrade;
       } else {
-        const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+        const [team1, team2] = selectTwoWeightedTeams(teams);
         tradeTeams = [
-          { teamName: shuffledTeams[0] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-          { teamName: shuffledTeams[1] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
         ];
       }
       
