@@ -380,6 +380,37 @@
       justify-content: center;
     }
 
+    .format-selector {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .format-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .format-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .format-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
     .trade-container {
       display: flex;
       gap: 1rem;
@@ -1789,6 +1820,11 @@
       <div class="image-modal-content">
         <div class="image-modal-header">
           <h3>Trade Image</h3>
+          <div class="format-selector">
+            <button class="format-btn active" data-format="twitter" title="Twitter/X (16:9)">𝕏</button>
+            <button class="format-btn" data-format="instagram" title="Instagram (1:1)">◻</button>
+            <button class="format-btn" data-format="stories" title="Stories (9:16)">▯</button>
+          </div>
           <button class="image-modal-close" id="closeImageModal">×</button>
         </div>
         <div class="image-modal-body">
@@ -1906,6 +1942,14 @@
     
     // Start fetching immediately (don't await - runs in parallel with script parsing)
     const csvFetchPromise = fetch(CSV_URL).then(r => r.text()).catch(() => null);
+    
+    // Start fetching rumors in parallel (for initial trade display)
+    const INITIAL_RUMORS_URL = 'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/latest';
+    let initialRumorsData = null;
+    const rumorsFetchPromise = fetch(INITIAL_RUMORS_URL)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { initialRumorsData = data; return data; })
+      .catch(() => []);
     
     const MAX_TEAMS = 5;
 
@@ -5749,6 +5793,17 @@
     const downloadImageBtn = document.getElementById('downloadImageBtn');
     const copyImageBtn = document.getElementById('copyImageBtn');
     const tradeCanvas = document.getElementById('tradeCanvas');
+    let currentImageFormat = 'twitter'; // 'twitter' (16:9), 'instagram' (1:1), 'stories' (9:16)
+
+    // Format button handlers
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentImageFormat = btn.dataset.format;
+        generateTradeImage();
+      });
+    });
 
     generateImageBtn.addEventListener('click', () => {
       // Check if there's a valid trade
@@ -5838,17 +5893,24 @@
         new Promise(resolve => setTimeout(resolve, 3000))
       ]);
       
-      // Calculate dimensions
-      const teamWidth = 340;
-      const teamGap = 24;
-      const padding = 40;
-      const headerHeight = 90;
-      const teamHeaderHeight = 70;
-      const playerRowHeight = 60;
-      const assetRowHeight = 44;
-      const sectionLabelHeight = 32;
-      const summaryHeight = 100;
-      const footerHeight = 44;
+      // Format-specific dimensions
+      const formatConfigs = {
+        twitter: { ratio: 16/9, teamWidth: 360, maxTeams: 4 },
+        instagram: { ratio: 1, teamWidth: 320, maxTeams: 3 },
+        stories: { ratio: 9/16, teamWidth: 300, maxTeams: 2 }
+      };
+      
+      const config = formatConfigs[currentImageFormat] || formatConfigs.twitter;
+      const teamWidth = config.teamWidth;
+      const teamGap = 20;
+      const padding = 32;
+      const headerHeight = 100;
+      const teamHeaderHeight = 80;
+      const playerRowHeight = 56;
+      const assetRowHeight = 40;
+      const sectionLabelHeight = 28;
+      const summaryHeight = 90;
+      const footerHeight = 40;
       
       // Helper to get incoming assets for a team
       function getIncomingAssets(teamIndex) {
@@ -5887,12 +5949,26 @@
         return { incomingPicks, incomingRights, incomingCash };
       }
       
+      // Helper to get player badges
+      function getPlayerBadges(player) {
+        const badges = [];
+        if (player.contractStatus?.toUpperCase() === 'TWO-WAY') badges.push({ text: 'TW', bg: '#dbeafe', color: '#1d4ed8' });
+        if (player.is10Day) badges.push({ text: '10D', bg: '#fee2e2', color: '#dc2626' });
+        if (player.noTradeClause) badges.push({ text: 'NTC', bg: '#fef3c7', color: '#b45309' });
+        if (player.notAggregated) badges.push({ text: 'NA', bg: '#fce7f3', color: '#be185d' });
+        if (player.poisonPill > 0) badges.push({ text: 'PP', bg: '#ede9fe', color: '#7c3aed' });
+        if (player.tradeKicker > 0) badges.push({ text: 'TK', bg: '#d1fae5', color: '#059669' });
+        if (player.isMinSalaryException) badges.push({ text: 'MSE', bg: '#e0f2fe', color: '#0284c7' });
+        return badges;
+      }
+      
       // Calculate content height for each team
-      const teamHeights = activeTeams.map((team, idx) => {
+      const displayTeams = activeTeams.slice(0, config.maxTeams);
+      const teamHeights = displayTeams.map((team, idx) => {
         const teamIndex = tradeTeams.indexOf(team);
         const { incomingPicks, incomingRights, incomingCash } = getIncomingAssets(teamIndex);
         
-        let height = teamHeaderHeight + 20;
+        let height = teamHeaderHeight + 16;
         
         const sendsOutCount = team.playersOut.length + 
           (team.picksOut ? team.picksOut.length : 0) + 
@@ -5904,7 +5980,7 @@
           height += (team.picksOut ? team.picksOut.length : 0) * assetRowHeight;
           height += (team.rightsOut ? team.rightsOut.length : 0) * assetRowHeight;
           height += (team.cashOut ? team.cashOut.length : 0) * assetRowHeight;
-          height += 16;
+          height += 12;
         }
         
         const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
@@ -5919,10 +5995,26 @@
         height += summaryHeight;
         return height;
       });
-      const maxTeamHeight = Math.max(...teamHeights, 300);
+      const maxTeamHeight = Math.max(...teamHeights, 280);
       
-      const canvasWidth = (teamWidth * activeTeams.length) + (teamGap * (activeTeams.length - 1)) + (padding * 2);
-      const canvasHeight = headerHeight + maxTeamHeight + footerHeight + padding;
+      // Calculate canvas dimensions based on format
+      let canvasWidth, canvasHeight;
+      const contentWidth = (teamWidth * displayTeams.length) + (teamGap * (displayTeams.length - 1)) + (padding * 2);
+      const contentHeight = headerHeight + maxTeamHeight + footerHeight + padding;
+      
+      if (currentImageFormat === 'stories') {
+        canvasHeight = Math.max(contentHeight, 1200);
+        canvasWidth = Math.round(canvasHeight * config.ratio);
+      } else if (currentImageFormat === 'instagram') {
+        canvasWidth = Math.max(contentWidth, 800);
+        canvasHeight = canvasWidth;
+      } else {
+        canvasWidth = Math.max(contentWidth, 900);
+        canvasHeight = Math.round(canvasWidth / config.ratio);
+      }
+      
+      // Ensure content fits
+      canvasHeight = Math.max(canvasHeight, contentHeight);
       
       // Set canvas size with 3x resolution for crisp output
       const scale = 3;
@@ -5932,52 +6024,73 @@
       tradeCanvas.style.height = canvasHeight + 'px';
       ctx.scale(scale, scale);
       
-      // Crisp text rendering
+      // Crisp rendering
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.textRendering = 'optimizeLegibility';
       
-      // Background gradient
-      const bgGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
-      bgGradient.addColorStop(0, '#f8fafc');
-      bgGradient.addColorStop(1, '#e2e8f0');
+      // Premium dark gradient background
+      const bgGradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+      bgGradient.addColorStop(0, '#0f172a');
+      bgGradient.addColorStop(0.5, '#1e293b');
+      bgGradient.addColorStop(1, '#0f172a');
       ctx.fillStyle = bgGradient;
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       
-      // Header background
+      // Subtle grid pattern overlay
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      for (let i = 0; i < canvasWidth; i += 40) {
+        ctx.fillRect(i, 0, 1, canvasHeight);
+      }
+      for (let i = 0; i < canvasHeight; i += 40) {
+        ctx.fillRect(0, i, canvasWidth, 1);
+      }
+      
+      // Header area with gradient
+      const headerGradient = ctx.createLinearGradient(0, 0, 0, headerHeight);
+      headerGradient.addColorStop(0, 'rgba(255,255,255,0.08)');
+      headerGradient.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = headerGradient;
+      ctx.fillRect(0, 0, canvasWidth, headerHeight);
+      
+      // Title - "NBA TRADE MACHINE"
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasWidth, headerHeight - 10);
-      
-      // Header shadow
-      const shadowGradient = ctx.createLinearGradient(0, headerHeight - 10, 0, headerHeight);
-      shadowGradient.addColorStop(0, 'rgba(0,0,0,0.08)');
-      shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = shadowGradient;
-      ctx.fillRect(0, headerHeight - 10, canvasWidth, 10);
-      
-      // Header title - larger and bolder
-      ctx.fillStyle = '#0f172a';
-      ctx.font = '900 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.font = '800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('NBA TRADE', canvasWidth / 2, 48);
+      ctx.fillText('NBA TRADE MACHINE', canvasWidth / 2, 45);
       
       // Trade status badge
       const validation = validateTrade();
       const statusText = validation.valid ? '✓ VALID TRADE' : '✕ INVALID';
-      const statusColor = validation.valid ? '#16a34a' : '#dc2626';
-      const badgeWidth = ctx.measureText(statusText).width + 24;
-      
-      ctx.fillStyle = validation.valid ? '#dcfce7' : '#fee2e2';
-      ctx.beginPath();
-      ctx.roundRect((canvasWidth - badgeWidth) / 2, 56, badgeWidth, 26, 13);
-      ctx.fill();
-      
-      ctx.fillStyle = statusColor;
       ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.fillText(statusText, canvasWidth / 2, 74);
+      const badgeWidth = ctx.measureText(statusText).width + 32;
       
-      // Helper to draw circular image
-      function drawCircularImage(img, x, y, size) {
+      // Badge background with glow effect
+      if (validation.valid) {
+        ctx.shadowColor = 'rgba(34, 197, 94, 0.5)';
+        ctx.shadowBlur = 20;
+      } else {
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
+        ctx.shadowBlur = 20;
+      }
+      ctx.fillStyle = validation.valid ? '#166534' : '#991b1b';
+      ctx.beginPath();
+      ctx.roundRect((canvasWidth - badgeWidth) / 2, 58, badgeWidth, 28, 14);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      
+      // Badge border
+      ctx.strokeStyle = validation.valid ? '#22c55e' : '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect((canvasWidth - badgeWidth) / 2, 58, badgeWidth, 28, 14);
+      ctx.stroke();
+      
+      // Badge text
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(statusText, canvasWidth / 2, 77);
+      
+      // Helper to draw circular image with border
+      function drawCircularImage(img, x, y, size, borderColor = 'rgba(255,255,255,0.2)') {
         if (!img) return;
         ctx.save();
         ctx.beginPath();
@@ -5988,55 +6101,71 @@
         ctx.restore();
         
         // Border
-        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.strokeStyle = borderColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
         ctx.stroke();
       }
       
+      // Helper to draw badge
+      function drawBadge(x, y, badge) {
+        ctx.font = 'bold 9px -apple-system, BlinkMacSystemFont, sans-serif';
+        const textWidth = ctx.measureText(badge.text).width;
+        const badgeW = textWidth + 8;
+        const badgeH = 16;
+        
+        ctx.fillStyle = badge.bg;
+        ctx.beginPath();
+        ctx.roundRect(x, y, badgeW, badgeH, 4);
+        ctx.fill();
+        
+        ctx.fillStyle = badge.color;
+        ctx.textAlign = 'center';
+        ctx.fillText(badge.text, x + badgeW/2, y + 12);
+        ctx.textAlign = 'left';
+        
+        return badgeW + 4;
+      }
+      
+      // Center the teams
+      const teamsContentWidth = (teamWidth * displayTeams.length) + (teamGap * (displayTeams.length - 1));
+      const startX = (canvasWidth - teamsContentWidth) / 2;
+      
       // Draw each team card
-      activeTeams.forEach((team, teamIdx) => {
+      displayTeams.forEach((team, teamIdx) => {
         const teamIndex = tradeTeams.indexOf(team);
-        const x = padding + (teamIdx * (teamWidth + teamGap));
-        const y = headerHeight;
+        const x = startX + (teamIdx * (teamWidth + teamGap));
+        const y = headerHeight + 8;
         const cardHeight = maxTeamHeight;
         
         const teamInfo = getTeamInfo(team.teamName);
         const { incomingPicks, incomingRights, incomingCash } = getIncomingAssets(teamIndex);
         
-        // Card shadow - sharper, more defined
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
-        ctx.shadowBlur = 12;
+        // Card shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = 24;
         ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 3;
+        ctx.shadowOffsetY = 8;
         
-        // Card background
+        // Card background - premium white
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.roundRect(x, y, teamWidth, cardHeight, 14);
+        ctx.roundRect(x, y, teamWidth, cardHeight, 16);
         ctx.fill();
         
         // Reset shadow
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
         
-        // Card border - slightly thicker for definition
-        ctx.strokeStyle = '#d1d5db';
-        ctx.lineWidth = 1.5;
+        // Team header with subtle gradient
+        const teamHeaderGrad = ctx.createLinearGradient(x, y, x, y + teamHeaderHeight);
+        teamHeaderGrad.addColorStop(0, '#fafbfc');
+        teamHeaderGrad.addColorStop(1, '#f1f5f9');
+        ctx.fillStyle = teamHeaderGrad;
         ctx.beginPath();
-        ctx.roundRect(x, y, teamWidth, cardHeight, 14);
-        ctx.stroke();
-        
-        // Team header gradient
-        const headerGradient = ctx.createLinearGradient(x, y, x, y + teamHeaderHeight);
-        headerGradient.addColorStop(0, '#fafbfc');
-        headerGradient.addColorStop(1, '#f1f5f9');
-        ctx.fillStyle = headerGradient;
-        ctx.beginPath();
-        ctx.roundRect(x + 1, y + 1, teamWidth - 2, teamHeaderHeight - 1, [15, 15, 0, 0]);
+        ctx.roundRect(x + 1, y + 1, teamWidth - 2, teamHeaderHeight - 1, [16, 16, 0, 0]);
         ctx.fill();
         
         // Header bottom border
@@ -6047,98 +6176,114 @@
         ctx.lineTo(x + teamWidth, y + teamHeaderHeight);
         ctx.stroke();
         
-        // Team logo
+        // Team logo - larger and prominent
         const logoImg = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
         if (logoImg) {
-          ctx.drawImage(logoImg, x + 16, y + 12, 44, 44);
+          ctx.drawImage(logoImg, x + 16, y + 14, 52, 52);
         }
         
         // Team name
         ctx.fillStyle = '#0f172a';
-        ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(team.teamName, x + (logoImg ? 68 : 20), y + 32);
+        ctx.fillText(team.teamName, x + (logoImg ? 78 : 20), y + 38);
         
         // Team status
         if (teamInfo) {
           ctx.fillStyle = '#64748b';
           ctx.font = '600 11px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText(teamInfo.status.toUpperCase(), x + (logoImg ? 68 : 20), y + 50);
+          ctx.fillText(teamInfo.status.toUpperCase(), x + (logoImg ? 78 : 20), y + 56);
         }
         
-        let currentY = y + teamHeaderHeight + 20;
+        let currentY = y + teamHeaderHeight + 14;
         
-        // Trades section with team name
+        // Trades section
         const sendsOutCount = team.playersOut.length + 
           (team.picksOut ? team.picksOut.length : 0) + 
           (team.rightsOut ? team.rightsOut.length : 0) +
           (team.cashOut ? team.cashOut.length : 0);
           
         if (sendsOutCount > 0) {
-          // Draw team logo if available
-          const logoImg = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
-          if (logoImg) {
-            ctx.drawImage(logoImg, x + 16, currentY - 12, 18, 18);
-          }
-          
-          ctx.fillStyle = '#ef4444';
-          ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillStyle = '#dc2626';
+          ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText(`${team.teamName.toUpperCase()} TRADES`, x + (logoImg ? 40 : 20), currentY);
-          currentY += 20;
+          ctx.fillText('TRADES', x + 16, currentY);
+          currentY += 16;
           
-          // Players with headshots
+          // Players with headshots and badges
           team.playersOut.forEach(player => {
-            // Chip background
+            // Player card background
             ctx.fillStyle = '#fef2f2';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 10);
             ctx.fill();
             
-            // Chip border
+            // Border
             ctx.strokeStyle = '#fecaca';
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 10);
             ctx.stroke();
             
             // Player headshot
             const headshotImg = player.headshot ? loadedImages.get(player.headshot) : null;
+            const headshotSize = 40;
             if (headshotImg) {
-              drawCircularImage(headshotImg, x + 24, currentY + 6, 38);
+              drawCircularImage(headshotImg, x + 18, currentY + 5, headshotSize, '#fecaca');
+            } else {
+              // Placeholder circle
+              ctx.fillStyle = '#e5e7eb';
+              ctx.beginPath();
+              ctx.arc(x + 18 + headshotSize/2, currentY + 5 + headshotSize/2, headshotSize/2, 0, Math.PI * 2);
+              ctx.fill();
             }
             
             // Player name
             ctx.fillStyle = '#0f172a';
-            ctx.font = '600 14px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(player.player, x + (headshotImg ? 70 : 28), currentY + 24);
+            const nameX = x + 66;
+            ctx.fillText(player.player, nameX, currentY + 20);
+            
+            // Badges next to name
+            const badges = getPlayerBadges(player);
+            let badgeX = nameX + ctx.measureText(player.player).width + 6;
+            badges.slice(0, 2).forEach(badge => {
+              badgeX += drawBadge(badgeX, currentY + 8, badge);
+            });
             
             // Salary
             ctx.fillStyle = '#64748b';
-            ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(formatSalary(player.salary), x + (headshotImg ? 70 : 28), currentY + 42);
+            ctx.font = '500 12px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillText(formatSalary(player.salary), nameX, currentY + 38);
             currentY += playerRowHeight;
           });
           
           // Picks
           if (team.picksOut) {
             team.picksOut.forEach(pick => {
-              ctx.fillStyle = '#fffbeb';
+              ctx.fillStyle = '#fef3c7';
               ctx.beginPath();
-              ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.fill();
               
-              ctx.strokeStyle = '#fde68a';
-              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = '#fcd34d';
+              ctx.lineWidth = 1;
               ctx.beginPath();
-              ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.stroke();
               
-              ctx.fillStyle = '#b45309';
-              ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+              ctx.fillStyle = '#92400e';
+              ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
-              ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 28, currentY + 24);
+              
+              // Show pick origin if different from trading team
+              const pickOrigin = pick.originalTeam && pick.originalTeam !== team.teamName 
+                ? `${pick.originalTeam.split(' ').pop()}` : '';
+              const pickText = pickOrigin 
+                ? `📋 ${pick.year} ${pick.round} (${pickOrigin})` 
+                : `📋 ${pick.year} ${pick.round} Round Pick`;
+              ctx.fillText(pickText, x + 20, currentY + 23);
               currentY += assetRowHeight;
             });
           }
@@ -6146,21 +6291,21 @@
           // Rights
           if (team.rightsOut) {
             team.rightsOut.forEach(rights => {
-              ctx.fillStyle = '#faf5ff';
+              ctx.fillStyle = '#f3e8ff';
               ctx.beginPath();
-              ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.fill();
               
-              ctx.strokeStyle = '#e9d5ff';
-              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = '#d8b4fe';
+              ctx.lineWidth = 1;
               ctx.beginPath();
-              ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.stroke();
               
-              ctx.fillStyle = '#7c3aed';
-              ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+              ctx.fillStyle = '#6b21a8';
+              ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
-              ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 28, currentY + 24);
+              ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 20, currentY + 23);
               currentY += assetRowHeight;
             });
           }
@@ -6168,131 +6313,139 @@
           // Cash
           if (team.cashOut) {
             team.cashOut.forEach(() => {
-              ctx.fillStyle = '#f0fdf4';
+              ctx.fillStyle = '#dcfce7';
               ctx.beginPath();
-              ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.fill();
               
-              ctx.strokeStyle = '#bbf7d0';
-              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = '#86efac';
+              ctx.lineWidth = 1;
               ctx.beginPath();
-              ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.stroke();
               
-              ctx.fillStyle = '#16a34a';
-              ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+              ctx.fillStyle = '#166534';
+              ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
-              ctx.fillText('💵 Cash Considerations', x + 28, currentY + 24);
+              ctx.fillText('💵 Cash Considerations', x + 20, currentY + 23);
               currentY += assetRowHeight;
             });
           }
           
-          currentY += 16;
+          currentY += 10;
         }
         
-        // Acquires section with team name
+        // Acquires section
         const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
         
         if (receivesCount > 0) {
-          // Draw team logo if available
-          const logoImg2 = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
-          if (logoImg2) {
-            ctx.drawImage(logoImg2, x + 16, currentY - 12, 18, 18);
-          }
-          
-          ctx.fillStyle = '#22c55e';
-          ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillStyle = '#16a34a';
+          ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText(`${team.teamName.toUpperCase()} ACQUIRES`, x + (logoImg2 ? 40 : 20), currentY);
-          currentY += 20;
+          ctx.fillText('ACQUIRES', x + 16, currentY);
+          currentY += 16;
           
-          // Players with headshots
+          // Players with headshots and badges
           team.playersIn.forEach(player => {
             ctx.fillStyle = '#eff6ff';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 10);
             ctx.fill();
             
             ctx.strokeStyle = '#bfdbfe';
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, playerRowHeight - 8, 12);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, playerRowHeight - 6, 10);
             ctx.stroke();
             
             // Player headshot
             const headshotImg = player.headshot ? loadedImages.get(player.headshot) : null;
+            const headshotSize = 40;
             if (headshotImg) {
-              drawCircularImage(headshotImg, x + 24, currentY + 6, 38);
+              drawCircularImage(headshotImg, x + 18, currentY + 5, headshotSize, '#bfdbfe');
+            } else {
+              ctx.fillStyle = '#e5e7eb';
+              ctx.beginPath();
+              ctx.arc(x + 18 + headshotSize/2, currentY + 5 + headshotSize/2, headshotSize/2, 0, Math.PI * 2);
+              ctx.fill();
             }
             
             ctx.fillStyle = '#0f172a';
-            ctx.font = '600 14px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(player.player, x + (headshotImg ? 70 : 28), currentY + 24);
+            const nameX = x + 66;
+            ctx.fillText(player.player, nameX, currentY + 20);
+            
+            // Badges
+            const badges = getPlayerBadges(player);
+            let badgeX = nameX + ctx.measureText(player.player).width + 6;
+            badges.slice(0, 2).forEach(badge => {
+              badgeX += drawBadge(badgeX, currentY + 8, badge);
+            });
             
             ctx.fillStyle = '#64748b';
-            ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(formatSalary(player.salary), x + (headshotImg ? 70 : 28), currentY + 42);
+            ctx.font = '500 12px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillText(formatSalary(player.salary), nameX, currentY + 38);
             currentY += playerRowHeight;
           });
           
           // Incoming Picks
           incomingPicks.forEach(pick => {
-            ctx.fillStyle = '#fffbeb';
+            ctx.fillStyle = '#fef3c7';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.fill();
             
-            ctx.strokeStyle = '#fde68a';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#fcd34d';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.stroke();
             
-            ctx.fillStyle = '#b45309';
-            ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillStyle = '#92400e';
+            ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 28, currentY + 24);
+            ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 20, currentY + 23);
             currentY += assetRowHeight;
           });
           
           // Incoming Rights
           incomingRights.forEach(rights => {
-            ctx.fillStyle = '#faf5ff';
+            ctx.fillStyle = '#f3e8ff';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.fill();
             
-            ctx.strokeStyle = '#e9d5ff';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#d8b4fe';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.stroke();
             
-            ctx.fillStyle = '#7c3aed';
-            ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillStyle = '#6b21a8';
+            ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 28, currentY + 24);
+            ctx.fillText(`🎓 Rights to ${rights.playerName}`, x + 20, currentY + 23);
             currentY += assetRowHeight;
           });
           
           // Incoming Cash
           for (let i = 0; i < incomingCash; i++) {
-            ctx.fillStyle = '#f0fdf4';
+            ctx.fillStyle = '#dcfce7';
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.fill();
             
-            ctx.strokeStyle = '#bbf7d0';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#86efac';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(x + 16, currentY, teamWidth - 32, assetRowHeight - 8, 10);
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.stroke();
             
-            ctx.fillStyle = '#16a34a';
-            ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillStyle = '#166534';
+            ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('💵 Cash Considerations', x + 28, currentY + 24);
+            ctx.fillText('💵 Cash Considerations', x + 20, currentY + 23);
             currentY += assetRowHeight;
           }
         }
@@ -6303,16 +6456,16 @@
         // Summary background
         ctx.fillStyle = '#f8fafc';
         ctx.beginPath();
-        ctx.roundRect(x + 1, summaryY, teamWidth - 2, summaryHeight - 1, [0, 0, 15, 15]);
+        ctx.roundRect(x + 1, summaryY, teamWidth - 2, summaryHeight - 1, [0, 0, 16, 16]);
         ctx.fill();
         
-        // Dashed separator line
+        // Dashed separator
         ctx.strokeStyle = '#cbd5e1';
         ctx.lineWidth = 1;
-        ctx.setLineDash([6, 4]);
+        ctx.setLineDash([5, 3]);
         ctx.beginPath();
-        ctx.moveTo(x + 16, summaryY + 4);
-        ctx.lineTo(x + teamWidth - 16, summaryY + 4);
+        ctx.moveTo(x + 12, summaryY + 4);
+        ctx.lineTo(x + teamWidth - 12, summaryY + 4);
         ctx.stroke();
         ctx.setLineDash([]);
         
@@ -6320,41 +6473,42 @@
         const incomingCapImpact = team.playersIn.reduce((sum, p) => sum + getCapImpactSalary(p), 0);
         const net = incomingCapImpact - outgoing;
         
-        // Outgoing row
+        // Outgoing
         ctx.fillStyle = '#64748b';
-        ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('Outgoing', x + 20, summaryY + 30);
+        ctx.fillText('Outgoing', x + 16, summaryY + 28);
         ctx.textAlign = 'right';
-        ctx.fillText(formatSalary(outgoing), x + teamWidth - 20, summaryY + 30);
+        ctx.fillText(formatSalary(outgoing), x + teamWidth - 16, summaryY + 28);
         
-        // Incoming row
+        // Incoming
         ctx.textAlign = 'left';
-        ctx.fillText('Incoming', x + 20, summaryY + 52);
+        ctx.fillText('Incoming', x + 16, summaryY + 48);
         ctx.textAlign = 'right';
-        ctx.fillText(formatSalary(incomingCapImpact), x + teamWidth - 20, summaryY + 52);
+        ctx.fillText(formatSalary(incomingCapImpact), x + teamWidth - 16, summaryY + 48);
         
-        // Net row
+        // Net
         ctx.textAlign = 'left';
-        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.fillStyle = '#0f172a';
-        ctx.fillText('Net', x + 20, summaryY + 78);
+        ctx.fillText('Net', x + 16, summaryY + 72);
         
         ctx.textAlign = 'right';
         ctx.fillStyle = net > 0 ? '#dc2626' : net < 0 ? '#16a34a' : '#64748b';
-        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 20, summaryY + 78);
+        ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText((net > 0 ? '+' : '') + formatSalary(net), x + teamWidth - 16, summaryY + 72);
       });
       
       // Footer
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '500 11px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Made with HoopsHype NBA Trade Machine', canvasWidth / 2, canvasHeight - 16);
+      ctx.fillText('NBA Trade Machine', canvasWidth / 2, canvasHeight - 14);
       
       // Set the image src
       generatedImage.src = tradeCanvas.toDataURL('image/png');
     }
+
 
     // Polyfill for roundRect if not available
     if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -6752,6 +6906,93 @@
       } catch (e) { /* localStorage full or disabled */ }
     }
 
+    // Build initial trade from rumors data
+    function buildTradeFromRumors() {
+      if (!initialRumorsData || !initialRumorsData.length || !players.length) {
+        return null;
+      }
+      
+      // Get trade rumors from last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const tradeRumors = initialRumorsData.filter(rumor => {
+        const tags = rumor.tags || [];
+        const hasTradeTag = tags.some(t => t.toLowerCase() === 'trade' || t.toLowerCase() === 'trades');
+        if (!hasTradeTag) return false;
+        
+        // Check date
+        const rumorDate = new Date(rumor.archive_date || rumor.date);
+        return rumorDate >= sevenDaysAgo;
+      });
+      
+      if (!tradeRumors.length) return null;
+      
+      // Count player mentions in trade rumors
+      const rumoredPlayers = new Map();
+      
+      tradeRumors.forEach(rumor => {
+        const tags = rumor.tags || [];
+        tags.forEach(tag => {
+          // Check if tag matches a player name
+          const matchedPlayer = players.find(p => 
+            p.player.toLowerCase() === tag.toLowerCase() ||
+            p.player.toLowerCase().includes(tag.toLowerCase()) ||
+            tag.toLowerCase().includes(p.player.split(' ').pop().toLowerCase())
+          );
+          // Only meaningful salary players who can be traded
+          if (matchedPlayer && matchedPlayer.salary > 5000000 && !matchedPlayer.is10Day) {
+            const count = rumoredPlayers.get(matchedPlayer.player) || 0;
+            rumoredPlayers.set(matchedPlayer.player, count + 1);
+          }
+        });
+      });
+      
+      if (rumoredPlayers.size === 0) return null;
+      
+      // Get the most mentioned player (with some randomization among top 15)
+      const sortedPlayers = [...rumoredPlayers.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15)
+        .map(([name]) => players.find(p => p.player === name))
+        .filter(Boolean);
+      
+      if (sortedPlayers.length === 0) return null;
+      
+      // Pick randomly from top rumored players
+      const rumoredPlayer = sortedPlayers[Math.floor(Math.random() * sortedPlayers.length)];
+      
+      // Pick a random different team
+      const otherTeams = teams.filter(t => t !== rumoredPlayer.team);
+      const randomTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
+      
+      if (!randomTeam) return null;
+      
+      // Create trade: rumored player on their team, random opposing team empty
+      const playerOut = { ...rumoredPlayer, destination: 1 };
+      
+      return [
+        { 
+          teamName: rumoredPlayer.team, 
+          playersOut: [playerOut], 
+          playersIn: [], 
+          tpeUsed: null, 
+          picksOut: [], 
+          rightsOut: [], 
+          cashOut: [] 
+        },
+        { 
+          teamName: randomTeam, 
+          playersOut: [], 
+          playersIn: [], 
+          tpeUsed: null, 
+          picksOut: [], 
+          rightsOut: [], 
+          cashOut: [] 
+        }
+      ];
+    }
+
     function processCSVData(results) {
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
@@ -6840,11 +7081,17 @@
           team: row['TEAM RIGHTS']?.trim() || ''
         }));
       
-      const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
-      tradeTeams = [
-        { teamName: shuffledTeams[0] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-        { teamName: shuffledTeams[1] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-      ];
+      // Try to build initial trade from rumors, fall back to random teams
+      const rumorsBasedTrade = buildTradeFromRumors();
+      if (rumorsBasedTrade) {
+        tradeTeams = rumorsBasedTrade;
+      } else {
+        const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
+        tradeTeams = [
+          { teamName: shuffledTeams[0] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: shuffledTeams[1] || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
+      }
       
       redistributePlayers();
       loadingState.style.display = 'none';
