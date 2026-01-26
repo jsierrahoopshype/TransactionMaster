@@ -7505,7 +7505,7 @@
         });
       }
       
-      // Use the pre-started fetch (already running in parallel)
+     // Use the pre-started fetch (already running in parallel)
       try {
         const csvText = await csvFetchPromise;
         if (!csvText) throw new Error('Fetch failed');
@@ -7528,4 +7528,15 @@
             }
           });
         }
-      } cat
+      } catch (error) {
+        console.error('Fetch error:', error);
+        if (!cached) {
+          loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+        }
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
