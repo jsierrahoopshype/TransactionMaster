@@ -2129,9 +2129,14 @@
     }
 
     // For cap impact / Net calculations (actual salary on books)
+    // For minimum players, use cap hold value if available (for cap/tax/apron calculations)
     function getCapImpactSalary(player) {
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
         return 0;
+      }
+      // Minimum players use cap hold for cap calculations
+      if (player.isMinimum && player.capHold > 0) {
+        return player.capHold;
       }
       // MSE players' actual salary still goes on the books
       return player.salary;
@@ -3363,6 +3368,26 @@
                     <span class="salary-label">Net</span>
                     <span class="salary-value ${netSalary > 0 ? 'negative' : netSalary < 0 ? 'positive' : ''}">${netSalary > 0 ? '+' : ''}${formatSalary(netSalary)}</span>
                   </div>
+                  ${teamInfo ? (() => {
+                    const postTradeTaxRoom = teamInfo.taxRoom - netSalary;
+                    const postTradeApron1st = teamInfo.apronRoom1st - netSalary;
+                    const postTradeApron2nd = teamInfo.apronRoom2nd - netSalary;
+                    
+                    return `
+                      <div class="salary-row" style="margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem;">
+                        <span class="salary-label">Tax Room</span>
+                        <span class="salary-value ${postTradeTaxRoom < 0 ? 'negative' : 'positive'}">${postTradeTaxRoom >= 0 ? '' : '-'}${formatSalary(Math.abs(postTradeTaxRoom))}</span>
+                      </div>
+                      <div class="salary-row">
+                        <span class="salary-label">1st Apron</span>
+                        <span class="salary-value ${postTradeApron1st < 0 ? 'negative' : 'positive'}">${postTradeApron1st >= 0 ? '' : '-'}${formatSalary(Math.abs(postTradeApron1st))}</span>
+                      </div>
+                      <div class="salary-row">
+                        <span class="salary-label">2nd Apron</span>
+                        <span class="salary-value ${postTradeApron2nd < 0 ? 'negative' : 'positive'}">${postTradeApron2nd >= 0 ? '' : '-'}${formatSalary(Math.abs(postTradeApron2nd))}</span>
+                      </div>
+                    `;
+                  })() : ''}
                 </div>
                 ${validation && !validation.valid ? `
                   <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--red);">
@@ -6719,7 +6744,8 @@
             isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
             injuryReason: row['REASON']?.trim() || '',
             teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
-            headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || ''
+            headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || '',
+            capHold: parseSalary(row['CH 25-26'] || row['CAP HOLD'] || 0)
           };
         });
 
