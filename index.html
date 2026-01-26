@@ -6091,15 +6091,17 @@
 
     // Format button handlers
     document.querySelectorAll('.format-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentImageFormat = btn.dataset.format;
-        generateTradeImage();
+        generatedImage.style.opacity = '0.5';
+        await generateTradeImage();
+        generatedImage.style.opacity = '1';
       });
     });
 
-    generateImageBtn.addEventListener('click', () => {
+    generateImageBtn.addEventListener('click', async () => {
       // Check if there's a valid trade
       const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
       if (activeTeams.length < 2) {
@@ -6107,7 +6109,16 @@
         return;
       }
 
-      generateTradeImage();
+      // Show loading state on button
+      const originalText = generateImageBtn.textContent;
+      generateImageBtn.textContent = '⏳ Generating...';
+      generateImageBtn.disabled = true;
+      
+      await generateTradeImage();
+      
+      // Restore button and show modal
+      generateImageBtn.textContent = originalText;
+      generateImageBtn.disabled = false;
       imageModal.style.display = 'flex';
     });
 
@@ -6863,7 +6874,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = '500 11px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('NBA Trade Machine', canvasWidth / 2, canvasHeight - 14);
+      ctx.fillText('HoopsMatic.com NBA Trade Machine', canvasWidth / 2, canvasHeight - 14);
       
       // Set the image src (may fail if canvas is tainted by cross-origin images)
       try {
