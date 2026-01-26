@@ -456,6 +456,20 @@
       outline: none;
     }
 
+    .team-select.pulse-hint {
+      animation: selectPulse 1s ease-in-out 3;
+    }
+
+    @keyframes selectPulse {
+      0%, 100% { 
+        background: transparent; 
+      }
+      50% { 
+        background: rgba(99, 102, 241, 0.15);
+        border-radius: 6px;
+      }
+    }
+
     .team-select option {
       background: var(--surface);
       color: var(--text);
@@ -2215,7 +2229,10 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
-    const CSV_URL = '__DATA_INJECTED_BY_SERVER__';
+    // CSV URL - Cloudflare Worker injects data, fallback to Google Sheets for GitHub Pages
+    const INJECTED_CSV_URL = '__DATA_INJECTED_BY_SERVER__';
+    const FALLBACK_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSg6im6IYB6HXMGzQbmmBnLw9SfQLzxCSo8OfChxlJLhsB6BBCO0wPF_TMch0YgAbtFqYkwDWrsxRe7/pub?output=csv';
+    const CSV_URL = INJECTED_CSV_URL.startsWith('__') ? FALLBACK_CSV_URL : INJECTED_CSV_URL;
     
     // Start fetching immediately (don't await - runs in parallel with script parsing)
     const csvFetchPromise = fetch(CSV_URL).then(r => r.text()).catch(() => null);
@@ -7445,6 +7462,19 @@
       redistributePlayers();
       loadingState.style.display = 'none';
       render();
+      
+      // Add pulse hint to team selects on first load (shows they're clickable)
+      setTimeout(() => {
+        document.querySelectorAll('.team-select').forEach(select => {
+          select.classList.add('pulse-hint');
+        });
+        // Remove after animation completes
+        setTimeout(() => {
+          document.querySelectorAll('.team-select').forEach(select => {
+            select.classList.remove('pulse-hint');
+          });
+        }, 3000);
+      }, 500);
     }
 
     async function loadData() {
