@@ -7241,22 +7241,11 @@
       `;
       
       try {
-        // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 10000)
-        );
-        const rumorsData = await Promise.race([
-          getRumorsForTrade(playersInTrade),
-          timeoutPromise
-        ]);
+        const rumorsData = await getRumorsForTrade(playersInTrade);
         container.innerHTML = renderRumorsSection(rumorsData);
       } catch (error) {
         console.error('Error displaying rumors:', error);
-        container.innerHTML = `
-          <div class="rumors-section">
-            <div class="no-rumors">Unable to load trade rumors. <a href="#" onclick="displayTradeRumors(); return false;">Try again</a></div>
-          </div>
-        `;
+        container.innerHTML = '';
       }
     }
 
