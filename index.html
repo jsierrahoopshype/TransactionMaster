@@ -2375,14 +2375,14 @@
       
       const postTradeCount = currentStandardCount - outgoingStandard + incomingStandard;
       
-      if (postTradeCount < 14) {
-        const needed = 14 - postTradeCount;
+      if (postTradeCount < 13) {
+        const needed = 13 - postTradeCount;
         const playerWord = needed === 1 ? 'one player' : needed === 2 ? 'two players' : needed === 3 ? 'three players' : `${needed} players`;
-        restrictions.push(`${tradeTeam.teamName} roster drops to ${postTradeCount} - must sign ${playerWord}`);
+        restrictions.push(`${tradeTeam.teamName} roster drops to ${postTradeCount} - must add ${playerWord}`);
       } else if (postTradeCount > 15) {
         const excess = postTradeCount - 15;
         const playerWord = excess === 1 ? 'one player' : excess === 2 ? 'two players' : excess === 3 ? 'three players' : `${excess} players`;
-        restrictions.push(`${tradeTeam.teamName} roster goes to ${postTradeCount} - must waive ${playerWord}`);
+        restrictions.push(`${tradeTeam.teamName} roster goes to ${postTradeCount} - must release ${playerWord}`);
       }
       
       // Check for not aggregated players being combined with others
