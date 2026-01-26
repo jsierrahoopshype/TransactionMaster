@@ -9,7 +9,7 @@
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Trade Calculator</title>
+  <title>NBA Trade Machine</title>
   <!-- Preconnect to Google Sheets for faster CSV fetch -->
   <link rel="preconnect" href="https://docs.google.com">
   <link rel="dns-prefetch" href="https://docs.google.com">
@@ -1721,7 +1721,7 @@
 <body>
   <div class="container">
     <header>
-      <h1>🏀 NBA Trade Calculator</h1>
+      <h1>🏀 NBA Trade Machine</h1>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -3711,9 +3711,6 @@
     
     // Update URL and page title based on current trade
     function updateUrlAndTitle() {
-      // Keep title static
-      document.title = 'NBA Trade Calculator';
-      
       // Collect all players being traded for URL
       const allPlayersOut = [];
       const allTeams = new Set();
@@ -3726,6 +3723,30 @@
           });
         }
       });
+      
+      // Update page title for SEO
+      if (allPlayersOut.length > 0) {
+        const teamArray = Array.from(allTeams);
+        let titleParts = [];
+        
+        // Add first 2 player names
+        if (allPlayersOut.length >= 2) {
+          titleParts.push(allPlayersOut.slice(0, 2).join(', '));
+        } else if (allPlayersOut.length === 1) {
+          titleParts.push(allPlayersOut[0]);
+        }
+        
+        // Add team names if we have them
+        if (teamArray.length >= 2) {
+          titleParts.push(teamArray.slice(0, 2).join('-') + ' Trade');
+        } else if (teamArray.length === 1) {
+          titleParts.push(teamArray[0] + ' Trade');
+        }
+        
+        document.title = titleParts.join(' | ') + ' - NBA Trade Machine';
+      } else {
+        document.title = 'NBA Trade Machine';
+      }
       
       // If no players in trade, reset URL
       if (allPlayersOut.length === 0) {
@@ -6329,7 +6350,7 @@
       ctx.fillStyle = '#94a3b8';
       ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Made with HoopsHype NBA Trade Calculator', canvasWidth / 2, canvasHeight - 16);
+      ctx.fillText('Made with HoopsHype NBA Trade Machine', canvasWidth / 2, canvasHeight - 16);
       
       // Set the image src
       generatedImage.src = tradeCanvas.toDataURL('image/png');
@@ -6646,9 +6667,6 @@
       }
       
       html += `
-          <div class="rumors-footer">
-            <a href="https://hoopshype.com/rumors/" target="_blank">Powered by HoopsHype Rumors</a>
-          </div>
         </div>
       `;
       
