@@ -2226,8 +2226,15 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
-    const CSV_URL = '__DATA_INJECTED_BY_SERVER__';
-    const csvFetchPromise = fetch(CSV_URL).then(r => r.text()).catch(() => null);
+    // Check if data was injected by Cloudflare Worker
+    let csvFetchPromise;
+    if (window.__INJECTED_CSV_DATA__) {
+      const csvText = decodeURIComponent(escape(atob(window.__INJECTED_CSV_DATA__)));
+      csvFetchPromise = Promise.resolve(csvText);
+    } else {
+      // Fallback - this will fail on GitHub Pages (redirects to Cloudflare anyway)
+      csvFetchPromise = Promise.reject('No data');
+    }
     
     // Start fetching rumors in parallel (for initial trade display)
     const INITIAL_RUMORS_URL = 'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/latest';
