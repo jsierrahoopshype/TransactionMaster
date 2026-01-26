@@ -2168,11 +2168,13 @@
 
       // Outgoing salary uses regular salary
       const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
-      // Incoming salary uses poison pill value if present
+      // Incoming salary uses poison pill value if present (for salary matching)
       const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+      // Actual incoming salary for cap/apron calculations (MSE players count full salary)
+      const incomingCapImpact = tradeTeam.playersIn.reduce((sum, p) => sum + getCapImpactSalary(p), 0);
       
-      // Net incoming for hardcap purposes (TPE doesn't help with hardcap - salary still goes on books)
-      const netIncomingForHardcap = incomingSalary - outgoingSalary;
+      // Net incoming for hardcap/apron purposes (uses ACTUAL salary, not matching salary)
+      const netIncomingForHardcap = incomingCapImpact - outgoingSalary;
 
       // Check hardcap FIRST - TPE doesn't help here, salary still counts against cap
       if (teamInfo.isHardcap1st && netIncomingForHardcap > teamInfo.apronRoom1st) {
@@ -2348,6 +2350,31 @@
 
       // Check for trade restrictions
       const restrictions = [];
+      
+      // Check roster size after trade (standard contracts only, not two-way)
+      const teamPlayers = getTeamPlayers(tradeTeam.teamName);
+      const currentStandardCount = teamPlayers.filter(p => 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' && 
+        !p.contractStatus?.toUpperCase().includes('10-DAY')
+      ).length;
+      
+      const outgoingStandard = tradeTeam.playersOut.filter(p => 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY')
+      ).length;
+      
+      const incomingStandard = tradeTeam.playersIn.filter(p => 
+        p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY')
+      ).length;
+      
+      const postTradeCount = currentStandardCount - outgoingStandard + incomingStandard;
+      
+      if (postTradeCount < 14) {
+        restrictions.push(`Roster drops to ${postTradeCount} players - team must sign ${14 - postTradeCount} player(s)`);
+      } else if (postTradeCount > 15) {
+        restrictions.push(`Roster goes to ${postTradeCount} players - team must waive ${postTradeCount - 15} player(s)`);
+      }
       
       // Check for not aggregated players being combined with others
       const naPlayers = tradeTeam.playersOut.filter(p => p.notAggregated);
