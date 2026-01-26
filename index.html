@@ -2758,7 +2758,9 @@
         const onlyRosterAndNTCWarnings = nonTPEWarnings.every(w => 
           w.includes('no-trade clause') || 
           w.includes('roster drops to') || 
-          w.includes('roster goes to')
+          w.includes('roster goes to') ||
+          w.includes('must add') ||
+          w.includes('must release')
         );
         
         if (hasDateWarnings && !hasNTCWarnings) {
@@ -3369,12 +3371,18 @@
                     <span class="salary-value ${netSalary > 0 ? 'negative' : netSalary < 0 ? 'positive' : ''}">${netSalary > 0 ? '+' : ''}${formatSalary(netSalary)}</span>
                   </div>
                   ${teamInfo ? (() => {
-                    const postTradeTaxRoom = teamInfo.taxRoom - netSalary;
-                    const postTradeApron1st = teamInfo.apronRoom1st - netSalary;
-                    const postTradeApron2nd = teamInfo.apronRoom2nd - netSalary;
+                    const capSpaceValue = teamInfo.capSpace || 0;
+                    const postTradeCapSpace = capSpaceValue - netSalary;
+                    const postTradeTaxRoom = (teamInfo.taxRoom || 0) - netSalary;
+                    const postTradeApron1st = (teamInfo.apronRoom1st || 0) - netSalary;
+                    const postTradeApron2nd = (teamInfo.apronRoom2nd || 0) - netSalary;
                     
                     return `
                       <div class="salary-row" style="margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem;">
+                        <span class="salary-label">Cap Space</span>
+                        <span class="salary-value ${postTradeCapSpace < 0 ? 'negative' : 'positive'}">${postTradeCapSpace >= 0 ? '' : '-'}${formatSalary(Math.abs(postTradeCapSpace))}</span>
+                      </div>
+                      <div class="salary-row">
                         <span class="salary-label">Tax Room</span>
                         <span class="salary-value ${postTradeTaxRoom < 0 ? 'negative' : 'positive'}">${postTradeTaxRoom >= 0 ? '' : '-'}${formatSalary(Math.abs(postTradeTaxRoom))}</span>
                       </div>
