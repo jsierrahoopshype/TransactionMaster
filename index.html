@@ -7602,3 +7602,17 @@
                 loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
               }
             }
+          });
+        }
+      } catch (error) {
+        console.error('Fetch error:', error);
+        if (!cached) {
+          loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+        }
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
