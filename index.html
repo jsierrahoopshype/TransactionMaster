@@ -2227,8 +2227,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
     const CSV_URL = '__DATA_INJECTED_BY_SERVER__';
-    
-    // Start fetching immediately (don't await - runs in parallel with script parsing)
     const csvFetchPromise = fetch(CSV_URL).then(r => r.text()).catch(() => null);
     
     // Start fetching rumors in parallel (for initial trade display)
