@@ -93,7 +93,7 @@
     .unified-trade-machine {
       display: flex;
       gap: 1rem;
-      align-items: flex-start;
+      align-items: flex-end;
       flex-wrap: wrap;
     }
 
@@ -120,12 +120,10 @@
     }
 
     .unified-trade-machine .btn-primary {
-      align-self: flex-end;
       margin-bottom: 0;
     }
 
     .unified-trade-machine > span {
-      align-self: flex-end;
       margin-bottom: 0.5rem;
     }
 
@@ -6378,7 +6376,7 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillText(statusText, canvasWidth / 2, 77);
       
-      // Helper to draw circular image with border
+      // Helper to draw circular image with border (maintains aspect ratio - cover mode)
       function drawCircularImage(img, x, y, size, borderColor = 'rgba(255,255,255,0.2)') {
         if (!img) return;
         ctx.save();
@@ -6386,7 +6384,26 @@
         ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
         ctx.closePath();
         ctx.clip();
-        ctx.drawImage(img, x, y, size, size);
+        
+        // Calculate cover dimensions (maintain aspect ratio, fill circle)
+        const imgRatio = img.width / img.height;
+        let drawWidth, drawHeight, drawX, drawY;
+        
+        if (imgRatio > 1) {
+          // Image is wider than tall
+          drawHeight = size;
+          drawWidth = size * imgRatio;
+          drawX = x - (drawWidth - size) / 2;
+          drawY = y;
+        } else {
+          // Image is taller than wide
+          drawWidth = size;
+          drawHeight = size / imgRatio;
+          drawX = x;
+          drawY = y - (drawHeight - size) / 2;
+        }
+        
+        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
         ctx.restore();
         
         // Border
@@ -6465,10 +6482,47 @@
         ctx.lineTo(x + teamWidth, y + teamHeaderHeight);
         ctx.stroke();
         
-        // Team logo - larger and prominent
+        // Team logo - circular to handle transparent backgrounds
         const logoImg = teamInfo?.logo ? loadedImages.get(teamInfo.logo) : null;
         if (logoImg) {
-          ctx.drawImage(logoImg, x + 16, y + 14, 52, 52);
+          const logoSize = 52;
+          const logoX = x + 16;
+          const logoY = y + 14;
+          
+          // Draw circular clip for logo
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(logoX + logoSize/2, logoY + logoSize/2, logoSize/2, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          
+          // Fill with white background for logos that need it
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          
+          // Draw logo maintaining aspect ratio
+          const imgRatio = logoImg.width / logoImg.height;
+          let drawWidth, drawHeight, drawX, drawY;
+          if (imgRatio > 1) {
+            drawHeight = logoSize;
+            drawWidth = logoSize * imgRatio;
+            drawX = logoX - (drawWidth - logoSize) / 2;
+            drawY = logoY;
+          } else {
+            drawWidth = logoSize;
+            drawHeight = logoSize / imgRatio;
+            drawX = logoX;
+            drawY = logoY - (drawHeight - logoSize) / 2;
+          }
+          ctx.drawImage(logoImg, drawX, drawY, drawWidth, drawHeight);
+          ctx.restore();
+          
+          // Subtle border
+          ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(logoX + logoSize/2, logoY + logoSize/2, logoSize/2, 0, Math.PI * 2);
+          ctx.stroke();
         }
         
         // Team name
