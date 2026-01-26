@@ -6140,30 +6140,26 @@
       const imagesToLoad = [];
       const loadedImages = new Map();
       
-      // Helper to load an image (tries CORS first, then without)
+      // Helper to proxy external images through our API (bypasses CORS)
+      const proxyUrl = (url) => {
+        if (!url) return null;
+        return `https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/image-proxy?url=${encodeURIComponent(url)}`;
+      };
+      
+      // Helper to load an image (uses proxy to bypass CORS)
       const loadImage = (url) => {
         if (!url) return Promise.resolve(null);
         if (loadedImages.has(url)) return Promise.resolve(loadedImages.get(url));
         
         return new Promise((resolve) => {
-          // First try with CORS
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = () => {
-            loadedImages.set(url, img);
+            loadedImages.set(url, img); // Store by original URL
             resolve(img);
           };
-          img.onerror = () => {
-            // CORS failed, try without (may taint canvas but might work)
-            const img2 = new Image();
-            img2.onload = () => {
-              loadedImages.set(url, img2);
-              resolve(img2);
-            };
-            img2.onerror = () => resolve(null);
-            img2.src = url;
-          };
-          img.src = url;
+          img.onerror = () => resolve(null);
+          img.src = proxyUrl(url); // Load via proxy
         });
       };
       
