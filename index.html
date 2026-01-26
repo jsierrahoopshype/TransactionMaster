@@ -2736,6 +2736,7 @@
         const hasNTCWarnings = allWarnings.some(w => w.includes('no-trade clause'));
         const hasBlockingWarnings = allWarnings.some(w => w.includes('cannot be traded before deadline'));
         const hasTPECreationWarnings = allWarnings.some(w => w.includes('cannot create a TPE'));
+        const hasRosterWarnings = allWarnings.some(w => w.includes('Roster drops to') || w.includes('Roster goes to'));
         
         // Filter out TPE creation warnings - they're informational only and don't affect trade validity
         const nonTPEWarnings = allWarnings.filter(w => !w.includes('cannot create a TPE'));
@@ -2743,6 +2744,13 @@
         if (hasBlockingWarnings) {
           return { valid: true, message: nonTPEWarnings.join('; '), type: 'warning' };
         }
+        
+        // Roster warnings alone don't make trade orange - treat like NTC (valid with note)
+        const onlyRosterAndNTCWarnings = nonTPEWarnings.every(w => 
+          w.includes('no-trade clause') || 
+          w.includes('Roster drops to') || 
+          w.includes('Roster goes to')
+        );
         
         if (hasDateWarnings && !hasNTCWarnings) {
           // Extract the date from the warning message
@@ -2764,6 +2772,11 @@
         // If only TPE creation warnings remain, trade is fully valid (green)
         if (nonTPEWarnings.length === 0) {
           return { valid: true, message: 'All teams can complete this trade', type: 'valid' };
+        }
+        
+        // If only roster warnings (and maybe NTC), trade is valid (green) with notes
+        if (onlyRosterAndNTCWarnings) {
+          return { valid: true, message: nonTPEWarnings.join('; '), type: hasNTCWarnings ? 'pending-ntc' : 'valid' };
         }
         
         return { valid: true, message: nonTPEWarnings.join('; '), type: 'warning' };
