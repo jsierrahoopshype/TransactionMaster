@@ -2219,12 +2219,12 @@
       
       <!-- Contact Footer -->
       <div class="contact-footer">
-        Anything wrong? Contact us at <a href="mailto:hoopshype@hoopshype.com?cc=aderoa@hoopshype.com">hoopshype@hoopshype.com</a>
+        Anything wrong? Contact us at <a href="/cdn-cgi/l/email-protection#cda5a2a2bdbea5b4bda88da5a2a2bdbea5b4bda8e3aea2a0f2aeaef0aca9a8bfa2ac8da5a2a2bdbea5b4bda8e3aea2a0"><span class="__cf_email__" data-cfemail="11797e7e61627968617451797e7e6162796861743f727e7c">[email&#160;protected]</span></a>
       </div>
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -6372,13 +6372,17 @@
           height += 12;
         }
         
-        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
+        // Add TPE height if used
+        const usesTPE = team.tpeUsed ? 1 : 0;
+        
+        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash + usesTPE;
         if (receivesCount > 0) {
           height += sectionLabelHeight;
           height += team.playersIn.length * playerRowHeight;
           height += incomingPicks.length * assetRowHeight;
           height += incomingRights.length * assetRowHeight;
           height += incomingCash * assetRowHeight;
+          height += usesTPE * assetRowHeight; // TPE row
         }
         
         height += summaryHeight;
@@ -6781,7 +6785,8 @@
         }
         
         // Acquires section
-        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
+        const usesTPE = team.tpeUsed ? 1 : 0;
+        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash + usesTPE;
         
         if (receivesCount > 0) {
           ctx.fillStyle = '#16a34a';
@@ -6891,6 +6896,26 @@
             ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText('💵 Cash Considerations', x + 20, currentY + 23);
+            currentY += assetRowHeight;
+          }
+          
+          // TPE Used
+          if (team.tpeUsed) {
+            ctx.fillStyle = '#d1fae5';
+            ctx.beginPath();
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#6ee7b7';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#047857';
+            ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`📄 TPE: ${formatSalary(team.tpeUsed.value)}`, x + 20, currentY + 23);
             currentY += assetRowHeight;
           }
         }
@@ -7602,7 +7627,7 @@
                 loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
               }
             }
-          });
+           });
         }
       } catch (error) {
         console.error('Fetch error:', error);
