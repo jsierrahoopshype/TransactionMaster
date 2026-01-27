@@ -6359,26 +6359,28 @@
         
         let height = teamHeaderHeight + 16;
         
-        const sendsOutCount = team.playersOut.length + 
-          (team.picksOut ? team.picksOut.length : 0) + 
-          (team.rightsOut ? team.rightsOut.length : 0) +
-          (team.cashOut ? team.cashOut.length : 0);
-        if (sendsOutCount > 0) {
-          height += sectionLabelHeight;
-          height += team.playersOut.length * playerRowHeight;
-          height += (team.picksOut ? team.picksOut.length : 0) * assetRowHeight;
-          height += (team.rightsOut ? team.rightsOut.length : 0) * assetRowHeight;
-          height += (team.cashOut ? team.cashOut.length : 0) * assetRowHeight;
-          height += 12;
-        }
-        
         // Calculate if TPE is actually used (deficit exists)
         const outgoingSalary = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
         const incomingSalary = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
         const deficit = incomingSalary - outgoingSalary;
         const usesTPE = (team.tpeUsed && deficit > 0) ? 1 : 0;
         
-        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash + usesTPE;
+        const sendsOutCount = team.playersOut.length + 
+          (team.picksOut ? team.picksOut.length : 0) + 
+          (team.rightsOut ? team.rightsOut.length : 0) +
+          (team.cashOut ? team.cashOut.length : 0) +
+          usesTPE;
+        if (sendsOutCount > 0) {
+          height += sectionLabelHeight;
+          height += team.playersOut.length * playerRowHeight;
+          height += (team.picksOut ? team.picksOut.length : 0) * assetRowHeight;
+          height += (team.rightsOut ? team.rightsOut.length : 0) * assetRowHeight;
+          height += (team.cashOut ? team.cashOut.length : 0) * assetRowHeight;
+          height += usesTPE * assetRowHeight; // TPE row
+          height += 12;
+        }
+        
+        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
         if (receivesCount > 0) {
           height += sectionLabelHeight;
           height += team.playersIn.length * playerRowHeight;
@@ -6649,11 +6651,18 @@
         
         let currentY = y + teamHeaderHeight + 14;
         
+        // Calculate if TPE is actually used (deficit exists)
+        const outgoingForTPECalc = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+        const incomingForTPECalc = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+        const deficitForTPECalc = incomingForTPECalc - outgoingForTPECalc;
+        const usesTPE = (team.tpeUsed && deficitForTPECalc > 0) ? 1 : 0;
+        
         // Trades section
         const sendsOutCount = team.playersOut.length + 
           (team.picksOut ? team.picksOut.length : 0) + 
           (team.rightsOut ? team.rightsOut.length : 0) +
-          (team.cashOut ? team.cashOut.length : 0);
+          (team.cashOut ? team.cashOut.length : 0) +
+          usesTPE;
           
         if (sendsOutCount > 0) {
           ctx.fillStyle = '#dc2626';
@@ -6784,16 +6793,38 @@
             });
           }
           
+          // TPE Used (shows in TRADES section as team is using/consuming TPE)
+          if (team.tpeUsed) {
+            const outgoingForTPE = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+            const incomingForTPE = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+            const deficit = incomingForTPE - outgoingForTPE;
+            const tpeAmountUsed = deficit > 0 ? Math.min(team.tpeUsed.value, deficit) : 0;
+            
+            if (tpeAmountUsed > 0) {
+              ctx.fillStyle = '#d1fae5';
+              ctx.beginPath();
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
+              ctx.fill();
+              
+              ctx.strokeStyle = '#6ee7b7';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
+              ctx.stroke();
+              
+              ctx.fillStyle = '#047857';
+              ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
+              ctx.textAlign = 'left';
+              ctx.fillText(`📄 TPE: ${formatSalary(tpeAmountUsed)}`, x + 20, currentY + 23);
+              currentY += assetRowHeight;
+            }
+          }
+          
           currentY += 10;
         }
         
         // Acquires section
-        // Calculate if TPE is actually used (deficit exists)
-        const outgoingSalaryForTPE = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
-        const incomingSalaryForTPE = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
-        const deficitForTPE = incomingSalaryForTPE - outgoingSalaryForTPE;
-        const usesTPE = (team.tpeUsed && deficitForTPE > 0) ? 1 : 0;
-        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash + usesTPE;
+        const receivesCount = team.playersIn.length + incomingPicks.length + incomingRights.length + incomingCash;
         
         if (receivesCount > 0) {
           ctx.fillStyle = '#16a34a';
@@ -6904,34 +6935,6 @@
             ctx.textAlign = 'left';
             ctx.fillText('💵 Cash Considerations', x + 20, currentY + 23);
             currentY += assetRowHeight;
-          }
-          
-          // TPE Used
-          if (team.tpeUsed) {
-            // Calculate the actual TPE amount used (not the full TPE value)
-            const outgoing = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
-            const incoming = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
-            const deficit = incoming - outgoing;
-            const tpeAmountUsed = deficit > 0 ? Math.min(team.tpeUsed.value, deficit) : 0;
-            
-            if (tpeAmountUsed > 0) {
-              ctx.fillStyle = '#d1fae5';
-              ctx.beginPath();
-              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
-              ctx.fill();
-              
-              ctx.strokeStyle = '#6ee7b7';
-              ctx.lineWidth = 1;
-              ctx.beginPath();
-              ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
-              ctx.stroke();
-              
-              ctx.fillStyle = '#047857';
-              ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
-              ctx.textAlign = 'left';
-              ctx.fillText(`📄 TPE: ${formatSalary(tpeAmountUsed)}`, x + 20, currentY + 23);
-              currentY += assetRowHeight;
-            }
           }
         }
         
