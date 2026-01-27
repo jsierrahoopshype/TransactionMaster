@@ -3547,6 +3547,26 @@
                     </div>
                   `;
                 }).join('')}
+                ${tradeTeam.tpeUsed ? (() => {
+                  // Calculate TPE amount actually used
+                  const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+                  const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+                  const deficit = incomingSalary - outgoingSalary;
+                  const tpeAmountUsed = deficit > 0 ? Math.min(tradeTeam.tpeUsed.value, deficit) : 0;
+                  if (tpeAmountUsed <= 0) return '';
+                  return `
+                  <div class="player-chip" style="background: var(--green-dim); border-color: var(--green);">
+                    <div class="player-chip-row">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name" style="color: var(--green);">
+                          📄 Trade Exception Used
+                        </div>
+                        <div class="player-chip-salary" style="color: var(--green);">${formatSalary(tpeAmountUsed)}</div>
+                      </div>
+                    </div>
+                  </div>
+                  `;
+                })() : ''}
               </div>
             
             ${(() => {
@@ -3588,7 +3608,7 @@
                 }
               });
               
-              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || incomingRights.length > 0 || incomingCash > 0 || tradeTeam.tpeUsed;
+              const hasIncoming = tradeTeam.playersIn.length > 0 || incomingPicks.length > 0 || incomingRights.length > 0 || incomingCash > 0;
               
               if (!hasIncoming) return '';
               
@@ -3691,18 +3711,6 @@
                     </div>
                   </div>
                 `).join('') : ''}
-                ${tradeTeam.tpeUsed ? `
-                  <div class="player-chip incoming" style="background: var(--green-dim); border-color: var(--green);">
-                    <div class="player-chip-row">
-                      <div class="player-chip-info">
-                        <div class="player-chip-name" style="color: var(--green);">
-                          💰 Trade Exception Used
-                        </div>
-                        <div class="player-chip-salary" style="color: var(--green);">${formatSalary(tradeTeam.tpeUsed.value)}</div>
-                      </div>
-                    </div>
-                  </div>
-                ` : ''}
               </div>
             `;
             })()}
