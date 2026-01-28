@@ -4270,6 +4270,7 @@
       const allPlayersOut = [];
       const allTeams = new Set();
       const allPicks = [];
+      const allRights = [];
       const allCash = [];
       
       tradeTeams.forEach((team, teamIndex) => {
@@ -4295,12 +4296,21 @@
             });
           });
         }
-        // Collect cash
+        // Collect draft rights
+        if (team.rightsOut && team.rightsOut.length > 0) {
+          team.rightsOut.forEach(rights => {
+            allRights.push({
+              fromTeamIndex: teamIndex,
+              playerName: rights.playerName,
+              destination: rights.destination
+            });
+          });
+        }
+        // Collect cash (no amount, just destination)
         if (team.cashOut && team.cashOut.length > 0) {
           team.cashOut.forEach(cash => {
             allCash.push({
               fromTeamIndex: teamIndex,
-              amount: cash.amount,
               destination: cash.destination
             });
           });
@@ -4352,10 +4362,19 @@
         params.set('picks', pickStrings.join(','));
       }
       
-      // Encode cash (format: fromTeamIdx:amount:destIdx,...)
+      // Encode draft rights (format: fromTeamIdx:playerName:destIdx,...)
+      if (allRights.length > 0) {
+        const rightsStrings = allRights.slice(0, 4).map(rights => {
+          const playerSlug = rights.playerName.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+          return `${rights.fromTeamIndex}:${playerSlug}:${rights.destination !== undefined ? rights.destination : ''}`;
+        });
+        params.set('rights', rightsStrings.join(','));
+      }
+      
+      // Encode cash (format: fromTeamIdx:destIdx,...)
       if (allCash.length > 0) {
         const cashStrings = allCash.slice(0, 4).map(cash => 
-          `${cash.fromTeamIndex}:${cash.amount}:${cash.destination !== undefined ? cash.destination : ''}`
+          `${cash.fromTeamIndex}:${cash.destination !== undefined ? cash.destination : ''}`
         );
         params.set('cash', cashStrings.join(','));
       }
@@ -7652,6 +7671,7 @@
       const teamsParam = params.get('teams');
       const playerDestsParam = params.get('pd'); // Player destinations
       const picksParam = params.get('picks');
+      const rightsParam = params.get('rights');
       const cashParam = params.get('cash');
       
       if (!playersParam && !teamsParam) return null;
@@ -7770,19 +7790,51 @@
         });
       }
       
-      // Parse and add cash (format: fromTeamIdx:amount:destIdx,...)
+      // Parse and add draft rights (format: fromTeamIdx:playerName:destIdx,...)
+      if (rightsParam) {
+        const rightsStrings = rightsParam.split(',');
+        rightsStrings.forEach(rightsStr => {
+          const parts = rightsStr.split(':');
+          if (parts.length >= 2) {
+            const fromTeamIdx = parseInt(parts[0]) || 0;
+            const playerSlug = parts[1].toLowerCase().replace(/-/g, '');
+            const destIdx = parts[2] !== undefined && parts[2] !== '' ? parseInt(parts[2]) : undefined;
+            
+            // Find the matching draft rights
+            if (fromTeamIdx < tradeTeamsList.length) {
+              const matchingRights = draftRights.find(dr => {
+                const drSlug = dr.playerName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                return drSlug === playerSlug || drSlug.includes(playerSlug) || playerSlug.includes(drSlug);
+              });
+              
+              if (matchingRights) {
+                if (!tradeTeamsList[fromTeamIdx].rightsOut) {
+                  tradeTeamsList[fromTeamIdx].rightsOut = [];
+                }
+                tradeTeamsList[fromTeamIdx].rightsOut.push({
+                  ...matchingRights,
+                  destination: destIdx !== undefined ? destIdx : (fromTeamIdx === 0 ? 1 : 0)
+                });
+              }
+            }
+          }
+        });
+      }
+      
+      // Parse and add cash (format: fromTeamIdx:destIdx,...)
       if (cashParam) {
         const cashStrings = cashParam.split(',');
         cashStrings.forEach(cashStr => {
           const parts = cashStr.split(':');
-          if (parts.length >= 2) {
+          if (parts.length >= 1) {
             const fromTeamIdx = parseInt(parts[0]) || 0;
-            const amount = parseInt(parts[1]) || 0;
-            const destIdx = parts[2] !== undefined && parts[2] !== '' ? parseInt(parts[2]) : undefined;
+            const destIdx = parts[1] !== undefined && parts[1] !== '' ? parseInt(parts[1]) : undefined;
             
-            if (amount > 0 && fromTeamIdx < tradeTeamsList.length) {
+            if (fromTeamIdx < tradeTeamsList.length) {
+              if (!tradeTeamsList[fromTeamIdx].cashOut) {
+                tradeTeamsList[fromTeamIdx].cashOut = [];
+              }
               tradeTeamsList[fromTeamIdx].cashOut.push({
-                amount,
                 destination: destIdx !== undefined ? destIdx : (fromTeamIdx === 0 ? 1 : 0)
               });
             }
