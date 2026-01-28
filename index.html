@@ -1653,14 +1653,14 @@
       }
 
       /* Make roster collapsed by default on mobile */
-      .roster-section .player-roster {
+      .roster-section > *:not(.section-label) {
         max-height: 0;
         overflow: hidden;
         transition: max-height 0.3s ease;
       }
 
-      .roster-section.expanded .player-roster {
-        max-height: 2000px;
+      .roster-section.expanded > *:not(.section-label) {
+        max-height: 3000px;
       }
 
       .roster-section .section-label {
@@ -1672,13 +1672,14 @@
       }
 
       .roster-section .section-label::after {
-        content: '▼';
+        content: '▼ Tap to expand';
         font-size: 0.6rem;
+        color: var(--text-secondary);
         transition: transform 0.3s ease;
       }
 
       .roster-section.expanded .section-label::after {
-        transform: rotate(180deg);
+        content: '▲ Tap to collapse';
       }
 
       .add-team-card {
@@ -4232,29 +4233,8 @@
         }
       });
       
-      // Update page title for SEO
-      if (allPlayersOut.length > 0) {
-        const teamArray = Array.from(allTeams);
-        let titleParts = [];
-        
-        // Add first 2 player names
-        if (allPlayersOut.length >= 2) {
-          titleParts.push(allPlayersOut.slice(0, 2).join(', '));
-        } else if (allPlayersOut.length === 1) {
-          titleParts.push(allPlayersOut[0]);
-        }
-        
-        // Add team names if we have them
-        if (teamArray.length >= 2) {
-          titleParts.push(teamArray.slice(0, 2).join('-') + ' Trade');
-        } else if (teamArray.length === 1) {
-          titleParts.push(teamArray[0] + ' Trade');
-        }
-        
-        document.title = titleParts.join(' | ') + ' - NBA Trade Calculator';
-      } else {
-        document.title = 'NBA Trade Calculator';
-      }
+      // Keep page title constant
+      document.title = 'NBA Trade Calculator';
       
       // If no players in trade, reset URL
       if (allPlayersOut.length === 0) {
@@ -7557,17 +7537,29 @@
       
       // Redistribute players to opposing teams
       if (tradeTeamsList.length === 2) {
-        // Simple 2-team trade: swap players
-        const team0Players = tradeTeamsList[0].playersOut;
-        const team1Players = tradeTeamsList[1].playersOut;
-        tradeTeamsList[0].playersIn = [...team1Players];
-        tradeTeamsList[1].playersIn = [...team0Players];
+        // Simple 2-team trade: swap players with destinations set
+        tradeTeamsList[0].playersOut.forEach(p => p.destination = 1);
+        tradeTeamsList[1].playersOut.forEach(p => p.destination = 0);
+        tradeTeamsList[0].playersIn = [...tradeTeamsList[1].playersOut];
+        tradeTeamsList[1].playersIn = [...tradeTeamsList[0].playersOut];
       } else {
-        // Multi-team: set destinations
+        // Multi-team: set destinations in rotation
         tradeTeamsList.forEach((team, idx) => {
           team.playersOut.forEach(p => {
             // Default destination: next team in rotation
             p.destination = (idx + 1) % tradeTeamsList.length;
+          });
+        });
+        // Rebuild playersIn based on destinations
+        tradeTeamsList.forEach(t => t.playersIn = []);
+        tradeTeamsList.forEach((team, teamIndex) => {
+          team.playersOut.forEach(player => {
+            if (player.destination !== undefined && player.destination !== teamIndex) {
+              const destTeam = tradeTeamsList[player.destination];
+              if (destTeam) {
+                destTeam.playersIn.push(player);
+              }
+            }
           });
         });
       }
