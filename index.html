@@ -221,6 +221,22 @@
       animation: pulse 2s ease-in-out infinite;
     }
 
+    .btn-share-loop {
+      background: var(--accent);
+      color: white;
+      border: 1px solid var(--accent);
+    }
+
+    .btn-share-loop:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+
+    .btn-share-loop.copied {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.7; }
@@ -1582,7 +1598,7 @@
       /* Compact button row */
       .header-row:last-child {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr 1fr;
         gap: 0.375rem;
       }
 
@@ -1594,6 +1610,15 @@
 
       .header-row .btn-loop {
         font-size: 0.65rem;
+      }
+
+      .header-row .btn-share-loop {
+        font-size: 0.6rem;
+        padding: 0.5rem 0.2rem;
+      }
+
+      .header-row .btn-share-loop[style*="display: none"] + .btn-success {
+        grid-column: span 1;
       }
 
       .header-row .btn-success {
@@ -2183,6 +2208,7 @@
         </div>
         <div class="header-row">
           <button class="btn btn-loop" id="loopTradeBtn" title="Auto-generate new trade every 8 seconds">▶ Trade Loop</button>
+          <button class="btn btn-share-loop" id="shareLoopBtn" title="Copy link to share this trade loop" style="display: none;">🔗 Share Loop</button>
           <button class="btn btn-success" id="generateImageBtn">📸 Generate Image</button>
           <button class="btn btn-danger" id="resetBtn">Reset Trade</button>
         </div>
@@ -6108,6 +6134,63 @@
     // Loop feature - auto-generate trades every 8 seconds
     let loopInterval = null;
     const loopTradeBtn = document.getElementById('loopTradeBtn');
+    const shareLoopBtn = document.getElementById('shareLoopBtn');
+    
+    // Generate loop URL based on current settings
+    function generateLoopUrl() {
+      const params = new URLSearchParams();
+      
+      // Add player(s)
+      if (unifiedSelectedPlayers.length > 0) {
+        const playerSlugs = unifiedSelectedPlayers.map(p => 
+          p.player.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+        );
+        params.set('player', playerSlugs.join(','));
+      }
+      
+      // Add from team (only if no player selected, since player auto-sets it)
+      if (unifiedOriginTeam && unifiedSelectedPlayers.length === 0) {
+        const teamSlug = unifiedOriginTeam.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+        params.set('from', teamSlug);
+      }
+      
+      // Add to team
+      if (unifiedDestTeam) {
+        const teamSlug = unifiedDestTeam.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+        params.set('to', teamSlug);
+      }
+      
+      // Add excluded players
+      if (excludedPlayers.length > 0) {
+        const excludeSlugs = excludedPlayers.map(p => 
+          p.player.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+        );
+        params.set('exclude', excludeSlugs.join(','));
+      }
+      
+      // Add loop flag
+      params.set('loop', '1');
+      
+      return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    }
+    
+    // Share loop button click handler
+    shareLoopBtn.addEventListener('click', async () => {
+      const url = generateLoopUrl();
+      
+      try {
+        await navigator.clipboard.writeText(url);
+        shareLoopBtn.textContent = '✓ Copied!';
+        shareLoopBtn.classList.add('copied');
+        setTimeout(() => {
+          shareLoopBtn.textContent = '🔗 Share Loop';
+          shareLoopBtn.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        // Fallback for older browsers
+        prompt('Copy this link:', url);
+      }
+    });
     
     function stopLoop() {
       if (loopInterval) {
@@ -6117,12 +6200,14 @@
       }
       loopTradeBtn.classList.remove('active');
       loopTradeBtn.textContent = '▶ Trade Loop';
+      shareLoopBtn.style.display = 'none';
     }
     
     function startLoop() {
       stopLoop(); // Clear any existing loop
       loopTradeBtn.classList.add('active');
       loopTradeBtn.textContent = '⏹ Stop';
+      shareLoopBtn.style.display = 'inline-flex';
       
       // Execute immediately
       executeLoopTrade();
