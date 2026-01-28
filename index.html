@@ -4269,12 +4269,40 @@
       // Collect all players being traded for URL
       const allPlayersOut = [];
       const allTeams = new Set();
+      const allPicks = [];
+      const allCash = [];
       
-      tradeTeams.forEach(team => {
+      tradeTeams.forEach((team, teamIndex) => {
         if (team.teamName) allTeams.add(team.teamName);
         if (team.playersOut && team.playersOut.length > 0) {
           team.playersOut.forEach(p => {
-            allPlayersOut.push(p.player);
+            allPlayersOut.push({
+              name: p.player,
+              fromTeamIndex: teamIndex,
+              destination: p.destination
+            });
+          });
+        }
+        // Collect picks
+        if (team.picksOut && team.picksOut.length > 0) {
+          team.picksOut.forEach(pick => {
+            allPicks.push({
+              fromTeamIndex: teamIndex,
+              pickTeam: pick.team,
+              year: pick.year,
+              round: pick.round,
+              destination: pick.destination
+            });
+          });
+        }
+        // Collect cash
+        if (team.cashOut && team.cashOut.length > 0) {
+          team.cashOut.forEach(cash => {
+            allCash.push({
+              fromTeamIndex: teamIndex,
+              amount: cash.amount,
+              destination: cash.destination
+            });
           });
         }
       });
@@ -4296,16 +4324,41 @@
       }
       
       // Create simple URL with player names as slugs
-      const playerSlugs = allPlayersOut.slice(0, 4).map(name => 
-        name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const playerSlugs = allPlayersOut.slice(0, 6).map(p => 
+        p.name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
       );
-      const teamSlugs = Array.from(allTeams).slice(0, 3).map(name =>
+      const teamSlugs = Array.from(allTeams).slice(0, 5).map(name =>
         name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
       );
       
       const params = new URLSearchParams();
       if (playerSlugs.length > 0) params.set('players', playerSlugs.join(','));
       if (teamSlugs.length > 0) params.set('teams', teamSlugs.join(','));
+      
+      // Encode player destinations (format: fromTeamIdx-destIdx,fromTeamIdx-destIdx,...)
+      const playerDests = allPlayersOut.slice(0, 6).map(p => 
+        `${p.fromTeamIndex}-${p.destination !== undefined ? p.destination : ''}`
+      );
+      if (playerDests.some(d => d.includes('-') && d.split('-')[1] !== '')) {
+        params.set('pd', playerDests.join(','));
+      }
+      
+      // Encode picks (format: fromTeamIdx:pickTeam:year:round:destIdx,...)
+      if (allPicks.length > 0) {
+        const pickStrings = allPicks.slice(0, 6).map(pick => {
+          const pickTeamSlug = pick.pickTeam.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+          return `${pick.fromTeamIndex}:${pickTeamSlug}:${pick.year}:${pick.round}:${pick.destination !== undefined ? pick.destination : ''}`;
+        });
+        params.set('picks', pickStrings.join(','));
+      }
+      
+      // Encode cash (format: fromTeamIdx:amount:destIdx,...)
+      if (allCash.length > 0) {
+        const cashStrings = allCash.slice(0, 4).map(cash => 
+          `${cash.fromTeamIndex}:${cash.amount}:${cash.destination !== undefined ? cash.destination : ''}`
+        );
+        params.set('cash', cashStrings.join(','));
+      }
       
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState({}, '', newUrl);
@@ -7597,6 +7650,9 @@
       const params = new URLSearchParams(window.location.search);
       const playersParam = params.get('players');
       const teamsParam = params.get('teams');
+      const playerDestsParam = params.get('pd'); // Player destinations
+      const picksParam = params.get('picks');
+      const cashParam = params.get('cash');
       
       if (!playersParam && !teamsParam) return null;
       
@@ -7604,15 +7660,28 @@
       const playerSlugs = playersParam ? playersParam.split(',').map(s => s.trim()) : [];
       const teamSlugs = teamsParam ? teamsParam.split(',').map(s => s.trim()) : [];
       
+      // Parse player destinations (format: fromTeamIdx-destIdx,...)
+      const playerDests = playerDestsParam ? playerDestsParam.split(',').map(d => {
+        const parts = d.split('-');
+        return { fromTeamIdx: parseInt(parts[0]) || 0, destIdx: parts[1] !== '' ? parseInt(parts[1]) : undefined };
+      }) : [];
+      
       // Match slugs to actual players
       const matchedPlayers = [];
-      playerSlugs.forEach(slug => {
+      playerSlugs.forEach((slug, idx) => {
         const slugLower = slug.toLowerCase().replace(/-/g, '');
         const player = players.find(p => {
           const playerSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
           return playerSlug === slugLower || playerSlug.includes(slugLower) || slugLower.includes(playerSlug);
         });
-        if (player) matchedPlayers.push(player);
+        if (player) {
+          const dest = playerDests[idx];
+          matchedPlayers.push({
+            ...player,
+            urlFromTeamIdx: dest ? dest.fromTeamIdx : undefined,
+            urlDestIdx: dest ? dest.destIdx : undefined
+          });
+        }
       });
       
       // Match slugs to actual teams
@@ -7638,7 +7707,7 @@
       // Create trade teams
       const tradeTeamsList = matchedTeams.slice(0, 5).map(teamName => ({
         teamName,
-        playersOut: matchedPlayers.filter(p => p.team === teamName),
+        playersOut: [],
         playersIn: [],
         tpeUsed: null,
         picksOut: [],
@@ -7646,34 +7715,93 @@
         cashOut: []
       }));
       
-      // Redistribute players to opposing teams
-      if (tradeTeamsList.length === 2) {
-        // Simple 2-team trade: swap players with destinations set
-        tradeTeamsList[0].playersOut.forEach(p => p.destination = 1);
-        tradeTeamsList[1].playersOut.forEach(p => p.destination = 0);
-        tradeTeamsList[0].playersIn = [...tradeTeamsList[1].playersOut];
-        tradeTeamsList[1].playersIn = [...tradeTeamsList[0].playersOut];
-      } else {
-        // Multi-team: set destinations in rotation
-        tradeTeamsList.forEach((team, idx) => {
-          team.playersOut.forEach(p => {
-            // Default destination: next team in rotation
-            p.destination = (idx + 1) % tradeTeamsList.length;
-          });
-        });
-        // Rebuild playersIn based on destinations
-        tradeTeamsList.forEach(t => t.playersIn = []);
-        tradeTeamsList.forEach((team, teamIndex) => {
-          team.playersOut.forEach(player => {
-            if (player.destination !== undefined && player.destination !== teamIndex) {
-              const destTeam = tradeTeamsList[player.destination];
-              if (destTeam) {
-                destTeam.playersIn.push(player);
+      // Assign players to correct teams based on URL destinations
+      matchedPlayers.forEach(p => {
+        // Find which trade team this player's team belongs to
+        const teamIdx = tradeTeamsList.findIndex(t => t.teamName === p.team);
+        if (teamIdx !== -1) {
+          const playerCopy = { ...p };
+          // Use URL destination if available, otherwise default based on team count
+          if (p.urlDestIdx !== undefined) {
+            playerCopy.destination = p.urlDestIdx;
+          } else if (tradeTeamsList.length === 2) {
+            playerCopy.destination = teamIdx === 0 ? 1 : 0;
+          } else {
+            playerCopy.destination = (teamIdx + 1) % tradeTeamsList.length;
+          }
+          tradeTeamsList[teamIdx].playersOut.push(playerCopy);
+        }
+      });
+      
+      // Parse and add picks (format: fromTeamIdx:pickTeam:year:round:destIdx,...)
+      if (picksParam) {
+        const pickStrings = picksParam.split(',');
+        pickStrings.forEach(pickStr => {
+          const parts = pickStr.split(':');
+          if (parts.length >= 4) {
+            const fromTeamIdx = parseInt(parts[0]) || 0;
+            const pickTeamSlug = parts[1].toLowerCase().replace(/-/g, '');
+            const year = parts[2];
+            const round = parts[3];
+            const destIdx = parts[4] !== undefined && parts[4] !== '' ? parseInt(parts[4]) : undefined;
+            
+            // Find the actual pick team name
+            const pickTeamName = teams.find(t => {
+              const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+              return teamSlug === pickTeamSlug || teamSlug.includes(pickTeamSlug) || pickTeamSlug.includes(teamSlug);
+            });
+            
+            // Find the matching draft pick
+            if (pickTeamName && fromTeamIdx < tradeTeamsList.length) {
+              const matchingPick = draftPicks.find(dp => 
+                dp.team === pickTeamName && 
+                dp.year === year && 
+                dp.round === round
+              );
+              
+              if (matchingPick) {
+                tradeTeamsList[fromTeamIdx].picksOut.push({
+                  ...matchingPick,
+                  destination: destIdx !== undefined ? destIdx : (fromTeamIdx === 0 ? 1 : 0)
+                });
               }
             }
-          });
+          }
         });
       }
+      
+      // Parse and add cash (format: fromTeamIdx:amount:destIdx,...)
+      if (cashParam) {
+        const cashStrings = cashParam.split(',');
+        cashStrings.forEach(cashStr => {
+          const parts = cashStr.split(':');
+          if (parts.length >= 2) {
+            const fromTeamIdx = parseInt(parts[0]) || 0;
+            const amount = parseInt(parts[1]) || 0;
+            const destIdx = parts[2] !== undefined && parts[2] !== '' ? parseInt(parts[2]) : undefined;
+            
+            if (amount > 0 && fromTeamIdx < tradeTeamsList.length) {
+              tradeTeamsList[fromTeamIdx].cashOut.push({
+                amount,
+                destination: destIdx !== undefined ? destIdx : (fromTeamIdx === 0 ? 1 : 0)
+              });
+            }
+          }
+        });
+      }
+      
+      // Rebuild playersIn based on destinations
+      tradeTeamsList.forEach(t => t.playersIn = []);
+      tradeTeamsList.forEach((team, teamIndex) => {
+        team.playersOut.forEach(player => {
+          if (player.destination !== undefined && player.destination !== teamIndex) {
+            const destTeam = tradeTeamsList[player.destination];
+            if (destTeam) {
+              destTeam.playersIn.push(player);
+            }
+          }
+        });
+      });
       
       return tradeTeamsList;
     }
