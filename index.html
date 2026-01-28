@@ -6172,11 +6172,12 @@
         params.set('to', teamSlug);
       }
       
-      // Add excluded players
+      // Add excluded players (handle both string names and player objects)
       if (excludedPlayers.length > 0) {
-        const excludeSlugs = excludedPlayers.map(p => 
-          p.player.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
-        );
+        const excludeSlugs = excludedPlayers.map(p => {
+          const playerName = typeof p === 'string' ? p : p.player;
+          return playerName.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+        });
         params.set('exclude', excludeSlugs.join(','));
       }
       
@@ -7731,8 +7732,8 @@
             const playerSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
             return playerSlug === slugLower || playerSlug.includes(slugLower) || slugLower.includes(playerSlug);
           });
-          if (player && !excludedPlayers.some(p => p.player === player.player)) {
-            excludedPlayers.push(player);
+          if (player && !excludedPlayers.includes(player.player)) {
+            excludedPlayers.push(player.player); // Push string name, not object
           }
         });
         renderExcludedChips();
