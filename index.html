@@ -4262,6 +4262,17 @@
       // Keep page title constant
       document.title = 'NBA Trade Calculator';
       
+      // Check if this is a loop URL - don't modify those
+      const currentParams = new URLSearchParams(window.location.search);
+      const isLoopUrl = currentParams.has('loop') || currentParams.has('player') || 
+                        (currentParams.has('from') && !currentParams.has('players')) || 
+                        (currentParams.has('to') && !currentParams.has('players')) ||
+                        currentParams.has('exclude');
+      
+      if (isLoopUrl) {
+        return; // Don't modify loop URLs
+      }
+      
       // If no players in trade, reset URL
       if (allPlayersOut.length === 0) {
         if (window.location.search) {
