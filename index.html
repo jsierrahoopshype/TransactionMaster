@@ -2341,6 +2341,13 @@
 
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
+    // Capture URL params immediately before anything can modify them
+    const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
+    const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
+                        (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
+                        (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
+                        INITIAL_URL_PARAMS.has('exclude');
+    
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
     if (window.__INJECTED_CSV_DATA__) {
@@ -4263,13 +4270,7 @@
       document.title = 'NBA Trade Calculator';
       
       // Check if this is a loop URL - don't modify those
-      const currentParams = new URLSearchParams(window.location.search);
-      const isLoopUrl = currentParams.has('loop') || currentParams.has('player') || 
-                        (currentParams.has('from') && !currentParams.has('players')) || 
-                        (currentParams.has('to') && !currentParams.has('players')) ||
-                        currentParams.has('exclude');
-      
-      if (isLoopUrl) {
+      if (IS_LOOP_URL) {
         return; // Don't modify loop URLs
       }
       
@@ -7666,7 +7667,8 @@
     // Setup trade loop from URL parameters
     // URL format: ?loop=1&player=Giannis-Antetokounmpo&to=LA-Lakers&exclude=Luka-Doncic
     function setupTradeLoopFromUrl() {
-      const params = new URLSearchParams(window.location.search);
+      // Use the captured initial params (before any URL modifications)
+      const params = INITIAL_URL_PARAMS;
       const loopParam = params.get('loop');
       const playerParam = params.get('player');
       const fromParam = params.get('from');
@@ -7674,7 +7676,9 @@
       const excludeParam = params.get('exclude');
       
       // If no loop-related params, skip
-      if (!loopParam && !playerParam && !fromParam && !toParam && !excludeParam) return;
+      if (!loopParam && !playerParam && !fromParam && !toParam && !excludeParam) {
+        return;
+      }
       
       // Match player(s) from URL
       if (playerParam) {
@@ -7938,10 +7942,7 @@
         }));
       
       // Check if this is a loop URL (uses player= singular) vs a trade URL (uses players= plural)
-      const urlParams = new URLSearchParams(window.location.search);
-      const isLoopUrl = urlParams.has('loop') || urlParams.has('player') || (urlParams.has('from') && !urlParams.has('players')) || (urlParams.has('to') && !urlParams.has('players'));
-      
-      if (!isLoopUrl) {
+      if (!IS_LOOP_URL) {
         // Try to build initial trade from URL parameters first (for shared trades)
         const urlTrade = buildTradeFromUrl();
         if (urlTrade) {
