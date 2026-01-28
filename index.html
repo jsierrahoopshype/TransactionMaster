@@ -3989,7 +3989,7 @@
             </div>
               
             ${tradeTeam.teamName ? `
-              <div class="roster-section">
+              <div class="roster-section${(tradeTeam.playersOut.length === 0 && (!tradeTeam.picksOut || tradeTeam.picksOut.length === 0) && (!tradeTeam.rightsOut || tradeTeam.rightsOut.length === 0) && (!tradeTeam.cashOut || tradeTeam.cashOut.length === 0)) ? ' expanded' : ''}">
                 <div class="section-label">Roster</div>
                 <div class="player-roster" data-team="${index}">
                   ${getTeamPlayers(tradeTeam.teamName)
