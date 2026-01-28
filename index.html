@@ -7728,18 +7728,24 @@
         // Generate first trade
         setTimeout(() => {
           const result = generateUnifiedTrade();
-          if (result.success) {
+          if (result && !result.error) {
+            // Apply the trade
+            tradeTeams = result;
+            redistributePlayers(true);
+            render();
             // Start the loop
-            const loopBtn = document.getElementById('loopTradeBtn');
-            if (loopBtn && !loopBtn.classList.contains('active')) {
-              loopBtn.click();
-            }
+            startLoop();
           }
         }, 100);
       } else if (playerParam || fromParam || toParam) {
         // Just generate one trade with the settings
         setTimeout(() => {
-          generateUnifiedTrade();
+          const result = generateUnifiedTrade();
+          if (result && !result.error) {
+            tradeTeams = result;
+            redistributePlayers(true);
+            render();
+          }
         }, 100);
       }
     }
@@ -7920,22 +7926,35 @@
           team: row['TEAM RIGHTS']?.trim() || ''
         }));
       
-      // Try to build initial trade from URL parameters first
-      const urlTrade = buildTradeFromUrl();
-      if (urlTrade) {
-        tradeTeams = urlTrade;
-      } else {
-        // Try to build initial trade from rumors, fall back to weighted random teams
-        const rumorsBasedTrade = buildTradeFromRumors();
-        if (rumorsBasedTrade) {
-          tradeTeams = rumorsBasedTrade;
+      // Check if this is a loop URL (uses player= singular) vs a trade URL (uses players= plural)
+      const urlParams = new URLSearchParams(window.location.search);
+      const isLoopUrl = urlParams.has('loop') || urlParams.has('player') || (urlParams.has('from') && !urlParams.has('players')) || (urlParams.has('to') && !urlParams.has('players'));
+      
+      if (!isLoopUrl) {
+        // Try to build initial trade from URL parameters first (for shared trades)
+        const urlTrade = buildTradeFromUrl();
+        if (urlTrade) {
+          tradeTeams = urlTrade;
         } else {
-          const [team1, team2] = selectTwoWeightedTeams(teams);
-          tradeTeams = [
-            { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-            { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-          ];
+          // Try to build initial trade from rumors, fall back to weighted random teams
+          const rumorsBasedTrade = buildTradeFromRumors();
+          if (rumorsBasedTrade) {
+            tradeTeams = rumorsBasedTrade;
+          } else {
+            const [team1, team2] = selectTwoWeightedTeams(teams);
+            tradeTeams = [
+              { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+              { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+            ];
+          }
         }
+      } else {
+        // For loop URLs, start with default teams - setupTradeLoopFromUrl will handle the rest
+        const [team1, team2] = selectTwoWeightedTeams(teams);
+        tradeTeams = [
+          { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+          { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+        ];
       }
       
       redistributePlayers();
