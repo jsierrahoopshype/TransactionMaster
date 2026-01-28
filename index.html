@@ -7567,6 +7567,98 @@
       return tradeTeamsList;
     }
 
+    // Setup trade loop from URL parameters
+    // URL format: ?loop=1&player=Giannis-Antetokounmpo&to=LA-Lakers&exclude=Luka-Doncic
+    function setupTradeLoopFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const loopParam = params.get('loop');
+      const playerParam = params.get('player');
+      const fromParam = params.get('from');
+      const toParam = params.get('to');
+      const excludeParam = params.get('exclude');
+      
+      // If no loop-related params, skip
+      if (!loopParam && !playerParam && !fromParam && !toParam && !excludeParam) return;
+      
+      // Match player(s) from URL
+      if (playerParam) {
+        const playerSlugs = playerParam.split(',').map(s => s.trim());
+        playerSlugs.forEach(slug => {
+          const slugLower = slug.toLowerCase().replace(/-/g, '');
+          const player = players.find(p => {
+            const playerSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return playerSlug === slugLower || playerSlug.includes(slugLower) || slugLower.includes(playerSlug);
+          });
+          if (player && !unifiedSelectedPlayers.some(p => p.player === player.player)) {
+            unifiedSelectedPlayers.push(player);
+          }
+        });
+        renderUnifiedPlayerChips();
+      }
+      
+      // Match "from" team
+      if (fromParam && !unifiedSelectedPlayers.length) {
+        const slugLower = fromParam.toLowerCase().replace(/-/g, '');
+        const team = teams.find(t => {
+          const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          return teamSlug === slugLower || teamSlug.includes(slugLower) || slugLower.includes(teamSlug);
+        });
+        if (team) {
+          unifiedOriginTeam = team;
+          document.getElementById('unifiedOriginInput').value = team;
+        }
+      }
+      
+      // Match "to" team
+      if (toParam) {
+        const slugLower = toParam.toLowerCase().replace(/-/g, '');
+        const team = teams.find(t => {
+          const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          return teamSlug === slugLower || teamSlug.includes(slugLower) || slugLower.includes(teamSlug);
+        });
+        if (team) {
+          unifiedDestTeam = team;
+          document.getElementById('unifiedDestInput').value = team;
+        }
+      }
+      
+      // Match excluded player(s)
+      if (excludeParam) {
+        const excludeSlugs = excludeParam.split(',').map(s => s.trim());
+        excludeSlugs.forEach(slug => {
+          const slugLower = slug.toLowerCase().replace(/-/g, '');
+          const player = players.find(p => {
+            const playerSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return playerSlug === slugLower || playerSlug.includes(slugLower) || slugLower.includes(playerSlug);
+          });
+          if (player && !excludedPlayers.some(p => p.player === player.player)) {
+            excludedPlayers.push(player);
+          }
+        });
+        renderExcludedChips();
+      }
+      
+      // If loop=1, generate trade and start loop
+      if (loopParam === '1' || loopParam === 'true') {
+        // Generate first trade
+        setTimeout(() => {
+          const result = generateUnifiedTrade();
+          if (result.success) {
+            // Start the loop
+            const loopBtn = document.getElementById('loopTradeBtn');
+            if (loopBtn && !loopBtn.classList.contains('active')) {
+              loopBtn.click();
+            }
+          }
+        }, 100);
+      } else if (playerParam || fromParam || toParam) {
+        // Just generate one trade with the settings
+        setTimeout(() => {
+          generateUnifiedTrade();
+        }, 100);
+      }
+    }
+
     // Build initial trade from rumors data
     function buildTradeFromRumors() {
       if (!initialRumorsData || !initialRumorsData.length || !players.length) {
@@ -7764,6 +7856,9 @@
       redistributePlayers();
       loadingState.style.display = 'none';
       render();
+      
+      // Check for trade loop URL parameters
+      setupTradeLoopFromUrl();
       
       // Add pulse hint to team selects on first load (shows they're clickable)
       setTimeout(() => {
