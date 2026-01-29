@@ -2570,6 +2570,9 @@
         const response = await fetch('/api/trade-stats');
         if (response.ok) {
           globalTradeStats = await response.json();
+          console.log('Trade stats loaded:', globalTradeStats.totalTrades, 'trades,', Object.keys(globalTradeStats.players).length, 'players');
+        } else {
+          console.log('Trade stats fetch failed:', response.status);
         }
       } catch (e) {
         console.log('Could not fetch trade stats:', e);
