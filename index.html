@@ -1019,36 +1019,10 @@
       white-space: nowrap;
     }
     
-    .trade-pct-badge {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
-      padding: 0.1rem 0.35rem;
-      border-radius: 4px;
-      background: rgba(99, 102, 241, 0.15);
-      color: #6366f1;
-      margin-left: 0.5rem;
-      flex-shrink: 0;
-    }
-    
-    .trade-pct-badge.hot {
-      background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
-    }
-    
     .trending-badge {
-      font-size: 0.55rem;
-      padding: 0.1rem 0.3rem;
-      border-radius: 3px;
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-      font-weight: 600;
+      font-size: 0.75rem;
       cursor: help;
-      white-space: nowrap;
       flex-shrink: 0;
-    }
-    
-    .player-roster-item .trending-badge {
-      margin-left: auto;
     }
 
     .tpe-section {
@@ -3812,7 +3786,7 @@
                               </div>` : ''}
                             </div>
                           </span>
-                          ${tradePct >= 5 ? `<span class="trending-badge" title="Appears in ${tradePct}% of trades">TRENDING</span>` : ''}
+                          ${tradePct >= 5 ? `<span class="trending-badge" title="Trending: Appears in ${tradePct}% of trades">🔥</span>` : ''}
                           ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
                           ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
@@ -4294,15 +4268,15 @@
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
                             ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
+                            ${(() => {
+                              const pct = getPlayerTradePercentage(p.playerId);
+                              if (pct >= 5) {
+                                return `<span class="trending-badge" title="Trending: Appears in ${pct}% of trades">🔥</span>`;
+                              }
+                              return '';
+                            })()}
                           </span>
                           <span class="player-roster-salary">${formatSalary(p.salary)}</span>
-                          ${(() => {
-                            const pct = getPlayerTradePercentage(p.playerId);
-                            if (pct >= 5) {
-                              return `<span class="trending-badge" title="Appears in ${pct}% of trades">TRENDING</span>`;
-                            }
-                            return '';
-                          })()}
                         </div>
                       `;
                     }).join('')}
