@@ -1018,6 +1018,22 @@
       flex-shrink: 0;
       white-space: nowrap;
     }
+    
+    .trade-pct-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #6366f1;
+      margin-left: 0.5rem;
+      flex-shrink: 0;
+    }
+    
+    .trade-pct-badge.hot {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
 
     .tpe-section {
       margin-top: 0.75rem;
@@ -2540,6 +2556,92 @@
     // Teams with plural names (use "Trade" instead of "Trades")
     const pluralTeamNames = ['LA Lakers', 'LA Clippers'];
     const isTeamPlural = (teamName) => pluralTeamNames.includes(teamName);
+    
+    // Player trade counter - tracks how many times each player has been added to trades
+    const TRADE_COUNTER_KEY = 'playerTradeCounter';
+    
+    // Global trade stats from API
+    let globalTradeStats = { totalTrades: 0, players: {} };
+    let lastTrackedTradeHash = ''; // To avoid tracking same trade multiple times
+    
+    // Fetch global trade stats from API
+    async function fetchTradeStats() {
+      try {
+        const response = await fetch('/api/trade-stats');
+        if (response.ok) {
+          globalTradeStats = await response.json();
+        }
+      } catch (e) {
+        console.log('Could not fetch trade stats:', e);
+      }
+    }
+    
+    // Track a completed trade
+    async function trackCompletedTrade(playerIds) {
+      try {
+        // Create a hash of the trade to avoid tracking duplicates
+        const sortedIds = [...playerIds].sort().join(',');
+        if (sortedIds === lastTrackedTradeHash) return;
+        lastTrackedTradeHash = sortedIds;
+        
+        await fetch('/api/track-trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerIds })
+        });
+        
+        // Update local stats optimistically
+        globalTradeStats.totalTrades++;
+        playerIds.forEach(id => {
+          if (!globalTradeStats.players[id]) {
+            globalTradeStats.players[id] = { count: 0, percentage: '0.0' };
+          }
+          globalTradeStats.players[id].count++;
+          globalTradeStats.players[id].percentage = 
+            ((globalTradeStats.players[id].count / globalTradeStats.totalTrades) * 100).toFixed(1);
+        });
+      } catch (e) {
+        console.log('Could not track trade:', e);
+      }
+    }
+    
+    // Get trade percentage for a player
+    function getPlayerTradePercentage(playerId) {
+      const stats = globalTradeStats.players[playerId];
+      return stats ? parseFloat(stats.percentage) : 0;
+    }
+    
+    function getPlayerTradeCounts() {
+      try {
+        const stored = localStorage.getItem(TRADE_COUNTER_KEY);
+        return stored ? JSON.parse(stored) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    
+    function incrementPlayerTradeCount(playerId, playerName) {
+      try {
+        const counts = getPlayerTradeCounts();
+        const key = playerId || playerName; // Use playerId if available, else name
+        counts[key] = (counts[key] || 0) + 1;
+        localStorage.setItem(TRADE_COUNTER_KEY, JSON.stringify(counts));
+        return counts[key];
+      } catch (e) {
+        return 0;
+      }
+    }
+    
+    function getPlayerTradeCount(playerId, playerName) {
+      const counts = getPlayerTradeCounts();
+      return counts[playerId] || counts[playerName] || 0;
+    }
+    
+    function resetPlayerTradeCounts() {
+      try {
+        localStorage.removeItem(TRADE_COUNTER_KEY);
+      } catch (e) {}
+    }
 
     // Function to search teams by name or nickname
     function searchTeams(searchTerm) {
@@ -4162,6 +4264,14 @@
                             ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                           </span>
                           <span class="player-roster-salary">${formatSalary(p.salary)}</span>
+                          ${(() => {
+                            const pct = getPlayerTradePercentage(p.playerId);
+                            if (pct > 0) {
+                              const isHot = pct >= 5;
+                              return `<span class="trade-pct-badge${isHot ? ' hot' : ''}" title="Appears in ${pct}% of trades">${pct}%</span>`;
+                            }
+                            return '';
+                          })()}
                         </div>
                       `;
                     }).join('')}
@@ -4361,6 +4471,21 @@
       document.getElementById('tradeStatusTitle').textContent = statusTitle;
       
       document.getElementById('tradeStatusMessage').textContent = validation.message;
+      
+      // Track completed/valid trade
+      if (validation.valid || validation.type?.startsWith('pending')) {
+        const playerIds = [];
+        tradeTeams.forEach(t => {
+          if (t.playersOut) {
+            t.playersOut.forEach(p => {
+              if (p.playerId) playerIds.push(p.playerId);
+            });
+          }
+        });
+        if (playerIds.length > 0) {
+          trackCompletedTrade(playerIds);
+        }
+      }
       
       // Show/hide Check Rumors link based on whether there are players in the trade
       const checkRumorsLink = document.getElementById('checkRumorsLink');
@@ -4692,6 +4817,10 @@
             }
             
             tradeTeams[teamIndex].playersOut.push(playerWithDest);
+            
+            // Track player trade count
+            incrementPlayerTradeCount(player.playerId, player.player);
+            
             redistributePlayers();
             render();
           }
@@ -8342,6 +8471,9 @@
       redistributePlayers();
       loadingState.style.display = 'none';
       render();
+      
+      // Fetch global trade stats (non-blocking)
+      fetchTradeStats().then(() => render());
       
       // Check for trade loop URL parameters
       setupTradeLoopFromUrl();
