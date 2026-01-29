@@ -2536,6 +2536,10 @@
     const abbrevToTeam = Object.fromEntries(
       Object.entries(teamAbbreviations).map(([name, abbr]) => [abbr, name])
     );
+    
+    // Teams with plural names (use "Trade" instead of "Trades")
+    const pluralTeamNames = ['LA Lakers', 'LA Clippers'];
+    const isTeamPlural = (teamName) => pluralTeamNames.includes(teamName);
 
     // Function to search teams by name or nickname
     function searchTeams(searchTerm) {
@@ -3646,7 +3650,7 @@
               <div class="players-out">
                 <div class="section-header">
                   ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="section-header-logo" alt="" onerror="this.style.display='none'">` : ''}
-                  <span class="section-header-text trades">${tradeTeam.teamName} Trades</span>
+                  <span class="section-header-text trades">${tradeTeam.teamName} ${isTeamPlural(tradeTeam.teamName) ? 'Trade' : 'Trades'}</span>
                 </div>
               ` : `
               <!-- State 1 & 2: No players yet -->
@@ -3869,7 +3873,7 @@
               <div class="players-in">
                 <div class="section-header">
                   ${teamInfo && teamInfo.logo ? `<img src="${teamInfo.logo}" class="section-header-logo" alt="" onerror="this.style.display='none'">` : ''}
-                  <span class="section-header-text acquires">${tradeTeam.teamName || 'Team'} Acquires</span>
+                  <span class="section-header-text acquires">${tradeTeam.teamName || 'Team'} ${isTeamPlural(tradeTeam.teamName) ? 'Acquire' : 'Acquires'}</span>
                 </div>
                 ${tradeTeam.playersIn.map(p => {
                   const incomingValue = getIncomingSalary(p);
