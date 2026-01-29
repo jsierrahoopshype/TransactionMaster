@@ -3056,6 +3056,11 @@
         );
       };
       
+      // Helper to check if a pick is guaranteed (sure pick)
+      const isGuaranteedPick = (pick) => {
+        return pick.surePick === 'YES';
+      };
+      
       // For each year, determine if team will have a "guaranteed" pick after trade
       const guaranteedPicksByYear = {};
       
@@ -3065,26 +3070,16 @@
         
         let hasGuaranteedPick = false;
         
-        // Check owned picks that are NOT being traded
+        // Check owned picks that are NOT being traded AND are guaranteed (surePick = YES)
         picksThisYear.forEach(pick => {
           const beingTraded = isPickBeingTraded(pick);
           
-          if (!beingTraded) {
-            if (pick.surePick === 'YES') {
-              hasGuaranteedPick = true;
-            } else if (pick.linkedTo) {
-              const linkedYear = pick.linkedTo;
-              const linkedPicks = teamFirstRoundPicks.filter(p => p.year === linkedYear);
-              const linkedPickBeingTraded = linkedPicks.some(lp => isPickBeingTraded(lp));
-              
-              if (!linkedPickBeingTraded) {
-                hasGuaranteedPick = true;
-              }
-            }
+          if (!beingTraded && isGuaranteedPick(pick)) {
+            hasGuaranteedPick = true;
           }
         });
         
-        // Check incoming picks for this year
+        // Check incoming picks for this year (only count sure picks)
         const incomingThisYear = incomingFirstRoundPicks.filter(p => p.year === yearStr);
         incomingThisYear.forEach(pick => {
           if (pick.surePick === 'YES') {
