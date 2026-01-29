@@ -619,6 +619,7 @@
       font-size: 0.8125rem;
       flex-wrap: wrap;
       gap: 0.375rem;
+      overflow: visible;
     }
 
     .player-chip-row {
@@ -626,6 +627,7 @@
       justify-content: space-between;
       align-items: center;
       width: 100%;
+      overflow: visible;
     }
 
     .player-headshot {
@@ -652,6 +654,7 @@
       gap: 0.125rem;
       flex: 1;
       min-width: 0;
+      overflow: visible;
     }
 
     .player-chip-name {
@@ -662,7 +665,13 @@
       gap: 0.375rem;
       row-gap: 0.25rem;
       max-width: 100%;
-      overflow: hidden;
+      overflow: visible;
+    }
+    
+    .player-info-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
     }
 
     .player-chip-salary {
@@ -671,7 +680,6 @@
       color: var(--text-secondary);
       flex-shrink: 0;
       margin-top: 0.125rem;
-    }
     }
 
     .player-chip-remove {
@@ -2718,10 +2726,9 @@
     function getMaxIncoming(status, outgoingSalary, capSpace = 0) {
       if (status === 'Cap Space') {
         return capSpace + outgoingSalary;
-      } else if (status === '2nd Apron') {
-        return outgoingSalary + 250000;
-      } else if (status === '1st Apron') {
-        return outgoingSalary * 1.1 + 250000;
+      } else if (status === '2nd Apron' || status === '1st Apron') {
+        // Apron teams cannot take back more than 100% of outgoing
+        return outgoingSalary;
       } else {
         // Below Tax or Tax Team
         return outgoingSalary * 1.75 + 250000;
@@ -2791,8 +2798,8 @@
         
         // Second check: crossing into 1st Apron territory
         if (teamInfo.apronRoom1st > 0 && netIncomingForHardcap > teamInfo.apronRoom1st) {
-          // Must satisfy 1st Apron rules (110% + $100K)
-          const maxIncoming1st = outgoingSalary * 1.1 + 100000;
+          // Must satisfy 1st Apron rules (100% - cannot take back more than outgoing)
+          const maxIncoming1st = outgoingSalary;
           if (incomingSalary > maxIncoming1st) {
             return {
               valid: false,
@@ -2803,8 +2810,8 @@
         
         // Third check: crossing into 2nd Apron territory
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
-          // Must satisfy 2nd Apron rules (100% + $100K)
-          const maxIncoming2nd = outgoingSalary + 100000;
+          // Must satisfy 2nd Apron rules (100% - cannot take back more than outgoing)
+          const maxIncoming2nd = outgoingSalary;
           if (incomingSalary > maxIncoming2nd) {
             return {
               valid: false,
@@ -2815,7 +2822,7 @@
       } else if (status === 'TAX TEAM') {
         // First check: crossing into 1st Apron territory
         if (teamInfo.apronRoom1st > 0 && netIncomingForHardcap > teamInfo.apronRoom1st) {
-          const maxIncoming1st = outgoingSalary * 1.1 + 100000;
+          const maxIncoming1st = outgoingSalary;
           if (incomingSalary > maxIncoming1st) {
             return {
               valid: false,
@@ -2826,7 +2833,7 @@
         
         // Second check: crossing into 2nd Apron territory
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
-          const maxIncoming2nd = outgoingSalary + 100000;
+          const maxIncoming2nd = outgoingSalary;
           if (incomingSalary > maxIncoming2nd) {
             return {
               valid: false,
@@ -2837,7 +2844,7 @@
       } else if (status === '1ST APRON') {
         // Check: crossing into 2nd Apron territory
         if (teamInfo.apronRoom2nd > 0 && netIncomingForHardcap > teamInfo.apronRoom2nd) {
-          const maxIncoming2nd = outgoingSalary + 100000;
+          const maxIncoming2nd = outgoingSalary;
           if (incomingSalary > maxIncoming2nd) {
             return {
               valid: false,
@@ -2884,16 +2891,15 @@
       //   * Outgoing $7,500,001 - $29,000,000: Outgoing + $7.5M
       //   * Outgoing > $29,000,000: 125% + $250K
       // - Tax Team: 125% + $100K
-      // - 1st Apron: 110% + $100K
-      // - 2nd Apron: 100% + $100K
+      // - 1st Apron: 100% (cannot take back more than outgoing)
+      // - 2nd Apron: 100% (cannot take back more than outgoing)
       let maxIncoming;
       if (effectiveStatus === 'CAP SPACE') {
         // Cap Space teams can absorb up to their cap space + any outgoing salary
         maxIncoming = teamInfo.capSpace + outgoingSalary;
-      } else if (effectiveStatus === '2ND APRON') {
-        maxIncoming = outgoingSalary + 100000;
-      } else if (effectiveStatus === '1ST APRON') {
-        maxIncoming = outgoingSalary * 1.1 + 100000;
+      } else if (effectiveStatus === '2ND APRON' || effectiveStatus === '1ST APRON') {
+        // Apron teams cannot take back more than 100% of outgoing salary
+        maxIncoming = outgoingSalary;
       } else if (effectiveStatus === 'TAX TEAM') {
         // Tax teams: 125% + $100K
         maxIncoming = outgoingSalary * 1.25 + 100000;
