@@ -2566,8 +2566,10 @@
     
     // Fetch global trade stats from API
     async function fetchTradeStats() {
+      console.log('fetchTradeStats: Starting...');
       try {
         const response = await fetch('/api/trade-stats');
+        console.log('fetchTradeStats: Response status:', response.status);
         if (response.ok) {
           globalTradeStats = await response.json();
           console.log('Trade stats loaded:', globalTradeStats.totalTrades, 'trades,', Object.keys(globalTradeStats.players).length, 'players');
@@ -2613,6 +2615,19 @@
       const stats = globalTradeStats.players[playerId];
       return stats ? parseFloat(stats.percentage) : 0;
     }
+    
+    // Debug function to check a specific player's trade stats
+    window.debugPlayerStats = function(playerName) {
+      const player = players.find(p => p.player.toLowerCase().includes(playerName.toLowerCase()));
+      if (player) {
+        console.log('Player:', player.player);
+        console.log('Player ID:', player.playerId);
+        console.log('Stats:', globalTradeStats.players[player.playerId]);
+        console.log('Percentage:', getPlayerTradePercentage(player.playerId));
+      } else {
+        console.log('Player not found');
+      }
+    };
     
     function getPlayerTradeCounts() {
       try {
@@ -8391,7 +8406,7 @@
             headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || '',
             // Extract player ID from headshot URL (e.g., .../260x190/203944.png -> 203944)
             playerId: (() => {
-              const hs = row['HEADSHOT']?.trim() || row['Headshot']?.trim() || '';
+              const hs = row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || '';
               const match = hs.match(/\/(\d+)\.png/);
               return match ? match[1] : '';
             })(),
@@ -8476,7 +8491,11 @@
       render();
       
       // Fetch global trade stats (non-blocking)
-      fetchTradeStats().then(() => render());
+      console.log('About to call fetchTradeStats...');
+      fetchTradeStats().then(() => {
+        console.log('fetchTradeStats completed, re-rendering...');
+        render();
+      });
       
       // Check for trade loop URL parameters
       setupTradeLoopFromUrl();
