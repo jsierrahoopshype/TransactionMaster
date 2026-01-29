@@ -3056,11 +3056,6 @@
         );
       };
       
-      // Helper to check if a pick is guaranteed (sure pick)
-      const isGuaranteedPick = (pick) => {
-        return pick.surePick === 'YES';
-      };
-      
       // For each year, determine if team will have a "guaranteed" pick after trade
       const guaranteedPicksByYear = {};
       
@@ -3070,11 +3065,11 @@
         
         let hasGuaranteedPick = false;
         
-        // Check owned picks that are NOT being traded AND are guaranteed (surePick = YES)
+        // Check owned picks that are NOT being traded AND are sure picks
         picksThisYear.forEach(pick => {
           const beingTraded = isPickBeingTraded(pick);
           
-          if (!beingTraded && isGuaranteedPick(pick)) {
+          if (!beingTraded && pick.surePick === 'YES') {
             hasGuaranteedPick = true;
           }
         });
@@ -3090,12 +3085,44 @@
         guaranteedPicksByYear[yearStr] = hasGuaranteedPick;
       });
       
+      // Check for linked pick coverage
+      // If two years have conditional picks linked to each other and NEITHER is being traded,
+      // then one of them WILL convey, covering that consecutive pair
+      const linkedCoverage = {};
+      
+      years.forEach(year => {
+        const yearStr = year.toString();
+        const picksThisYear = teamFirstRoundPicks.filter(p => p.year === yearStr);
+        
+        picksThisYear.forEach(pick => {
+          if (pick.linkedTo && !isPickBeingTraded(pick)) {
+            const linkedYear = pick.linkedTo;
+            const linkedPicks = teamFirstRoundPicks.filter(p => p.year === linkedYear);
+            
+            // Check if the linked pick exists and is also not being traded
+            const linkedPickNotBeingTraded = linkedPicks.some(lp => lp.linkedTo && !isPickBeingTraded(lp));
+            
+            if (linkedPickNotBeingTraded) {
+              // This consecutive pair is covered by linked picks
+              const pairKey = [yearStr, linkedYear].sort().join('-');
+              linkedCoverage[pairKey] = true;
+            }
+          }
+        });
+      });
+      
       // Check for consecutive years without a guaranteed pick
       for (let i = 0; i < years.length - 1; i++) {
         const year1 = years[i].toString();
         const year2 = years[i + 1].toString();
         
-        if (!guaranteedPicksByYear[year1] && !guaranteedPicksByYear[year2]) {
+        // Check if this pair is covered by either:
+        // 1. At least one year has a guaranteed (sure) pick
+        // 2. The pair is covered by linked conditional picks (neither being traded)
+        const pairKey = [year1, year2].sort().join('-');
+        const coveredByLinked = linkedCoverage[pairKey];
+        
+        if (!guaranteedPicksByYear[year1] && !guaranteedPicksByYear[year2] && !coveredByLinked) {
           return { 
             valid: false, 
             message: `Stepien Rule: ${teamName} must have a 1st round pick in ${year1} or ${year2}`
