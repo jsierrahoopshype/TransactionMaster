@@ -2806,6 +2806,13 @@
               message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1st)}`
             };
           }
+          // Also check actual cap impact (catches MSE players)
+          if (incomingCapImpact > outgoingSalary) {
+            return {
+              valid: false,
+              message: `Trade would push team into 1st apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+            };
+          }
         }
         
         // Third check: crossing into 2nd Apron territory
@@ -2816,6 +2823,13 @@
             return {
               valid: false,
               message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+            };
+          }
+          // Also check actual cap impact (catches MSE players)
+          if (incomingCapImpact > outgoingSalary) {
+            return {
+              valid: false,
+              message: `Trade would push team into 2nd apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
             };
           }
         }
@@ -2829,6 +2843,13 @@
               message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1st)}`
             };
           }
+          // Also check actual cap impact (catches MSE players)
+          if (incomingCapImpact > outgoingSalary) {
+            return {
+              valid: false,
+              message: `Trade would push team into 1st apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+            };
+          }
         }
         
         // Second check: crossing into 2nd Apron territory
@@ -2840,6 +2861,13 @@
               message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
             };
           }
+          // Also check actual cap impact (catches MSE players)
+          if (incomingCapImpact > outgoingSalary) {
+            return {
+              valid: false,
+              message: `Trade would push team into 2nd apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+            };
+          }
         }
       } else if (status === '1ST APRON') {
         // Check: crossing into 2nd Apron territory
@@ -2849,6 +2877,13 @@
             return {
               valid: false,
               message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+            };
+          }
+          // Also check actual cap impact (catches MSE players)
+          if (incomingCapImpact > outgoingSalary) {
+            return {
+              valid: false,
+              message: `Trade would push team into 2nd apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
             };
           }
         }
@@ -2926,6 +2961,18 @@
           valid: false, 
           message: `Need to send out ${formatSalary(deficit)} more in salary` 
         };
+      }
+      
+      // Additional check for apron teams: actual cap impact cannot exceed outgoing
+      // This catches MSE players whose salary-matching value is $0 but actual salary counts against cap
+      if (effectiveStatus === '1ST APRON' || effectiveStatus === '2ND APRON') {
+        if (incomingCapImpact > outgoingSalary) {
+          const deficit = incomingCapImpact - outgoingSalary;
+          return { 
+            valid: false, 
+            message: `Apron team cannot receive more salary than sent - over by ${formatSalary(deficit)}` 
+          };
+        }
       }
 
       // Check for trade restrictions
