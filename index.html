@@ -2497,6 +2497,45 @@
       'Utah': ['Jazz'],
       'Washington': ['Wizards']
     };
+    
+    // Team abbreviations for compact URLs
+    const teamAbbreviations = {
+      'Atlanta': 'ATL',
+      'Boston': 'BOS',
+      'Brooklyn': 'BKN',
+      'Charlotte': 'CHA',
+      'Chicago': 'CHI',
+      'Cleveland': 'CLE',
+      'Dallas': 'DAL',
+      'Denver': 'DEN',
+      'Detroit': 'DET',
+      'Golden State': 'GSW',
+      'Houston': 'HOU',
+      'Indiana': 'IND',
+      'LA Clippers': 'LAC',
+      'LA Lakers': 'LAL',
+      'Memphis': 'MEM',
+      'Miami': 'MIA',
+      'Milwaukee': 'MIL',
+      'Minnesota': 'MIN',
+      'New Orleans': 'NOP',
+      'New York': 'NYK',
+      'Oklahoma City': 'OKC',
+      'Orlando': 'ORL',
+      'Philadelphia': 'PHI',
+      'Phoenix': 'PHX',
+      'Portland': 'POR',
+      'Sacramento': 'SAC',
+      'San Antonio': 'SAS',
+      'Toronto': 'TOR',
+      'Utah': 'UTA',
+      'Washington': 'WAS'
+    };
+    
+    // Reverse lookup: abbreviation to team name
+    const abbrevToTeam = Object.fromEntries(
+      Object.entries(teamAbbreviations).map(([name, abbr]) => [abbr, name])
+    );
 
     // Function to search teams by name or nickname
     function searchTeams(searchTerm) {
@@ -4412,33 +4451,40 @@
         return;
       }
       
-      // Create simple URL with player names as slugs
-      const playerSlugs = allPlayersOut.slice(0, 6).map(p => 
-        p.name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
-      );
-      const teamSlugs = Array.from(allTeams).slice(0, 5).map(name =>
-        name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+      // Get player objects to access IDs
+      const getPlayerById = (name) => players.find(p => p.player === name);
+      
+      // Use compact format: player IDs and team abbreviations
+      const playerIds = allPlayersOut.slice(0, 8).map(p => {
+        const playerObj = getPlayerById(p.name);
+        return playerObj?.playerId || p.name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+      });
+      
+      const teamAbbrevs = Array.from(allTeams).slice(0, 5).map(name =>
+        teamAbbreviations[name] || name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
       );
       
       const params = new URLSearchParams();
-      if (playerSlugs.length > 0) params.set('players', playerSlugs.join(','));
-      if (teamSlugs.length > 0) params.set('teams', teamSlugs.join(','));
+      if (playerIds.length > 0) params.set('p', playerIds.join(','));
+      if (teamAbbrevs.length > 0) params.set('t', teamAbbrevs.join(','));
       
       // Encode player destinations (format: fromTeamIdx-destIdx,fromTeamIdx-destIdx,...)
-      const playerDests = allPlayersOut.slice(0, 6).map(p => 
+      const playerDests = allPlayersOut.slice(0, 8).map(p => 
         `${p.fromTeamIndex}-${p.destination !== undefined ? p.destination : ''}`
       );
       if (playerDests.some(d => d.includes('-') && d.split('-')[1] !== '')) {
         params.set('pd', playerDests.join(','));
       }
       
-      // Encode picks (format: fromTeamIdx:pickTeam:year:round:destIdx,...)
+      // Encode picks (format: fromTeamIdx:pickTeamAbbrev:year:round:destIdx,...)
       if (allPicks.length > 0) {
         const pickStrings = allPicks.slice(0, 6).map(pick => {
-          const pickTeamSlug = pick.pickTeam.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
-          return `${pick.fromTeamIndex}:${pickTeamSlug}:${pick.year}:${pick.round}:${pick.destination !== undefined ? pick.destination : ''}`;
+          const pickTeamAbbrev = teamAbbreviations[pick.pickTeam] || pick.pickTeam.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+          // Use short round format: 1 or 2 instead of 1st or 2nd
+          const roundShort = pick.round === '1st' ? '1' : '2';
+          return `${pick.fromTeamIndex}:${pickTeamAbbrev}:${pick.year}:${roundShort}:${pick.destination !== undefined ? pick.destination : ''}`;
         });
-        params.set('picks', pickStrings.join(','));
+        params.set('pk', pickStrings.join(','));
       }
       
       // Encode draft rights (format: fromTeamIdx:playerName:destIdx,...)
@@ -4447,7 +4493,7 @@
           const playerSlug = rights.playerName.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
           return `${rights.fromTeamIndex}:${playerSlug}:${rights.destination !== undefined ? rights.destination : ''}`;
         });
-        params.set('rights', rightsStrings.join(','));
+        params.set('r', rightsStrings.join(','));
       }
       
       // Encode cash (format: fromTeamIdx:destIdx,...)
@@ -4455,7 +4501,7 @@
         const cashStrings = allCash.slice(0, 4).map(cash => 
           `${cash.fromTeamIndex}:${cash.destination !== undefined ? cash.destination : ''}`
         );
-        params.set('cash', cashStrings.join(','));
+        params.set('c', cashStrings.join(','));
       }
       
       const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -7746,18 +7792,24 @@
     // Build initial trade from URL parameters
     function buildTradeFromUrl() {
       const params = new URLSearchParams(window.location.search);
-      const playersParam = params.get('players');
-      const teamsParam = params.get('teams');
+      // Support both old format (players=, teams=) and new compact format (p=, t=)
+      const playersParam = params.get('players') || params.get('p');
+      const teamsParam = params.get('teams') || params.get('t');
       const playerDestsParam = params.get('pd'); // Player destinations
-      const picksParam = params.get('picks');
-      const rightsParam = params.get('rights');
-      const cashParam = params.get('cash');
+      const picksParam = params.get('picks') || params.get('pk');
+      const rightsParam = params.get('rights') || params.get('r');
+      const cashParam = params.get('cash') || params.get('c');
+      
+      // Detect if using new compact format (player IDs instead of names)
+      const isCompactFormat = params.has('p') || params.has('t');
       
       if (!playersParam && !teamsParam) return null;
       
-      // Parse player slugs (e.g., "Naz-Reid,Joe-Ingles")
-      const playerSlugs = playersParam ? playersParam.split(',').map(s => s.trim()) : [];
-      const teamSlugs = teamsParam ? teamsParam.split(',').map(s => s.trim()) : [];
+      // Parse player identifiers (IDs or slugs)
+      const playerIdentifiers = playersParam ? playersParam.split(',').map(s => s.trim()) : [];
+      
+      // Parse team identifiers (abbreviations or slugs)
+      const teamIdentifiers = teamsParam ? teamsParam.split(',').map(s => s.trim()) : [];
       
       // Parse player destinations (format: fromTeamIdx-destIdx,...)
       const playerDests = playerDestsParam ? playerDestsParam.split(',').map(d => {
@@ -7765,14 +7817,25 @@
         return { fromTeamIdx: parseInt(parts[0]) || 0, destIdx: parts[1] !== '' ? parseInt(parts[1]) : undefined };
       }) : [];
       
-      // Match slugs to actual players
+      // Match identifiers to actual players
       const matchedPlayers = [];
-      playerSlugs.forEach((slug, idx) => {
-        const slugLower = slug.toLowerCase().replace(/-/g, '');
-        const player = players.find(p => {
-          const playerSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          return playerSlug === slugLower || playerSlug.includes(slugLower) || slugLower.includes(playerSlug);
-        });
+      playerIdentifiers.forEach((identifier, idx) => {
+        let player;
+        
+        // Check if it's a numeric player ID
+        if (/^\d+$/.test(identifier)) {
+          player = players.find(p => p.playerId === identifier);
+        }
+        
+        // Fall back to slug matching
+        if (!player) {
+          const slugLower = identifier.toLowerCase().replace(/-/g, '');
+          player = players.find(p => {
+            const playerSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return playerSlug === slugLower || playerSlug.includes(slugLower) || slugLower.includes(playerSlug);
+          });
+        }
+        
         if (player) {
           const dest = playerDests[idx];
           matchedPlayers.push({
@@ -7783,14 +7846,26 @@
         }
       });
       
-      // Match slugs to actual teams
+      // Match identifiers to actual teams
       const matchedTeams = [];
-      teamSlugs.forEach(slug => {
-        const slugLower = slug.toLowerCase().replace(/-/g, '');
-        const team = teams.find(t => {
-          const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          return teamSlug === slugLower || teamSlug.includes(slugLower) || slugLower.includes(teamSlug);
-        });
+      teamIdentifiers.forEach(identifier => {
+        let team;
+        
+        // Check if it's a team abbreviation
+        const upperIdent = identifier.toUpperCase();
+        if (abbrevToTeam[upperIdent]) {
+          team = abbrevToTeam[upperIdent];
+        }
+        
+        // Fall back to slug matching
+        if (!team) {
+          const slugLower = identifier.toLowerCase().replace(/-/g, '');
+          team = teams.find(t => {
+            const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return teamSlug === slugLower || teamSlug.includes(slugLower) || slugLower.includes(teamSlug);
+          });
+        }
+        
         if (team && !matchedTeams.includes(team)) matchedTeams.push(team);
       });
       
@@ -7833,22 +7908,34 @@
       });
       
       // Parse and add picks (format: fromTeamIdx:pickTeam:year:round:destIdx,...)
+      // Supports both old format (team slugs, "1st"/"2nd") and new compact format (abbreviations, "1"/"2")
       if (picksParam) {
         const pickStrings = picksParam.split(',');
         pickStrings.forEach(pickStr => {
           const parts = pickStr.split(':');
           if (parts.length >= 4) {
             const fromTeamIdx = parseInt(parts[0]) || 0;
-            const pickTeamSlug = parts[1].toLowerCase().replace(/-/g, '');
+            const pickTeamIdent = parts[1];
             const year = parts[2];
-            const round = parts[3];
+            let round = parts[3];
             const destIdx = parts[4] !== undefined && parts[4] !== '' ? parseInt(parts[4]) : undefined;
             
-            // Find the actual pick team name
-            const pickTeamName = teams.find(t => {
-              const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-              return teamSlug === pickTeamSlug || teamSlug.includes(pickTeamSlug) || pickTeamSlug.includes(teamSlug);
-            });
+            // Convert short round format to full format
+            if (round === '1') round = '1st';
+            if (round === '2') round = '2nd';
+            
+            // Find the actual pick team name (try abbreviation first, then slug)
+            let pickTeamName;
+            const upperIdent = pickTeamIdent.toUpperCase();
+            if (abbrevToTeam[upperIdent]) {
+              pickTeamName = abbrevToTeam[upperIdent];
+            } else {
+              const pickTeamSlug = pickTeamIdent.toLowerCase().replace(/-/g, '');
+              pickTeamName = teams.find(t => {
+                const teamSlug = t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                return teamSlug === pickTeamSlug || teamSlug.includes(pickTeamSlug) || pickTeamSlug.includes(teamSlug);
+              });
+            }
             
             // Find the matching draft pick
             if (pickTeamName && fromTeamIdx < tradeTeamsList.length) {
@@ -8166,6 +8253,12 @@
             injuryReason: row['REASON']?.trim() || '',
             teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
             headshot: row['HEADSHOT']?.trim() || row['Headshot']?.trim() || row['PLAYER HEADSHOT']?.trim() || '',
+            // Extract player ID from headshot URL (e.g., .../260x190/203944.png -> 203944)
+            playerId: (() => {
+              const hs = row['HEADSHOT']?.trim() || row['Headshot']?.trim() || '';
+              const match = hs.match(/\/(\d+)\.png/);
+              return match ? match[1] : '';
+            })(),
             capHold: parseSalary(row['CH 25-26'] || row['CAP HOLD'] || 0),
             unlikelyBonus: parseSalary(row['UNLIKELY BONUS'] || 0)
           };
