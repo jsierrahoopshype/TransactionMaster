@@ -3487,6 +3487,10 @@
       const validation = tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) 
         ? validateTeamTrade(tradeTeam) 
         : null;
+      
+      // Check if overall trade is valid (for mobile roster collapse)
+      const globalValidation = validateTrade();
+      const isTradeValid = globalValidation.valid || globalValidation.type?.startsWith('pending');
 
       const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
       const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
@@ -3989,7 +3993,7 @@
             </div>
               
             ${tradeTeam.teamName ? `
-              <div class="roster-section${(tradeTeam.playersOut.length === 0 && (!tradeTeam.picksOut || tradeTeam.picksOut.length === 0) && (!tradeTeam.rightsOut || tradeTeam.rightsOut.length === 0) && (!tradeTeam.cashOut || tradeTeam.cashOut.length === 0)) ? ' expanded' : ''}">
+              <div class="roster-section${!isTradeValid ? ' expanded' : ''}">
                 <div class="section-label">Roster</div>
                 <div class="player-roster" data-team="${index}">
                   ${getTeamPlayers(tradeTeam.teamName)
