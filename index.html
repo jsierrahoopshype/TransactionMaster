@@ -1036,13 +1036,19 @@
     }
     
     .trending-badge {
-      font-size: 0.6rem;
-      padding: 0.125rem 0.4rem;
-      border-radius: 4px;
+      font-size: 0.55rem;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
       background: rgba(239, 68, 68, 0.2);
       color: #ef4444;
       font-weight: 600;
       cursor: help;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    
+    .player-roster-item .trending-badge {
+      margin-left: auto;
     }
 
     .tpe-section {
@@ -3771,6 +3777,7 @@
                 ${tradeTeam.playersOut.map((p, pIndex) => {
                   const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                   const outgoingValue = getOutgoingSalary(p);
+                  const tradePct = getPlayerTradePercentage(p.playerId);
                   return `
                   <div class="player-chip">
                     <div class="player-chip-row">
@@ -3799,8 +3806,13 @@
                                 <span class="player-info-label">Total Guaranteed</span>
                                 <span class="player-info-value">${formatSalary(p.guaranteedMoney || 0)}</span>
                               </div>
+                              ${tradePct > 0 ? `<div class="player-info-row">
+                                <span class="player-info-label">Trade Activity</span>
+                                <span class="player-info-value" style="color: ${tradePct >= 5 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
+                              </div>` : ''}
                             </div>
                           </span>
+                          ${tradePct >= 5 ? `<span class="trending-badge" title="Appears in ${tradePct}% of trades">TRENDING</span>` : ''}
                           ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
                           ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
