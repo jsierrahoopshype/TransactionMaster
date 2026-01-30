@@ -2416,13 +2416,10 @@
       .then(data => { initialRumorsData = data; return data; })
       .catch(() => []);
     
-    // Start fetching trade stats in parallel (with 500ms timeout to not delay render)
-    const tradeStatsFetchPromise = Promise.race([
-      fetch('/api/trade-stats')
-        .then(r => r.ok ? r.json() : { totalTrades: 0, players: {} })
-        .catch(() => ({ totalTrades: 0, players: {} })),
-      new Promise(resolve => setTimeout(() => resolve({ totalTrades: 0, players: {} }), 500))
-    ]);
+    // Start fetching trade stats in parallel
+    const tradeStatsFetchPromise = fetch('/api/trade-stats')
+      .then(r => r.ok ? r.json() : { totalTrades: 0, players: {} })
+      .catch(() => ({ totalTrades: 0, players: {} }));
     
     const MAX_TEAMS = 5;
 
@@ -8438,7 +8435,7 @@
       ];
     }
 
-    async function processCSVData(results) {
+    function processCSVData(results) {
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
@@ -8563,12 +8560,10 @@
       
       redistributePlayers();
       loadingState.style.display = 'none';
-      
-      // Wait for trade stats (already fetching in parallel) before first render
-      // Uses 500ms timeout to not delay render too much
-      await fetchTradeStats(true);
-      
       render();
+      
+      // Fetch global trade stats (use pre-started fetch for speed, re-render when done)
+      fetchTradeStats(true).then(() => render());
       
       // Check for trade loop URL parameters
       setupTradeLoopFromUrl();
