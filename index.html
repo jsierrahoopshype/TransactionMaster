@@ -2626,14 +2626,22 @@
       try {
         // Create a hash of the trade to avoid tracking duplicates
         const sortedIds = [...playerIds].sort().join(',');
-        if (sortedIds === lastTrackedTradeHash) return;
+        if (sortedIds === lastTrackedTradeHash) {
+          console.log('[Trade Tracking] Skipped - duplicate trade');
+          return;
+        }
         lastTrackedTradeHash = sortedIds;
         
-        await fetch('/api/track-trade', {
+        console.log('[Trade Tracking] Tracking trade with', playerIds.length, 'players:', playerIds);
+        
+        const response = await fetch('/api/track-trade', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerIds })
         });
+        
+        const result = await response.json();
+        console.log('[Trade Tracking] Result:', result);
         
         // Update local stats optimistically
         globalTradeStats.totalTrades++;
@@ -2646,7 +2654,7 @@
             ((globalTradeStats.players[id].count / globalTradeStats.totalTrades) * 100).toFixed(1);
         });
       } catch (e) {
-        console.log('Could not track trade:', e);
+        console.log('[Trade Tracking] Error:', e);
       }
     }
     
