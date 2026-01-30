@@ -2416,6 +2416,14 @@
       .then(data => { initialRumorsData = data; return data; })
       .catch(() => []);
     
+    // Start fetching trade stats in parallel (with 500ms timeout to not delay render)
+    const tradeStatsFetchPromise = Promise.race([
+      fetch('/api/trade-stats')
+        .then(r => r.ok ? r.json() : { totalTrades: 0, players: {} })
+        .catch(() => ({ totalTrades: 0, players: {} })),
+      new Promise(resolve => setTimeout(() => resolve({ totalTrades: 0, players: {} }), 500))
+    ]);
+    
     const MAX_TEAMS = 5;
 
     let players = [];
@@ -2577,13 +2585,40 @@
     let globalTradeStats = { totalTrades: 0, players: {} };
     let lastTrackedTradeHash = ''; // To avoid tracking same trade multiple times
     
-    // Fetch global trade stats from API
-    async function fetchTradeStats() {
-      try {
-        const response = await fetch('/api/trade-stats');
-        if (response.ok) {
-          globalTradeStats = await response.json();
+    // Try to load cached trade stats immediately
+    try {
+      const cachedStats = localStorage.getItem('tradeStatsCache');
+      if (cachedStats) {
+        const { data, timestamp } = JSON.parse(cachedStats);
+        // Use cache if less than 5 minutes old
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          globalTradeStats = data;
         }
+      }
+    } catch (e) {}
+    
+    // Fetch global trade stats from API
+    let tradeStatsLoaded = false;
+    async function fetchTradeStats(usePreloaded = false) {
+      try {
+        if (usePreloaded && !tradeStatsLoaded) {
+          // Use the pre-started fetch on first call
+          globalTradeStats = await tradeStatsFetchPromise;
+          tradeStatsLoaded = true;
+        } else {
+          // Fresh fetch for subsequent calls
+          const response = await fetch('/api/trade-stats');
+          if (response.ok) {
+            globalTradeStats = await response.json();
+          }
+        }
+        // Cache the stats
+        try {
+          localStorage.setItem('tradeStatsCache', JSON.stringify({
+            data: globalTradeStats,
+            timestamp: Date.now()
+          }));
+        } catch (e) {}
       } catch (e) {
         // Silently fail - trade stats are optional
       }
@@ -8403,7 +8438,7 @@
       ];
     }
 
-    function processCSVData(results) {
+    async function processCSVData(results) {
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
@@ -8528,10 +8563,12 @@
       
       redistributePlayers();
       loadingState.style.display = 'none';
-      render();
       
-      // Fetch global trade stats (non-blocking)
-      fetchTradeStats().then(() => render());
+      // Wait for trade stats (already fetching in parallel) before first render
+      // Uses 500ms timeout to not delay render too much
+      await fetchTradeStats(true);
+      
+      render();
       
       // Check for trade loop URL parameters
       setupTradeLoopFromUrl();
