@@ -451,6 +451,7 @@
       border-radius: 12px;
       display: flex;
       flex-direction: column;
+      overflow: visible;
     }
 
     .team-card.valid {
@@ -953,6 +954,7 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       background: var(--bg);
+      overflow: visible;
     }
 
     .player-roster-item {
@@ -991,8 +993,29 @@
     }
 
     .player-roster-item.disabled {
-      opacity: 0.4;
       cursor: not-allowed;
+    }
+    
+    /* Info icon should still be interactive on disabled items */
+    .player-roster-item.disabled .player-info-wrapper {
+      cursor: help;
+    }
+    
+    /* Use color change instead of opacity so tooltip stays visible */
+    .player-roster-item.disabled > .roster-headshot {
+      opacity: 0.4;
+    }
+    
+    .player-roster-item.disabled > .roster-headshot-placeholder {
+      opacity: 0.4;
+    }
+    
+    .player-roster-item.disabled > .player-roster-name {
+      color: var(--text-secondary);
+    }
+    
+    .player-roster-item.disabled > .player-roster-salary {
+      opacity: 0.4;
     }
 
     .player-roster-item.disabled:hover {
@@ -1412,7 +1435,7 @@
       min-width: 220px;
       max-width: 280px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      z-index: 1000;
+      z-index: 9999;
       opacity: 0;
       visibility: hidden;
       transition: all 0.15s;
@@ -4569,8 +4592,38 @@
         }
       });
       
-      // Keep page title constant
-      document.title = 'NBA Trade Machine';
+      // Update page title based on trade
+      if (allPlayersOut.length > 0 || allPicks.length > 0 || allRights.length > 0) {
+        // Get first few player last names for title
+        const playerNames = allPlayersOut.slice(0, 3).map(p => {
+          const parts = p.name.split(' ');
+          return parts[parts.length - 1]; // Last name
+        });
+        
+        let titleParts = [];
+        
+        if (playerNames.length > 0) {
+          if (allPlayersOut.length > 3) {
+            titleParts.push(`${playerNames.join(', ')} +${allPlayersOut.length - 3}`);
+          } else {
+            titleParts.push(playerNames.join(', '));
+          }
+        }
+        
+        // Add pick count if present
+        if (allPicks.length > 0) {
+          titleParts.push(`${allPicks.length} pick${allPicks.length > 1 ? 's' : ''}`);
+        }
+        
+        // Add rights count if present
+        if (allRights.length > 0 && playerNames.length === 0) {
+          titleParts.push(`${allRights.length} draft right${allRights.length > 1 ? 's' : ''}`);
+        }
+        
+        document.title = titleParts.length > 0 ? `Trade Machine - ${titleParts.join(' + ')}` : 'NBA Trade Machine';
+      } else {
+        document.title = 'NBA Trade Machine';
+      }
       
       // Check if this is a loop URL - don't modify those
       if (IS_LOOP_URL) {
