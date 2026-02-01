@@ -3468,6 +3468,29 @@
         }
       }
 
+      // Check "No Trade To" restrictions (players who can't be traded to specific teams)
+      // This applies when a player was waived/traded from a team in the current season
+      tradeTeams.forEach((team, teamIndex) => {
+        team.playersOut.forEach(player => {
+          if (player.noTradeTo && player.destination !== undefined) {
+            const destTeam = tradeTeams[player.destination];
+            if (destTeam && destTeam.teamName) {
+              // Check if the destination team matches any restricted team
+              const restrictedTeams = player.noTradeTo.split(',').map(t => t.trim().toLowerCase());
+              const destTeamLower = destTeam.teamName.toLowerCase();
+              if (restrictedTeams.some(rt => destTeamLower.includes(rt) || rt.includes(destTeamLower))) {
+                allValid = false;
+                invalidMessages.push(`${player.player} cannot be traded to ${destTeam.teamName} (waived/traded from there this season)`);
+              }
+            }
+          }
+        });
+      });
+
+      if (!allValid) {
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
+      }
+
       // Validate each team's side (only for teams with players)
       let allValid = true;
       let allWarnings = [];
@@ -3850,6 +3873,10 @@
                               ${tradePct > 0 ? `<div class="player-info-row">
                                 <span class="player-info-label">Trade Activity</span>
                                 <span class="player-info-value" style="color: ${tradePct >= 3 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
+                              </div>` : ''}
+                              ${p.noTradeTo ? `<div class="player-info-row">
+                                <span class="player-info-label">Can't trade to</span>
+                                <span class="player-info-value" style="color: #ef4444">${p.noTradeTo}</span>
                               </div>` : ''}
                             </div>
                           </span>
@@ -4323,6 +4350,10 @@
                                   }
                                   return '';
                                 })()}
+                                ${p.noTradeTo ? `<div class="player-info-row">
+                                  <span class="player-info-label">Can't trade to</span>
+                                  <span class="player-info-value" style="color: #ef4444">${p.noTradeTo}</span>
+                                </div>` : ''}
                               </div>
                             </span>
                             ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
@@ -5068,6 +5099,14 @@
           }
         });
       });
+    }
+
+    // Check if a player can be traded to a specific team
+    function canTradePlayerToTeam(player, destTeamName) {
+      if (!player.noTradeTo || !destTeamName) return true;
+      const restrictedTeams = player.noTradeTo.split(',').map(t => t.trim().toLowerCase());
+      const destLower = destTeamName.toLowerCase();
+      return !restrictedTeams.some(rt => destLower.includes(rt) || rt.includes(destLower));
     }
 
     // Generate a random valid trade
@@ -8470,6 +8509,7 @@
             contractEnd: row['END']?.trim() || '',
             guaranteedMoney: parseSalary(row['TOTAL GUARANTEED'] || 0),
             noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
+            noTradeTo: (row['NO TRADE TO'] || '').toString().trim(),
             notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
             poisonPill: parseSalary(row['POISON PILL'] || 0),
             tradeKicker: tradeKickerValue,
