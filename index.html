@@ -2421,7 +2421,7 @@
       .catch(() => []);
     
     // Start fetching trade stats in parallel
-    const tradeStatsFetchPromise = fetch('/api/trade-stats')
+    const tradeStatsFetchPromise = fetch('/api/trade-stats?period=24h')
       .then(r => r.ok ? r.json() : { totalTrades: 0, players: {} })
       .catch(() => ({ totalTrades: 0, players: {} }));
     
@@ -2608,7 +2608,7 @@
           tradeStatsLoaded = true;
         } else {
           // Fresh fetch for subsequent calls
-          const response = await fetch('/api/trade-stats');
+          const response = await fetch('/api/trade-stats?period=24h');
           if (response.ok) {
             globalTradeStats = await response.json();
           }
@@ -3849,11 +3849,11 @@
                               </div>
                               ${tradePct > 0 ? `<div class="player-info-row">
                                 <span class="player-info-label">Trade Activity</span>
-                                <span class="player-info-value" style="color: ${tradePct >= 5 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
+                                <span class="player-info-value" style="color: ${tradePct >= 3 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
                               </div>` : ''}
                             </div>
                           </span>
-                          ${tradePct >= 5 ? `<span class="trending-badge" title="Trending: Appears in ${tradePct}% of trades">🔥</span>` : ''}
+                          ${tradePct >= 3 ? `<span class="trending-badge" title="Trending: Appears in ${tradePct}% of trades">🔥</span>` : ''}
                           ${p.isOut ? `<span class="injury-badge" title="${p.injuryReason || 'Inactive'}">✚</span>` : ''}
                           ${isTwoWay ? '<span class="tw-badge" title="Two-Way Contract">TW</span>' : ''}
                           ${p.noTradeClause ? '<span class="ntc-badge" title="No-Trade Clause">NTC</span>' : ''}
@@ -4318,7 +4318,7 @@
                                   if (tradePct > 0) {
                                     return `<div class="player-info-row">
                                       <span class="player-info-label">Trade Activity</span>
-                                      <span class="player-info-value" style="color: ${tradePct >= 5 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
+                                      <span class="player-info-value" style="color: ${tradePct >= 3 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
                                     </div>`;
                                   }
                                   return '';
@@ -4337,7 +4337,7 @@
                             ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                             ${(() => {
                               const pct = getPlayerTradePercentage(p.playerId);
-                              if (pct >= 5) {
+                              if (pct >= 3) {
                                 return `<span class="trending-badge" title="Trending: Appears in ${pct}% of trades">🔥</span>`;
                               }
                               return '';
