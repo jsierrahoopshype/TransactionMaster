@@ -3468,29 +3468,6 @@
         }
       }
 
-      // Check "No Trade To" restrictions (players who can't be traded to specific teams)
-      // This applies when a player was waived/traded from a team in the current season
-      tradeTeams.forEach((team, teamIndex) => {
-        team.playersOut.forEach(player => {
-          if (player.noTradeTo && player.destination !== undefined) {
-            const destTeam = tradeTeams[player.destination];
-            if (destTeam && destTeam.teamName) {
-              // Check if the destination team matches any restricted team
-              const restrictedTeams = player.noTradeTo.split(',').map(t => t.trim().toLowerCase());
-              const destTeamLower = destTeam.teamName.toLowerCase();
-              if (restrictedTeams.some(rt => destTeamLower.includes(rt) || rt.includes(destTeamLower))) {
-                allValid = false;
-                invalidMessages.push(`${player.player} cannot be traded to ${destTeam.teamName} (waived/traded from there this season)`);
-              }
-            }
-          }
-        });
-      });
-
-      if (!allValid) {
-        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
-      }
-
       // Validate each team's side (only for teams with players)
       let allValid = true;
       let allWarnings = [];
@@ -3534,6 +3511,28 @@
             invalidMessages.push(`${t.teamName} (2nd Apron) cannot aggregate player salaries`);
           }
         }
+      });
+
+      if (!allValid) {
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
+      }
+
+      // Check "No Trade To" restrictions (players who can't be traded to specific teams)
+      // This applies when a player was waived/traded from a team in the current season
+      tradeTeams.forEach((team, teamIndex) => {
+        team.playersOut.forEach(player => {
+          if (player.noTradeTo && player.destination !== undefined) {
+            const destTeam = tradeTeams[player.destination];
+            if (destTeam && destTeam.teamName) {
+              const restrictedTeams = player.noTradeTo.split(',').map(t => t.trim().toLowerCase());
+              const destTeamLower = destTeam.teamName.toLowerCase();
+              if (restrictedTeams.some(rt => destTeamLower.includes(rt) || rt.includes(destTeamLower))) {
+                allValid = false;
+                invalidMessages.push(`${player.player} cannot be traded to ${destTeam.teamName} (waived/traded from there this season)`);
+              }
+            }
+          }
+        });
       });
 
       if (!allValid) {
