@@ -2433,13 +2433,35 @@
     
     // Fetch and compute trade values in background
     const tradeValueFetchPromise = fetch(TV_CSV_URL)
-      .then(r => r.ok ? r.text() : null)
-      .then(csvText => {
-        if (!csvText) return;
-        tradeValueMap = computeTradeValues(csvText);
-        console.log(`Trade values loaded: ${tradeValueMap.size} players`);
+      .then(r => {
+        console.log(`Trade value fetch status: ${r.status}`);
+        return r.ok ? r.text() : null;
       })
-      .catch(err => console.log('Trade value fetch skipped:', err.message));
+      .then(csvText => {
+        if (!csvText) {
+          console.log('Trade value fetch returned empty');
+          return;
+        }
+        console.log(`Trade value CSV length: ${csvText.length} chars`);
+        tradeValueMap = computeTradeValues(csvText);
+        console.log(`Trade values computed: ${tradeValueMap.size} players, lowercase map: ${tradeValueMapLower.size}`);
+        // Debug: check known players
+        const wembyTV = getTradeValue('Victor Wembanyama');
+        const pendaTV = getTradeValue('Noah Penda');
+        const isaacTV = getTradeValue('Jonathan Isaac');
+        console.log(`Wembanyama TV: $${wembyTV?.toLocaleString() || 'NOT FOUND'}`);
+        console.log(`Noah Penda TV: $${pendaTV?.toLocaleString() || 'NOT FOUND'}`);
+        console.log(`Jonathan Isaac TV: $${isaacTV?.toLocaleString() || 'NOT FOUND'}`);
+      })
+      .catch(err => {
+        console.error('Trade value fetch failed:', err);
+      });
+    
+    // Case-insensitive trade value lookup
+    let tradeValueMapLower = new Map(); // lowercase name -> trade value
+    function getTradeValue(playerName) {
+      return tradeValueMapLower.get(playerName.toLowerCase().trim());
+    }
     
     // Compact trade value computation (mirrors Trade Value Rankings formula)
     function computeTradeValues(csvText) {
@@ -2548,6 +2570,7 @@
       for (const p of roster) {
         const tv = totalWithAge > 0 ? Math.round((p.tvWithAge / totalWithAge) * totalSalPool) : 0;
         result.set(p.player, tv);
+        tradeValueMapLower.set(p.player.toLowerCase().trim(), tv); // Also populate lowercase map
       }
       return result;
     }
@@ -2577,36 +2600,47 @@
     
     // Check if trade values are balanced (within tolerance)
     function isTradeValueBalanced(testTrade, tolerance = 0.35) {
-      if (tradeValueMap.size === 0) return true; // Skip check if no data
+      if (tradeValueMapLower.size === 0) {
+        console.log('Trade value check skipped: no data loaded');
+        return true; // Skip check if no data
+      }
       
       // Calculate total trade value each team is sending out
-      const teamTVs = testTrade.map(t => {
-        return t.playersOut.reduce((sum, p) => {
-          const tv = tradeValueMap.get(p.player) || p.salary; // Fallback to salary if not found
-          return sum + tv;
+      const teamTVs = testTrade.map((t, idx) => {
+        const tv = t.playersOut.reduce((sum, p) => {
+          const playerTV = getTradeValue(p.player);
+          const used = playerTV || p.salary;
+          if (!playerTV) console.log(`Player ${p.player} not in TV map, using salary $${p.salary}`);
+          return sum + used;
         }, 0);
+        return tv;
       });
       
       // For 2-team trades: compare directly
-      // For 3+ team trades: each team's outgoing should be roughly similar to what they receive
       if (testTrade.length === 2) {
         const [tv1, tv2] = teamTVs;
-        if (tv1 === 0 || tv2 === 0) return true; // Can't compare if zero
+        if (tv1 === 0 || tv2 === 0) return true;
         const ratio = Math.min(tv1, tv2) / Math.max(tv1, tv2);
-        return ratio >= (1 - tolerance); // e.g., 0.65 means within 35%
+        const balanced = ratio >= (1 - tolerance);
+        if (!balanced) {
+          console.log(`Trade REJECTED - value imbalance: $${tv1.toLocaleString()} vs $${tv2.toLocaleString()} (ratio: ${(ratio*100).toFixed(1)}%, need ${((1-tolerance)*100).toFixed(0)}%)`);
+        }
+        return balanced;
       } else {
         // For 3-team: check that no team is getting massively fleeced
-        // Each team's outgoing TV should be within tolerance of their incoming TV
         for (let i = 0; i < testTrade.length; i++) {
           const outTV = teamTVs[i];
           const inTV = testTrade[i].playersIn.reduce((sum, p) => {
-            const tv = tradeValueMap.get(p.player) || p.salary;
+            const tv = getTradeValue(p.player) || p.salary;
             return sum + tv;
           }, 0);
           if (outTV === 0 && inTV === 0) continue;
           if (outTV === 0 || inTV === 0) return false;
           const ratio = Math.min(outTV, inTV) / Math.max(outTV, inTV);
-          if (ratio < (1 - tolerance)) return false;
+          if (ratio < (1 - tolerance)) {
+            console.log(`3-team trade REJECTED for ${testTrade[i].teamName}: out $${outTV.toLocaleString()} vs in $${inTV.toLocaleString()}`);
+            return false;
+          }
         }
         return true;
       }
