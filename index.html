@@ -5590,7 +5590,22 @@
           // Target player goes to a random other team
           const targetDestination = Math.floor(Math.random() * (numTeams - 1)) + 1;
           const team1PlayersOut = [{ ...targetPlayer, destination: targetDestination }];
-          const team1Outgoing = targetPlayer.salary;
+          let team1Outgoing = targetPlayer.salary;
+          
+          // For stars: sometimes add teammates to the package (increases flexibility)
+          if ((isSuperstar || isStar) && Math.random() < 0.60) {
+            const teammates = tradeablePlayers
+              .filter(p => p.team === targetTeam && p.player !== targetPlayer.player)
+              .sort(() => Math.random() - 0.5);
+            
+            // Add 1-3 teammates going to different destinations
+            const numTeammates = Math.floor(Math.random() * 3) + 1;
+            for (let i = 0; i < Math.min(numTeammates, teammates.length); i++) {
+              const dest = Math.floor(Math.random() * (numTeams - 1)) + 1; // Random other team
+              team1PlayersOut.push({ ...teammates[i], destination: dest });
+              team1Outgoing += teammates[i].salary;
+            }
+          }
           
           // Build trade structure
           const testTrade = involvedTeams.map((team, idx) => ({
@@ -5607,9 +5622,17 @@
           let returnToTeam1 = 0;
           
           for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
-            const teamPlayers = tradeablePlayers
-              .filter(p => p.team === involvedTeams[teamIdx])
-              .sort(() => Math.random() - 0.5);
+            // For stars: sort by trade value to get better returns
+            let teamPlayers = tradeablePlayers.filter(p => p.team === involvedTeams[teamIdx]);
+            if (isSuperstar || isStar) {
+              teamPlayers = teamPlayers.sort((a, b) => {
+                const tvA = getTradeValue(a.player) || a.salary;
+                const tvB = getTradeValue(b.player) || b.salary;
+                return tvB - tvA;
+              });
+            } else {
+              teamPlayers = teamPlayers.sort(() => Math.random() - 0.5);
+            }
             
             for (const p of teamPlayers) {
               if (returnToTeam1 < team1Outgoing * 1.25 + 5000000) {
@@ -5620,7 +5643,9 @@
                   if (dest === 0) returnToTeam1 += p.salary;
                 }
               }
-              if (testTrade[teamIdx].playersOut.length >= 2) break;
+              // Allow more players for star trades
+              const maxPlayers = (isSuperstar || isStar) ? 4 : 2;
+              if (testTrade[teamIdx].playersOut.length >= maxPlayers) break;
             }
           }
           
@@ -5641,7 +5666,23 @@
           
           // Target player goes to partner team
           const team1PlayersOut = [{ ...targetPlayer, destination: 1 }];
-          const team1Outgoing = targetPlayer.salary;
+          let team1Outgoing = targetPlayer.salary;
+          let team1TV = targetTV;
+          
+          // For stars: sometimes add teammates to the package (50% chance)
+          if ((isSuperstar || isStar) && Math.random() < 0.50) {
+            const teammates = tradeablePlayers
+              .filter(p => p.team === targetTeam && p.player !== targetPlayer.player)
+              .sort(() => Math.random() - 0.5);
+            
+            // Add 1-2 teammates
+            const numTeammates = Math.floor(Math.random() * 2) + 1;
+            for (let i = 0; i < Math.min(numTeammates, teammates.length); i++) {
+              team1PlayersOut.push({ ...teammates[i], destination: 1 });
+              team1Outgoing += teammates[i].salary;
+              team1TV += getTradeValue(teammates[i].player) || teammates[i].salary;
+            }
+          }
           
           // Partner team sends players back
           // For stars: sort by trade value to build better value packages
@@ -5664,7 +5705,7 @@
           
           if (isSuperstar || isStar) {
             // For stars: build package targeting both salary AND trade value
-            const targetTVThreshold = isSuperstar ? targetTV * 0.30 : targetTV * 0.40;
+            const targetTVThreshold = isSuperstar ? team1TV * 0.30 : team1TV * 0.40;
             
             for (const p of partnerPlayers) {
               const pTV = getTradeValue(p.player) || p.salary;
@@ -5676,7 +5717,7 @@
               const hasSalary = team2Outgoing >= team1Outgoing * 0.75 - 5000000;
               const hasTV = team2TV >= targetTVThreshold;
               if (hasSalary && hasTV) break;
-              if (team2PlayersOut.length >= 5) break; // Allow up to 5 players for stars
+              if (team2PlayersOut.length >= 6) break; // Allow up to 6 players for stars
             }
           } else {
             // Non-stars: original salary-matching logic
