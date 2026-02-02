@@ -2425,6 +2425,194 @@
       .then(r => r.ok ? r.json() : { totalTrades: 0, players: {} })
       .catch(() => ({ totalTrades: 0, players: {} }));
     
+    // ========== TRADE VALUE INTEGRATION (hidden feature for realistic random trades) ==========
+    const TV_SHEET_ID = '2PACX-1vSg6im6IYB6HXMGzQbmmBnLw9SfQLzxCSo8OfChxlJLhsB6BBCO0wPF_TMch0YgAbtFqYkwDWrsxRe7';
+    const TV_GID = '1310971167';
+    const TV_CSV_URL = `https://docs.google.com/spreadsheets/d/e/${TV_SHEET_ID}/pub?gid=${TV_GID}&single=true&output=csv`;
+    let tradeValueMap = new Map(); // playerName -> uncappedTV
+    
+    // Fetch and compute trade values in background
+    const tradeValueFetchPromise = fetch(TV_CSV_URL)
+      .then(r => r.ok ? r.text() : null)
+      .then(csvText => {
+        if (!csvText) return;
+        tradeValueMap = computeTradeValues(csvText);
+        console.log(`Trade values loaded: ${tradeValueMap.size} players`);
+      })
+      .catch(err => console.log('Trade value fetch skipped:', err.message));
+    
+    // Compact trade value computation (mirrors Trade Value Rankings formula)
+    function computeTradeValues(csvText) {
+      const rows = parseTradeValueCSV(csvText);
+      const roster = [], historical = [];
+      let todayStr = null;
+      
+      for (const row of rows.slice(1)) {
+        while (row.length < 21) row.push('');
+        if (row[18] && !todayStr) todayStr = row[18];
+        if (row[0] && row[1]) {
+          roster.push({
+            player: row[1].trim(),
+            rat365: parseFloat(row[2]) || 0,
+            salary: parseInt(row[3].replace(/[$,]/g, '')) || 0,
+            birthday: row[4] || ''
+          });
+        }
+        if (row[6] && row[7]) {
+          const g = parseInt(row[9]) || 0;
+          if (g > 0) historical.push({
+            year: row[6], player: row[7].trim(),
+            totalRat: parseFloat(row[8].replace(/,/g, '')) || 0, games: g
+          });
+        }
+      }
+      
+      // Build historical lookup (case-insensitive)
+      const playerHist = {};
+      for (const h of historical) {
+        const k = h.player.toLowerCase();
+        if (!playerHist[k]) playerHist[k] = [];
+        playerHist[k].push(h);
+      }
+      
+      const WEIGHTS = {'2025-26':1.0,'2024-25':0.6,'2023-24':0.36,'2022-23':0.216,'2021-22':0.1296};
+      const EXPECTED = {'2021-22':82,'2022-23':82,'2023-24':82,'2024-25':82,'2025-26':48};
+      const EXP = 1.8, BETA = 0.8, MAX_MULT = 1.4, MIN_PCT = 0.40;
+      const WM_W = 0.85, RAT_W = 0.15, AGE_BONUS = 1.0, OLD_TH = 35, OLD_PEN = 0.03;
+      
+      // Compute watermark for each player
+      for (const p of roster) {
+        const hist = playerHist[p.player.toLowerCase()] || [];
+        let num = 0, den = 0;
+        for (const h of hist) {
+          const w = WEIGHTS[h.year] || 0;
+          if (w <= 0 || h.games <= 0) continue;
+          let perGame = h.totalRat / h.games;
+          const exp = EXPECTED[h.year] || 82;
+          if (h.games / exp >= MIN_PCT) perGame *= Math.min(MAX_MULT, Math.pow(exp / h.games, BETA));
+          num += perGame * w * h.games;
+          den += w * h.games;
+        }
+        p.watermark = den > 0 ? num / den : 0;
+        
+        // Games-corrected RAT365
+        const cur = hist.filter(h => h.year === '2025-26');
+        const curGames = cur.reduce((s,h) => s + h.games, 0);
+        if (curGames > 0 && curGames / 48 >= MIN_PCT) {
+          p.rat365adj = p.rat365 * Math.min(MAX_MULT, Math.pow(48 / curGames, BETA));
+        } else {
+          p.rat365adj = p.rat365;
+        }
+      }
+      
+      // Age calculation
+      const parseDate = s => {
+        if (!s) return null;
+        const parts = s.split('/');
+        return parts.length === 3 ? new Date(+parts[2], +parts[0]-1, +parts[1]) : null;
+      };
+      const today = parseDate(todayStr) || new Date();
+      const ages = [];
+      for (const p of roster) {
+        const bd = parseDate(p.birthday);
+        p.age = bd ? (today - bd) / (365.25 * 24 * 60 * 60 * 1000) : null;
+        if (p.age) ages.push(p.age);
+      }
+      const avgAge = ages.length > 0 ? ages.reduce((a,b) => a+b, 0) / ages.length : 26;
+      const maxDev = avgAge - Math.min(...ages);
+      
+      for (const p of roster) {
+        if (p.age !== null && p.age < avgAge) {
+          p.ageMult = 1.0 + AGE_BONUS * (avgAge - p.age) / maxDev;
+        } else if (p.age !== null && p.age >= OLD_TH) {
+          p.ageMult = Math.max(0.5, 1.0 - OLD_PEN * (p.age - OLD_TH));
+        } else {
+          p.ageMult = 1.0;
+        }
+      }
+      
+      // Trade value calculation
+      const totalSalPool = roster.reduce((s,p) => s + p.salary, 0);
+      const totalWM = roster.reduce((s,p) => s + Math.pow(Math.max(p.watermark,0), EXP), 0);
+      const totalRAT = roster.reduce((s,p) => s + Math.pow(Math.max(p.rat365adj,0), EXP), 0);
+      
+      for (const p of roster) {
+        const tvWM = totalWM > 0 ? (Math.pow(Math.max(p.watermark,0), EXP) / totalWM) * totalSalPool : 0;
+        const tvRAT = totalRAT > 0 ? (Math.pow(Math.max(p.rat365adj,0), EXP) / totalRAT) * totalSalPool : 0;
+        p.tvPreAge = WM_W * tvWM + RAT_W * tvRAT;
+        p.tvWithAge = p.tvPreAge * p.ageMult;
+      }
+      
+      const totalWithAge = roster.reduce((s,p) => s + p.tvWithAge, 0);
+      const result = new Map();
+      for (const p of roster) {
+        const tv = totalWithAge > 0 ? Math.round((p.tvWithAge / totalWithAge) * totalSalPool) : 0;
+        result.set(p.player, tv);
+      }
+      return result;
+    }
+    
+    function parseTradeValueCSV(text) {
+      const rows = []; let current = '', inQuotes = false, row = [];
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuotes) {
+          if (ch === '"' && text[i+1] === '"') { current += '"'; i++; }
+          else if (ch === '"') inQuotes = false;
+          else current += ch;
+        } else {
+          if (ch === '"') inQuotes = true;
+          else if (ch === ',') { row.push(current.trim()); current = ''; }
+          else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && text[i+1] === '\n') i++;
+            row.push(current.trim());
+            if (row.length > 1 || row[0] !== '') rows.push(row);
+            row = []; current = '';
+          } else current += ch;
+        }
+      }
+      if (current || row.length > 0) { row.push(current.trim()); if (row.length > 1 || row[0] !== '') rows.push(row); }
+      return rows;
+    }
+    
+    // Check if trade values are balanced (within tolerance)
+    function isTradeValueBalanced(testTrade, tolerance = 0.35) {
+      if (tradeValueMap.size === 0) return true; // Skip check if no data
+      
+      // Calculate total trade value each team is sending out
+      const teamTVs = testTrade.map(t => {
+        return t.playersOut.reduce((sum, p) => {
+          const tv = tradeValueMap.get(p.player) || p.salary; // Fallback to salary if not found
+          return sum + tv;
+        }, 0);
+      });
+      
+      // For 2-team trades: compare directly
+      // For 3+ team trades: each team's outgoing should be roughly similar to what they receive
+      if (testTrade.length === 2) {
+        const [tv1, tv2] = teamTVs;
+        if (tv1 === 0 || tv2 === 0) return true; // Can't compare if zero
+        const ratio = Math.min(tv1, tv2) / Math.max(tv1, tv2);
+        return ratio >= (1 - tolerance); // e.g., 0.65 means within 35%
+      } else {
+        // For 3-team: check that no team is getting massively fleeced
+        // Each team's outgoing TV should be within tolerance of their incoming TV
+        for (let i = 0; i < testTrade.length; i++) {
+          const outTV = teamTVs[i];
+          const inTV = testTrade[i].playersIn.reduce((sum, p) => {
+            const tv = tradeValueMap.get(p.player) || p.salary;
+            return sum + tv;
+          }, 0);
+          if (outTV === 0 && inTV === 0) continue;
+          if (outTV === 0 || inTV === 0) return false;
+          const ratio = Math.min(outTV, inTV) / Math.max(outTV, inTV);
+          if (ratio < (1 - tolerance)) return false;
+        }
+        return true;
+      }
+    }
+    // ========== END TRADE VALUE INTEGRATION ==========
+    
     const MAX_TEAMS = 5;
 
     let players = [];
@@ -5215,7 +5403,8 @@
           const team3Apron = check2ndApronRestrictions(testTrade[2]);
           
           if (team1Valid.valid && team2Valid.valid && team3Valid.valid &&
-              team1Apron.valid && team2Apron.valid && team3Apron.valid) {
+              team1Apron.valid && team2Apron.valid && team3Apron.valid &&
+              isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         } else {
@@ -5256,7 +5445,7 @@
             const team1Apron = check2ndApronRestrictions(testTrade[0]);
             const team2Apron = check2ndApronRestrictions(testTrade[1]);
             
-            if (team1Valid.valid && team2Valid.valid && team1Apron.valid && team2Apron.valid) {
+            if (team1Valid.valid && team2Valid.valid && team1Apron.valid && team2Apron.valid && isTradeValueBalanced(testTrade)) {
               // Maybe add a third player (50% chance) - but only if neither team is 2nd Apron
               const team1Is2ndApron = getTeamInfo(testTrade[0].teamName)?.status?.toUpperCase().includes('2ND APRON');
               const team2Is2ndApron = getTeamInfo(testTrade[1].teamName)?.status?.toUpperCase().includes('2ND APRON');
@@ -5279,13 +5468,13 @@
                   testTrade[sideToAdd].playersOut.push({ ...additionalPlayer, destination: otherSide });
                   testTrade[otherSide].playersIn.push(additionalPlayer);
                   
-                  // Re-validate (including 2nd Apron check)
+                  // Re-validate (including 2nd Apron check and trade value balance)
                   const retest1 = validateTeamTrade(testTrade[0]);
                   const retest2 = validateTeamTrade(testTrade[1]);
                   const retest1Apron = check2ndApronRestrictions(testTrade[0]);
                   const retest2Apron = check2ndApronRestrictions(testTrade[1]);
                   
-                  if (!retest1.valid || !retest2.valid || !retest1Apron.valid || !retest2Apron.valid) {
+                  if (!retest1.valid || !retest2.valid || !retest1Apron.valid || !retest2Apron.valid || !isTradeValueBalanced(testTrade)) {
                     // Remove the additional player if it breaks the trade
                     testTrade[sideToAdd].playersOut.pop();
                     testTrade[otherSide].playersIn.pop();
@@ -5392,7 +5581,7 @@
           redistributePlayers(true);
           
           const validation = validateTrade();
-          if (validation.valid || validation.type.startsWith('pending')) {
+          if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         } else {
@@ -5447,7 +5636,7 @@
           redistributePlayers(true);
           
           const validation = validateTrade();
-          if (validation.valid || validation.type.startsWith('pending')) {
+          if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         }
@@ -5559,7 +5748,7 @@
           redistributePlayers(true);
           
           const validation = validateTrade();
-          if (validation.valid || validation.type.startsWith('pending')) {
+          if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         } else {
@@ -5600,7 +5789,7 @@
           redistributePlayers(true);
           
           const validation = validateTrade();
-          if (validation.valid || validation.type.startsWith('pending')) {
+          if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         }
@@ -5696,7 +5885,7 @@
           redistributePlayers(true);
           
           const validation = validateTrade();
-          if (validation.valid || validation.type.startsWith('pending')) {
+          if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         } else {
@@ -5747,7 +5936,7 @@
           redistributePlayers(true);
           
           const validation = validateTrade();
-          if (validation.valid || validation.type.startsWith('pending')) {
+          if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
             return testTrade;
           }
         }
@@ -6159,7 +6348,7 @@
         redistributePlayers(true);
         
         const validation = validateTrade();
-        if (validation.valid || validation.type.startsWith('pending')) {
+        if ((validation.valid || validation.type.startsWith('pending')) && isTradeValueBalanced(testTrade)) {
           return testTrade;
         }
       }
@@ -6795,13 +6984,13 @@
               }
             ];
             
-            // Quick validation (including 2nd Apron check)
+            // Quick validation (including 2nd Apron check and trade value balance)
             const team1Valid = validateTeamTrade(testTrade[0]);
             const team2Valid = validateTeamTrade(testTrade[1]);
             const team1Apron = check2ndApronRestrictions(testTrade[0]);
             const team2Apron = check2ndApronRestrictions(testTrade[1]);
             
-            if (team1Valid.valid && team2Valid.valid && team1Apron.valid && team2Apron.valid) {
+            if (team1Valid.valid && team2Valid.valid && team1Apron.valid && team2Apron.valid && isTradeValueBalanced(testTrade)) {
               return testTrade;
             }
           }
