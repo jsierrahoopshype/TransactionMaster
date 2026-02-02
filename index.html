@@ -5673,7 +5673,7 @@
 
     // Generate a random valid trade featuring a specific player
     function generateTradeForPlayer(playerName) {
-      const MAX_ATTEMPTS = 400; // More attempts for hard-to-trade stars
+      const MAX_ATTEMPTS = 500; // More attempts for hard-to-trade stars
       
       // Find the target player (exact match, case-insensitive)
       const targetPlayer = players.find(p => 
@@ -5795,11 +5795,21 @@
           const totalPlayersOut = testTrade.reduce((sum, t) => sum + t.playersOut.length, 0);
           if (totalPlayersOut < numTeams) continue;
           
-          // For star trades: add draft picks from acquiring teams (50% chance per team)
+          // For star trades: add draft picks based on trade value comparison (50% chance per team)
+          // Teams receiving more value than they send should compensate with picks
           if (isSuperstar || isStar) {
+            // Calculate TV each team is sending out
+            const teamTVsOut = testTrade.map(t => 
+              t.playersOut.reduce((sum, p) => sum + (getTradeValue(p.player) || p.salary), 0)
+            );
+            
+            // Team 0 (star's team) typically sends highest value
+            const team0TV = teamTVsOut[0];
+            
             for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
-              if (Math.random() < 0.50) {
-                // Add picks going to team 0 (star's original team)
+              const teamTV = teamTVsOut[teamIdx];
+              // If this team sends less value than team 0, they should send picks to team 0
+              if (teamTV < team0TV && Math.random() < 0.50) {
                 addPicksToTrade(testTrade, teamIdx, 0, isSuperstar);
               }
             }
@@ -5900,10 +5910,21 @@
             { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
           ];
           
-          // For star trades: add draft picks from acquiring team (60% chance)
+          // For star trades: add draft picks based on trade value comparison (60% chance)
+          // Team RECEIVING more trade value should SEND picks to balance
           if ((isSuperstar || isStar) && Math.random() < 0.60) {
-            // Partner team (index 1) sends picks to star's team (index 0)
-            addPicksToTrade(testTrade, 1, 0, isSuperstar);
+            // Calculate trade value each team is sending out
+            const team0TV = team1PlayersOut.reduce((sum, p) => sum + (getTradeValue(p.player) || p.salary), 0);
+            const team1TV = team2PlayersOut.reduce((sum, p) => sum + (getTradeValue(p.player) || p.salary), 0);
+            
+            // Team receiving more value (sending less value) sends picks
+            if (team0TV > team1TV) {
+              // Team 0 sends more value, so team 1 (receiving Wemby) sends picks to team 0
+              addPicksToTrade(testTrade, 1, 0, isSuperstar);
+            } else if (team1TV > team0TV) {
+              // Team 1 sends more value, so team 0 sends picks to team 1
+              addPicksToTrade(testTrade, 0, 1, isSuperstar);
+            }
           }
           
           // Redistribute and validate
@@ -6019,9 +6040,17 @@
             }
           }
           
-          // Add draft picks from acquiring teams (40% chance per team)
+          // Add draft picks based on trade value comparison (40% chance per team)
+          // Teams receiving more value than they send should compensate with picks
+          const teamTVsOut = testTrade.map(t => 
+            t.playersOut.reduce((sum, p) => sum + (getTradeValue(p.player) || p.salary), 0)
+          );
+          const team0TV = teamTVsOut[0];
+          
           for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
-            if (Math.random() < 0.40) {
+            const teamTV = teamTVsOut[teamIdx];
+            // If this team sends less value than team 0, they should send picks
+            if (teamTV < team0TV && Math.random() < 0.40) {
               addPicksToTrade(testTrade, teamIdx, 0, false);
             }
           }
@@ -6067,9 +6096,17 @@
             { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
           ];
           
-          // Add draft picks from acquiring team (40% chance)
+          // Add draft picks based on trade value comparison (40% chance)
           if (Math.random() < 0.40) {
-            addPicksToTrade(testTrade, 1, 0, false);
+            const team0TV = team1PlayersOut.reduce((sum, p) => sum + (getTradeValue(p.player) || p.salary), 0);
+            const team1TV = team2PlayersOut.reduce((sum, p) => sum + (getTradeValue(p.player) || p.salary), 0);
+            
+            // Team receiving more value sends picks
+            if (team0TV > team1TV) {
+              addPicksToTrade(testTrade, 1, 0, false); // Team 1 sends picks to team 0
+            } else if (team1TV > team0TV) {
+              addPicksToTrade(testTrade, 0, 1, false); // Team 0 sends picks to team 1
+            }
           }
           
           tradeTeams = testTrade;
