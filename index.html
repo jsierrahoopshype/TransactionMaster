@@ -2599,19 +2599,34 @@
     }
     
     // Check if trade values are balanced (with dynamic tolerance for stars)
+    // Draft pick values: $15M for 1st round, $5M for 2nd round
+    const FIRST_ROUND_PICK_TV = 15000000;
+    const SECOND_ROUND_PICK_TV = 5000000;
+    
+    function getPickTradeValue(pick) {
+      return pick.round === '1st' ? FIRST_ROUND_PICK_TV : SECOND_ROUND_PICK_TV;
+    }
+    
     function isTradeValueBalanced(testTrade, baseTolerance = 0.50) {
       if (tradeValueMapLower.size === 0) {
         return true; // Skip check if no data
       }
       
-      // Calculate total trade value each team is sending out
+      // Calculate total trade value each team is sending out (players + picks)
       const teamTVs = testTrade.map((t, idx) => {
-        const tv = t.playersOut.reduce((sum, p) => {
-          const playerTV = getTradeValue(p.player);
-          const used = playerTV || p.salary;
+        // Player trade values
+        const playerTV = t.playersOut.reduce((sum, p) => {
+          const pTV = getTradeValue(p.player);
+          const used = pTV || p.salary;
           return sum + used;
         }, 0);
-        return tv;
+        
+        // Pick trade values
+        const pickTV = (t.picksOut || []).reduce((sum, pick) => {
+          return sum + getPickTradeValue(pick);
+        }, 0);
+        
+        return playerTV + pickTV;
       });
       
       // Dynamic tolerance based on total trade value
@@ -2634,10 +2649,18 @@
         // Multi-team trades naturally spread value around
         for (let i = 0; i < testTrade.length; i++) {
           const outTV = teamTVs[i];
+          // Include incoming picks in the calculation
           const inTV = testTrade[i].playersIn.reduce((sum, p) => {
             const tv = getTradeValue(p.player) || p.salary;
             return sum + tv;
+          }, 0) + testTrade.reduce((sum, otherTeam, otherIdx) => {
+            // Add incoming picks from other teams
+            if (otherIdx === i) return sum;
+            return sum + (otherTeam.picksOut || [])
+              .filter(pick => pick.destination === i)
+              .reduce((pickSum, pick) => pickSum + getPickTradeValue(pick), 0);
           }, 0);
+          
           if (outTV === 0 && inTV === 0) continue;
           if (outTV === 0 || inTV === 0) continue; // Allow if one side is 0 in multi-team
           const ratio = Math.min(outTV, inTV) / Math.max(outTV, inTV);
@@ -2647,6 +2670,105 @@
         }
         return true;
       }
+    }
+    
+    // Get available picks for random trades (only non-conditional picks)
+    // Returns picks that can be safely traded without violating Stepien Rule
+    function getAvailablePicksForRandomTrade(teamName, existingPicksOut = []) {
+      // Get all picks owned by this team
+      const teamPicks = draftPicks
+        .map((pick, idx) => ({ ...pick, pickIndex: idx }))
+        .filter(p => p.team === teamName);
+      
+      // Only consider non-conditional (sure) picks for random trades
+      const surePicks = teamPicks.filter(p => p.surePick === 'YES');
+      
+      // Separate by round
+      const firstRoundPicks = surePicks.filter(p => p.round === '1st');
+      const secondRoundPicks = surePicks.filter(p => p.round === '2nd');
+      
+      // For first round picks, check Stepien Rule
+      // We need to ensure no consecutive years are left without a first round pick
+      const years = [2026, 2027, 2028, 2029, 2030, 2031];
+      const alreadyTradingYears = existingPicksOut
+        .filter(p => p.round === '1st')
+        .map(p => parseInt(p.year));
+      
+      const availableFirstRound = [];
+      
+      for (const pick of firstRoundPicks) {
+        const pickYear = parseInt(pick.year);
+        
+        // Skip if already trading this year
+        if (alreadyTradingYears.includes(pickYear)) continue;
+        
+        // Check if trading this pick would leave consecutive years empty
+        const yearsAfterTrade = [...alreadyTradingYears, pickYear];
+        
+        // Get remaining first round picks after this hypothetical trade
+        const remainingFirstRound = firstRoundPicks
+          .filter(p => !yearsAfterTrade.includes(parseInt(p.year)))
+          .map(p => parseInt(p.year));
+        
+        // Check consecutive years
+        let violatesStepien = false;
+        for (let i = 0; i < years.length - 1; i++) {
+          const year1 = years[i];
+          const year2 = years[i + 1];
+          if (!remainingFirstRound.includes(year1) && !remainingFirstRound.includes(year2)) {
+            violatesStepien = true;
+            break;
+          }
+        }
+        
+        if (!violatesStepien) {
+          availableFirstRound.push(pick);
+        }
+      }
+      
+      return {
+        firstRound: availableFirstRound,
+        secondRound: secondRoundPicks
+      };
+    }
+    
+    // Add random picks to a trade for star players
+    function addPicksToTrade(testTrade, teamIndex, destination, isSuperstar) {
+      const teamName = testTrade[teamIndex].teamName;
+      const existingPicksOut = testTrade[teamIndex].picksOut || [];
+      
+      const availablePicks = getAvailablePicksForRandomTrade(teamName, existingPicksOut);
+      
+      // Determine how many picks to add (more for superstars)
+      const maxFirstRound = isSuperstar ? 2 : 1;
+      const maxSecondRound = isSuperstar ? 2 : 1;
+      
+      // Randomly select first round picks
+      const shuffledFirst = [...availablePicks.firstRound].sort(() => Math.random() - 0.5);
+      const firstToAdd = shuffledFirst.slice(0, Math.floor(Math.random() * (maxFirstRound + 1)));
+      
+      // Randomly select second round picks
+      const shuffledSecond = [...availablePicks.secondRound].sort(() => Math.random() - 0.5);
+      const secondToAdd = shuffledSecond.slice(0, Math.floor(Math.random() * (maxSecondRound + 1)));
+      
+      // Add picks to the trade
+      const picksToAdd = [...firstToAdd, ...secondToAdd].map(pick => ({
+        team: pick.team,
+        year: pick.year,
+        round: pick.round,
+        notes: pick.notes || '',
+        pickIndex: pick.pickIndex,
+        surePick: pick.surePick,
+        linkedTo: pick.linkedTo || '',
+        destination: destination
+      }));
+      
+      if (!testTrade[teamIndex].picksOut) {
+        testTrade[teamIndex].picksOut = [];
+      }
+      testTrade[teamIndex].picksOut.push(...picksToAdd);
+      
+      return picksToAdd.length;
     }
     // ========== END TRADE VALUE INTEGRATION ==========
     
@@ -5374,17 +5496,29 @@
             { 
               teamName: team1Name, 
               playersOut: [], 
-              playersIn: [] 
+              playersIn: [],
+              picksOut: [],
+              tpeUsed: null,
+              rightsOut: [],
+              cashOut: []
             },
             { 
               teamName: team2Name, 
               playersOut: [], 
-              playersIn: [] 
+              playersIn: [],
+              picksOut: [],
+              tpeUsed: null,
+              rightsOut: [],
+              cashOut: []
             },
             { 
               teamName: team3Name, 
               playersOut: [], 
-              playersIn: [] 
+              playersIn: [],
+              picksOut: [],
+              tpeUsed: null,
+              rightsOut: [],
+              cashOut: []
             }
           ];
           
@@ -5467,12 +5601,20 @@
               { 
                 teamName: player1.team, 
                 playersOut: [{ ...player1, destination: 1 }], 
-                playersIn: [player2] 
+                playersIn: [player2],
+                picksOut: [],
+                tpeUsed: null,
+                rightsOut: [],
+                cashOut: []
               },
               { 
                 teamName: player2.team, 
                 playersOut: [{ ...player2, destination: 0 }], 
-                playersIn: [player1] 
+                playersIn: [player1],
+                picksOut: [],
+                tpeUsed: null,
+                rightsOut: [],
+                cashOut: []
               }
             ];
             
@@ -5653,6 +5795,16 @@
           const totalPlayersOut = testTrade.reduce((sum, t) => sum + t.playersOut.length, 0);
           if (totalPlayersOut < numTeams) continue;
           
+          // For star trades: add draft picks from acquiring teams (50% chance per team)
+          if (isSuperstar || isStar) {
+            for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
+              if (Math.random() < 0.50) {
+                // Add picks going to team 0 (star's original team)
+                addPicksToTrade(testTrade, teamIdx, 0, isSuperstar);
+              }
+            }
+          }
+          
           tradeTeams = testTrade;
           redistributePlayers(true);
           
@@ -5747,6 +5899,12 @@
             { teamName: targetTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
             { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
           ];
+          
+          // For star trades: add draft picks from acquiring team (60% chance)
+          if ((isSuperstar || isStar) && Math.random() < 0.60) {
+            // Partner team (index 1) sends picks to star's team (index 0)
+            addPicksToTrade(testTrade, 1, 0, isSuperstar);
+          }
           
           // Redistribute and validate
           tradeTeams = testTrade;
@@ -5861,6 +6019,13 @@
             }
           }
           
+          // Add draft picks from acquiring teams (40% chance per team)
+          for (let teamIdx = 1; teamIdx < numTeams; teamIdx++) {
+            if (Math.random() < 0.40) {
+              addPicksToTrade(testTrade, teamIdx, 0, false);
+            }
+          }
+          
           tradeTeams = testTrade;
           redistributePlayers(true);
           
@@ -5901,6 +6066,11 @@
             { teamName: targetTeam, playersOut: team1PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
             { teamName: partnerTeam, playersOut: team2PlayersOut, playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
           ];
+          
+          // Add draft picks from acquiring team (40% chance)
+          if (Math.random() < 0.40) {
+            addPicksToTrade(testTrade, 1, 0, false);
+          }
           
           tradeTeams = testTrade;
           redistributePlayers(true);
