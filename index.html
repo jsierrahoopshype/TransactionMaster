@@ -5116,13 +5116,13 @@
                           const isSelected = rightsOut.some(r => r.playerName === rights.playerName);
                           const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && (t.rightsOut || []).some(r => r.playerName === rights.playerName && r.team === rights.team));
                           return `
-                            <div class="rights-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere || isUntradeable ? 'disabled' : ''}" 
+                            <div class="rights-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
                                  data-team="${index}" 
                                  data-rights-index="${rightsIndex}"
                                  data-rights-player="${rights.playerName}"
                                  data-rights-year="${rights.draftedYear}"
                                  data-rights-team="${rights.team}"
-                                 ${isUsedElsewhere || isUntradeable ? 'data-disabled="true"' : ''}
+                                 ${isUsedElsewhere ? 'data-disabled="true"' : ''}
                                  title="Draft rights to ${rights.playerName} (${rights.draftedYear})">
                               <div>
                                 <span class="rights-name">${rights.playerName}</span>
