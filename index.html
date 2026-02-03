@@ -2782,14 +2782,11 @@
     }
     
     // Calculate trade balance percentage for the realistic meter (0-100%)
-    // Returns an object with percentage and details
     function calculateTradeBalance(trade) {
       if (!trade || trade.length < 2) return { percentage: 0, details: null };
-      if (tradeValueMapLower.size === 0) return { percentage: 100, details: null }; // No data = assume balanced
+      if (tradeValueMapLower.size === 0) return { percentage: 100, details: null };
       
-      // Calculate total trade value each team is sending and receiving
       const teamData = trade.map((t, idx) => {
-        // Value going OUT (players + picks)
         const playersOutTV = t.playersOut.reduce((sum, p) => {
           return sum + (getTradeValue(p.player) || p.salary);
         }, 0);
@@ -2798,7 +2795,6 @@
         }, 0);
         const totalOut = playersOutTV + picksOutTV;
         
-        // Value coming IN (players from other teams + picks from other teams)
         const playersInTV = t.playersIn.reduce((sum, p) => {
           return sum + (getTradeValue(p.player) || p.salary);
         }, 0);
@@ -2813,30 +2809,21 @@
         return { teamName: t.teamName, out: totalOut, in: totalIn };
       });
       
-      // For 2-team trades: simple ratio comparison
       if (trade.length === 2) {
         const [team1, team2] = teamData;
         if (team1.out === 0 && team2.out === 0) return { percentage: 100, details: teamData };
         if (team1.out === 0 || team2.out === 0) return { percentage: 50, details: teamData };
-        
         const ratio = Math.min(team1.out, team2.out) / Math.max(team1.out, team2.out);
-        // Convert ratio to percentage: ratio 1.0 = 100%, ratio 0.0 = 0%
-        const percentage = Math.round(ratio * 100);
-        return { percentage, details: teamData };
+        return { percentage: Math.round(ratio * 100), details: teamData };
       } else {
-        // For 3+ team trades: check each team's in/out balance
         let worstRatio = 1.0;
         for (const team of teamData) {
           if (team.out === 0 && team.in === 0) continue;
-          if (team.out === 0 || team.in === 0) {
-            worstRatio = Math.min(worstRatio, 0.3); // Penalize but not too harshly
-            continue;
-          }
+          if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
           const ratio = Math.min(team.out, team.in) / Math.max(team.out, team.in);
           worstRatio = Math.min(worstRatio, ratio);
         }
-        const percentage = Math.round(worstRatio * 100);
-        return { percentage, details: teamData };
+        return { percentage: Math.round(worstRatio * 100), details: teamData };
       }
     }
     
@@ -2848,13 +2835,11 @@
       
       if (!meter || !fill || !value) return;
       
-      // Check if there are any assets in the trade
       const hasAnyAssets = tradeTeams.some(t => 
         (t.playersOut && t.playersOut.length > 0) ||
         (t.picksOut && t.picksOut.length > 0)
       );
       
-      // Only show for legal trades with assets and trade value data
       if (!hasAnyAssets || tradeValueMapLower.size === 0 || !isLegalTrade) {
         meter.style.display = 'none';
         return;
@@ -2864,14 +2849,9 @@
       const balance = calculateTradeBalance(tradeTeams);
       const pct = balance.percentage;
       
-      // Update fill width
       fill.style.width = pct + '%';
-      
-      // Remove all color classes
       fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
       
-      // Set color and label based on percentage
-      // Ranges: 0-40 (red), 40-60 (yellow), 60-85 (light green), 85-100 (solid green)
       if (pct < 40) {
         fill.classList.add('meter-very-unbalanced');
         value.textContent = 'Very Unbalanced';
@@ -2889,6 +2869,47 @@
         value.textContent = 'Balanced';
         value.style.color = '#22c55e';
       }
+    }
+    
+    // Check Stepien Rule for a test trade (not using global tradeTeams)
+    function checkStepienForTestTrade(testTrade, teamIndex) {
+      const team = testTrade[teamIndex];
+      const teamName = team.teamName;
+      const picksOut = team.picksOut || [];
+      
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
+      if (firstRoundPicksOut.length === 0) return true;
+      
+      const teamFirstRoundPicks = draftPicks
+        .filter(p => p.team === teamName && p.round === '1st')
+        .map(p => parseInt(p.year));
+      
+      const yearsOut = firstRoundPicksOut.map(p => parseInt(p.year));
+      
+      const incomingYears = [];
+      testTrade.forEach((otherTeam, otherIdx) => {
+        if (otherIdx !== teamIndex && otherTeam.picksOut) {
+          otherTeam.picksOut.forEach(pick => {
+            if (pick.round === '1st' && pick.destination === teamIndex) {
+              incomingYears.push(parseInt(pick.year));
+            }
+          });
+        }
+      });
+      
+      const remainingYears = teamFirstRoundPicks
+        .filter(y => !yearsOut.includes(y))
+        .concat(incomingYears);
+      
+      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
+      for (let i = 0; i < years.length - 1; i++) {
+        const year1 = years[i];
+        const year2 = years[i + 1];
+        if (!remainingYears.includes(year1) && !remainingYears.includes(year2)) {
+          return false;
+        }
+      }
+      return true;
     }
     
     // Get available picks for random trades (only non-conditional picks)
@@ -2962,7 +2983,6 @@
         testTrade[teamIndex].picksOut = [];
       }
       
-      // Determine how many picks to try to add (more for superstars)
       const maxFirstRound = isSuperstar ? 2 : 1;
       const maxSecondRound = isSuperstar ? 2 : 1;
       
@@ -2970,7 +2990,7 @@
       
       // Add first round picks one at a time, rechecking Stepien after each
       for (let i = 0; i < maxFirstRound; i++) {
-        if (Math.random() > 0.5) continue; // 50% chance to skip adding a pick
+        if (Math.random() > 0.5) continue;
         
         const existingPicksOut = testTrade[teamIndex].picksOut;
         const availablePicks = getAvailablePicksForRandomTrade(teamName, existingPicksOut);
@@ -2991,7 +3011,7 @@
         }
       }
       
-      // Add second round picks (no Stepien concern)
+      // Add second round picks
       const existingPicksOut = testTrade[teamIndex].picksOut;
       const availablePicks = getAvailablePicksForRandomTrade(teamName, existingPicksOut);
       const shuffledSecond = [...availablePicks.secondRound].sort(() => Math.random() - 0.5);
@@ -3012,54 +3032,6 @@
       }
       
       return picksAdded;
-    }
-    
-    // Check Stepien Rule for a test trade (not using global tradeTeams)
-    function checkStepienForTestTrade(testTrade, teamIndex) {
-      const team = testTrade[teamIndex];
-      const teamName = team.teamName;
-      const picksOut = team.picksOut || [];
-      
-      // Only check first-round picks being traded out
-      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
-      if (firstRoundPicksOut.length === 0) return true;
-      
-      // Get all first-round picks owned by this team
-      const teamFirstRoundPicks = draftPicks
-        .filter(p => p.team === teamName && p.round === '1st')
-        .map(p => parseInt(p.year));
-      
-      // Get years being traded out
-      const yearsOut = firstRoundPicksOut.map(p => parseInt(p.year));
-      
-      // Get incoming first-round picks from other teams in this test trade
-      const incomingYears = [];
-      testTrade.forEach((otherTeam, otherIdx) => {
-        if (otherIdx !== teamIndex && otherTeam.picksOut) {
-          otherTeam.picksOut.forEach(pick => {
-            if (pick.round === '1st' && pick.destination === teamIndex) {
-              incomingYears.push(parseInt(pick.year));
-            }
-          });
-        }
-      });
-      
-      // Calculate remaining picks after trade
-      const remainingYears = teamFirstRoundPicks
-        .filter(y => !yearsOut.includes(y))
-        .concat(incomingYears);
-      
-      // Check consecutive years (2026-2031)
-      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
-      for (let i = 0; i < years.length - 1; i++) {
-        const year1 = years[i];
-        const year2 = years[i + 1];
-        if (!remainingYears.includes(year1) && !remainingYears.includes(year2)) {
-          return false; // Stepien violation
-        }
-      }
-      
-      return true;
     }
     // ========== END TRADE VALUE INTEGRATION ==========
     
@@ -5180,7 +5152,6 @@
         tradeStatus.style.display = 'none';
         const checkRumorsLink = document.getElementById('checkRumorsLink');
         if (checkRumorsLink) checkRumorsLink.style.display = 'none';
-        // Hide realistic meter too
         const meter = document.getElementById('realisticMeter');
         if (meter) meter.style.display = 'none';
         return;
@@ -5878,7 +5849,6 @@
             // Maybe add draft picks (30% chance for each team in 3-team trades)
             for (let side = 0; side < 3; side++) {
               if (Math.random() < 0.30) {
-                // Pick a random destination (not the same team)
                 const possibleDests = [0, 1, 2].filter(t => t !== side);
                 const dest = possibleDests[Math.floor(Math.random() * possibleDests.length)];
                 addPicksToTrade(testTrade, side, dest, false);
@@ -5892,7 +5862,6 @@
             });
             
             if (!finalStepienCheck) {
-              // Remove all picks if Stepien is violated
               testTrade.forEach(t => t.picksOut = []);
             }
             
@@ -5996,7 +5965,6 @@
               });
               
               if (!finalStepienCheck) {
-                // Remove all picks if Stepien is violated
                 testTrade.forEach(t => t.picksOut = []);
               }
               
