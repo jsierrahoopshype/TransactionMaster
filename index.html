@@ -2447,11 +2447,11 @@
         console.log(`Trade values computed: ${tradeValueMap.size} players, lowercase map: ${tradeValueMapLower.size}`);
         // Debug: check known players
         const wembyTV = getTradeValue('Victor Wembanyama');
-        const pendaTV = getTradeValue('Noah Penda');
-        const isaacTV = getTradeValue('Jonathan Isaac');
+        const flaggTV = getTradeValue('Cooper Flagg');
+        const giannisTV = getTradeValue('Giannis Antetokounmpo');
         console.log(`Wembanyama TV: $${wembyTV?.toLocaleString() || 'NOT FOUND'}`);
-        console.log(`Noah Penda TV: $${pendaTV?.toLocaleString() || 'NOT FOUND'}`);
-        console.log(`Jonathan Isaac TV: $${isaacTV?.toLocaleString() || 'NOT FOUND'}`);
+        console.log(`Cooper Flagg TV: $${flaggTV?.toLocaleString() || 'NOT FOUND'} (should include potential bonus)`);
+        console.log(`Giannis TV: $${giannisTV?.toLocaleString() || 'NOT FOUND'} (no potential bonus - over 25)`);
       })
       .catch(err => {
         console.error('Trade value fetch failed:', err);
@@ -2477,7 +2477,8 @@
             player: row[1].trim(),
             rat365: parseFloat(row[2]) || 0,
             salary: parseInt(row[3].replace(/[$,]/g, '')) || 0,
-            birthday: row[4] || ''
+            birthday: row[4] || '',
+            draftPick: parseInt(row[20]) || null // Column U = draft position (1-60)
           });
         }
         if (row[6] && row[7]) {
@@ -2566,9 +2567,38 @@
       }
       
       const totalWithAge = roster.reduce((s,p) => s + p.tvWithAge, 0);
+      
+      // Potential bonus constants for young players
+      const POTENTIAL_MAX = 7000000; // $7M maximum potential bonus
+      const MIN_ROOKIE_AGE = 18 + 300/365; // 18 years 300 days (youngest realistic debut age)
+      const MAX_POTENTIAL_AGE = 25; // No potential bonus after 25
+      const DRAFT_DECAY = 0.05; // Exponential decay rate for draft position
+      const AGE_DECAY = 0.5; // Exponential decay rate for age
+      
+      // Calculate potential bonus for young players
+      function calcPotentialBonus(age, draftPick) {
+        // Only for players under 25 with valid draft position
+        if (age === null || age >= MAX_POTENTIAL_AGE || !draftPick || draftPick < 1 || draftPick > 60) {
+          return 0;
+        }
+        
+        // Draft position factor: exponential decay (pick 1 = 1.0, pick 60 ≈ 0.05)
+        // Bigger gap between pick 1-2 than between pick 59-60
+        const draftFactor = Math.exp(-DRAFT_DECAY * (draftPick - 1));
+        
+        // Age factor: exponential decay (18.82 years = 1.0, 25 years ≈ 0.04)
+        // Bigger gap for younger players
+        const ageFromMin = Math.max(0, age - MIN_ROOKIE_AGE);
+        const ageFactor = Math.exp(-AGE_DECAY * ageFromMin);
+        
+        return Math.round(POTENTIAL_MAX * draftFactor * ageFactor);
+      }
+      
       const result = new Map();
       for (const p of roster) {
-        const tv = totalWithAge > 0 ? Math.round((p.tvWithAge / totalWithAge) * totalSalPool) : 0;
+        const baseTV = totalWithAge > 0 ? Math.round((p.tvWithAge / totalWithAge) * totalSalPool) : 0;
+        const potentialBonus = calcPotentialBonus(p.age, p.draftPick);
+        const tv = baseTV + potentialBonus;
         result.set(p.player, tv);
         tradeValueMapLower.set(p.player.toLowerCase().trim(), tv); // Also populate lowercase map
       }
