@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v16.3-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Debug roster penalty calculation');
+    console.log('%c🏀 NBA Trade Machine v16.4-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Debug roster penalty applied to totalOut');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2876,6 +2876,7 @@
           return sum + getPickTradeValue(pick);
         }, 0);
         // Add roster release penalty to outgoing value
+        console.warn(`  ${t.teamName} PENALTY APPLIED: rosterPenalties[${idx}]=$${(rosterPenalties[idx]/1000000).toFixed(2)}M`);
         let totalOut = playersOutTV + picksOutTV + rosterPenalties[idx];
         
         // Add best player premium to the team SENDING the best player
