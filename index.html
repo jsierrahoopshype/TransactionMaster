@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.1 - Feb 2 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Realistic Meter, Draft Picks in Random Trades, Stepien 2032 Fix, Untradeable Picks, Pick TV $10M/$3M');
+    console.log('%c🏀 NBA Trade Machine v15.2 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Best Player Premium (15%), Roster Release Penalty ($1.27M), Pick TV $10M/$3M');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2786,9 +2786,63 @@
     }
     
     // Calculate trade balance percentage for the realistic meter (0-100%)
+    // Constants for trade balance adjustments
+    const MINIMUM_SALARY = 1272870; // For roster release penalty
+    const BEST_PLAYER_PREMIUM = 0.15; // 15% bonus for getting the best player
+    
     function calculateTradeBalance(trade) {
       if (!trade || trade.length < 2) return { percentage: 0, details: null };
       if (tradeValueMapLower.size === 0) return { percentage: 100, details: null };
+      
+      // Find the best player in the entire trade (highest TV among all players being traded)
+      let bestPlayer = null;
+      let bestPlayerTV = 0;
+      let bestPlayerFromTeamIdx = -1;
+      
+      trade.forEach((t, idx) => {
+        t.playersOut.forEach(p => {
+          const tv = getTradeValue(p.player) || p.salary;
+          if (tv > bestPlayerTV) {
+            bestPlayerTV = tv;
+            bestPlayer = p.player;
+            bestPlayerFromTeamIdx = idx;
+          }
+        });
+      });
+      
+      // Calculate roster release penalty for each team
+      const rosterPenalties = trade.map((t, idx) => {
+        const teamInfo = teams.find(team => team.team === t.teamName);
+        if (!teamInfo) return 0;
+        
+        // Count current standard roster (excluding two-way and 10-day)
+        const currentStandardCount = players.filter(p => 
+          p.team === t.teamName &&
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY')
+        ).length;
+        
+        // Count outgoing standard players
+        const outgoingStandard = t.playersOut.filter(p =>
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY')
+        ).length;
+        
+        // Count incoming standard players
+        const incomingStandard = t.playersIn.filter(p =>
+          p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+          !p.contractStatus?.toUpperCase().includes('10-DAY')
+        ).length;
+        
+        const postTradeCount = currentStandardCount - outgoingStandard + incomingStandard;
+        
+        // If roster exceeds 15, team must release players
+        if (postTradeCount > 15) {
+          const mustRelease = postTradeCount - 15;
+          return mustRelease * MINIMUM_SALARY;
+        }
+        return 0;
+      });
       
       const teamData = trade.map((t, idx) => {
         const playersOutTV = t.playersOut.reduce((sum, p) => {
@@ -2797,11 +2851,22 @@
         const picksOutTV = (t.picksOut || []).reduce((sum, pick) => {
           return sum + getPickTradeValue(pick);
         }, 0);
-        const totalOut = playersOutTV + picksOutTV;
+        // Add roster release penalty to outgoing value
+        const totalOut = playersOutTV + picksOutTV + rosterPenalties[idx];
         
-        const playersInTV = t.playersIn.reduce((sum, p) => {
+        let playersInTV = t.playersIn.reduce((sum, p) => {
           return sum + (getTradeValue(p.player) || p.salary);
         }, 0);
+        
+        // Add best player premium if this team is receiving the best player
+        if (bestPlayerFromTeamIdx !== -1 && bestPlayerFromTeamIdx !== idx) {
+          // Check if this team is receiving the best player
+          const receivingBestPlayer = t.playersIn.some(p => p.player === bestPlayer);
+          if (receivingBestPlayer) {
+            playersInTV += bestPlayerTV * BEST_PLAYER_PREMIUM;
+          }
+        }
+        
         const picksInTV = trade.reduce((sum, otherTeam, otherIdx) => {
           if (otherIdx === idx) return sum;
           return sum + (otherTeam.picksOut || [])
