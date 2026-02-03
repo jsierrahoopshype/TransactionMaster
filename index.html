@@ -2899,8 +2899,11 @@
         .map((pick, idx) => ({ ...pick, pickIndex: idx }))
         .filter(p => p.team === teamName);
       
-      // Only consider non-conditional (sure) picks for random trades
-      const surePicks = teamPicks.filter(p => p.surePick === 'YES');
+      // Only consider non-conditional (sure) picks that are not untradeable
+      const surePicks = teamPicks.filter(p => 
+        p.surePick === 'YES' && 
+        !(p.notes && p.notes.toLowerCase().includes('untradeable'))
+      );
       
       // Separate by round
       const firstRoundPicks = surePicks.filter(p => p.round === '1st');
@@ -2908,7 +2911,7 @@
       
       // For first round picks, check Stepien Rule
       // We need to ensure no consecutive years are left without a first round pick
-      const years = [2026, 2027, 2028, 2029, 2030, 2031];
+      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
       const alreadyTradingYears = existingPicksOut
         .filter(p => p.round === '1st')
         .map(p => parseInt(p.year));
@@ -3047,7 +3050,7 @@
         .concat(incomingYears);
       
       // Check consecutive years (2026-2031)
-      const years = [2026, 2027, 2028, 2029, 2030, 2031];
+      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
       for (let i = 0; i < years.length - 1; i++) {
         const year1 = years[i];
         const year2 = years[i + 1];
@@ -5069,8 +5072,9 @@
                           const isSelected = picksOut.some(p => p.pickIndex === pickIndex);
                           const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && (t.picksOut || []).some(p => p.team === pick.team && p.pickIndex === pickIndex));
                           const isConditional = pick.surePick !== 'YES';
+                          const isUntradeable = pick.notes && pick.notes.toLowerCase().includes('untradeable');
                           return `
-                            <div class="pick-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                            <div class="pick-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere || isUntradeable ? 'disabled' : ''}" 
                                  data-team="${index}" 
                                  data-pick-index="${pickIndex}"
                                  data-pick-year="${pick.year}"
@@ -5079,8 +5083,8 @@
                                  data-pick-notes="${pick.notes || ''}"
                                  data-pick-sure="${pick.surePick}"
                                  data-pick-linked="${pick.linkedTo || ''}"
-                                 ${isUsedElsewhere ? 'data-disabled="true"' : ''}
-                                 title="${pick.notes || `${pick.year} ${pick.round} Round Pick`}">
+                                 ${isUsedElsewhere || isUntradeable ? 'data-disabled="true"' : ''}
+                                 title="${isUntradeable ? 'This pick cannot be traded' : (pick.notes || `${pick.year} ${pick.round} Round Pick`)}">
                               <div>
                                 <span class="pick-year">${pick.year}</span>
                                 <span class="pick-round">${pick.round}</span>
@@ -5112,13 +5116,13 @@
                           const isSelected = rightsOut.some(r => r.playerName === rights.playerName);
                           const isUsedElsewhere = tradeTeams.some((t, i) => i !== index && (t.rightsOut || []).some(r => r.playerName === rights.playerName && r.team === rights.team));
                           return `
-                            <div class="rights-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere ? 'disabled' : ''}" 
+                            <div class="rights-item ${isSelected ? 'selected' : ''} ${isUsedElsewhere || isUntradeable ? 'disabled' : ''}" 
                                  data-team="${index}" 
                                  data-rights-index="${rightsIndex}"
                                  data-rights-player="${rights.playerName}"
                                  data-rights-year="${rights.draftedYear}"
                                  data-rights-team="${rights.team}"
-                                 ${isUsedElsewhere ? 'data-disabled="true"' : ''}
+                                 ${isUsedElsewhere || isUntradeable ? 'data-disabled="true"' : ''}
                                  title="Draft rights to ${rights.playerName} (${rights.draftedYear})">
                               <div>
                                 <span class="rights-name">${rights.playerName}</span>
