@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.8-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Debug final percentage and meter display');
+    console.log('%c🏀 NBA Trade Machine v16.0-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Salary filler discount for secondary players');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2834,21 +2834,77 @@
       });
       
       const teamData = trade.map((t, idx) => {
+        // Calculate outgoing player values with filler discount
+        // Step 1: Find the main player (highest TV) for this team
+        let mainPlayerTV = 0;
+        let mainPlayerName = '';
+        t.playersOut.forEach(p => {
+          const tv = getTradeValue(p.player) || p.salary;
+          if (tv > mainPlayerTV) {
+            mainPlayerTV = tv;
+            mainPlayerName = p.player;
+          }
+        });
+        
+        // Step 2: Calculate total with filler discount for secondary players
         const playersOutTV = t.playersOut.reduce((sum, p) => {
-          const tv = getTradeValue(p.player);
-          console.warn(`  ${t.teamName} OUT: ${p.player} TV=${tv ? '$'+(tv/1000000).toFixed(1)+'M' : 'MISSING'} Salary=$${(p.salary/1000000).toFixed(1)}M`);
-          return sum + (tv || p.salary);
+          const tv = getTradeValue(p.player) || p.salary;
+          
+          // If this is the main player, use full value
+          if (p.player === mainPlayerName || t.playersOut.length === 1) {
+            console.warn(`  ${t.teamName} OUT: ${p.player} TV=$${(tv/1000000).toFixed(1)}M (MAIN)`);
+            return sum + tv;
+          }
+          
+          // For secondary players, apply filler discount
+          // Discount scales from 0% (if equal to main) to 50% (if very small)
+          // Formula: multiplier = 0.5 + 0.5 * (playerTV / mainTV)
+          const ratio = mainPlayerTV > 0 ? tv / mainPlayerTV : 1;
+          const fillerMultiplier = 0.5 + 0.5 * Math.min(ratio, 1);
+          const adjustedTV = tv * fillerMultiplier;
+          console.warn(`  ${t.teamName} OUT: ${p.player} TV=$${(tv/1000000).toFixed(1)}M × ${(fillerMultiplier*100).toFixed(0)}% filler = $${(adjustedTV/1000000).toFixed(1)}M`);
+          return sum + adjustedTV;
         }, 0);
         const picksOutTV = (t.picksOut || []).reduce((sum, pick) => {
           return sum + getPickTradeValue(pick);
         }, 0);
         // Add roster release penalty to outgoing value
-        const totalOut = playersOutTV + picksOutTV + rosterPenalties[idx];
+        let totalOut = playersOutTV + picksOutTV + rosterPenalties[idx];
         
+        // Add best player premium to the team SENDING the best player
+        // This increases their "cost" because they're giving up a star
+        if (bestPlayerFromTeamIdx === idx) {
+          totalOut += bestPlayerTV * getBestPlayerPremium(bestPlayerTV);
+        }
+        
+        // Calculate incoming player values with filler discount
+        // Step 1: Find the main incoming player (highest TV)
+        let mainIncomingTV = 0;
+        let mainIncomingName = '';
+        t.playersIn.forEach(p => {
+          const tv = getTradeValue(p.player) || p.salary;
+          if (tv > mainIncomingTV) {
+            mainIncomingTV = tv;
+            mainIncomingName = p.player;
+          }
+        });
+        
+        // Step 2: Calculate total with filler discount for secondary incoming players
         let playersInTV = t.playersIn.reduce((sum, p) => {
-          const tv = getTradeValue(p.player);
-          console.warn(`  ${t.teamName} IN: ${p.player} TV=${tv ? '$'+(tv/1000000).toFixed(1)+'M' : 'MISSING'} Salary=$${(p.salary/1000000).toFixed(1)}M`);
-          return sum + (tv || p.salary);
+          const tv = getTradeValue(p.player) || p.salary;
+          
+          // If this is the main player, use full value
+          if (p.player === mainIncomingName || t.playersIn.length === 1) {
+            console.warn(`  ${t.teamName} IN: ${p.player} TV=$${(tv/1000000).toFixed(1)}M (MAIN)`);
+            return sum + tv;
+          }
+          
+          // For secondary players, apply filler discount
+          const ratio = mainIncomingTV > 0 ? tv / mainIncomingTV : 1;
+          const fillerMultiplier = 0.5 + 0.5 * Math.min(ratio, 1);
+          const adjustedTV = tv * fillerMultiplier;
+          console.warn(`  ${t.teamName} IN: ${p.player} TV=$${(tv/1000000).toFixed(1)}M × ${(fillerMultiplier*100).toFixed(0)}% filler = $${(adjustedTV/1000000).toFixed(1)}M`);
+          return sum + adjustedTV;
         }, 0);
         
         // Add best player premium if this team is receiving the best player
@@ -2884,8 +2940,10 @@
       for (const team of teamData) {
         if (team.out === 0 && team.in === 0) continue;
         if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
-        const ratio = Math.min(team.out, team.in) / Math.max(team.out, team.in);
-        console.warn(`📊 ${team.teamName}: ratio=${(ratio*100).toFixed(1)}%, worstRatio before=${(worstRatio*100).toFixed(1)}%`);
+        // Only penalize teams that are LOSING value (out > in)
+        // Teams that are winning (in > out) get ratio = 1.0
+        const ratio = team.out > team.in ? (team.in / team.out) : 1.0;
+        console.warn(`📊 ${team.teamName}: out=$${(team.out/1000000).toFixed(1)}M, in=$${(team.in/1000000).toFixed(1)}M, losing=${team.out > team.in}, ratio=${(ratio*100).toFixed(1)}%`);
         worstRatio = Math.min(worstRatio, ratio);
       }
       const finalPercentage = Math.round(worstRatio * 100);
