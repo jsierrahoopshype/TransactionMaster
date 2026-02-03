@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v16.0-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Salary filler discount for secondary players');
+    console.log('%c🏀 NBA Trade Machine v16.1-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: More aggressive filler discount (30-100%)');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2860,7 +2860,7 @@
           // Discount scales from 0% (if equal to main) to 50% (if very small)
           // Formula: multiplier = 0.5 + 0.5 * (playerTV / mainTV)
           const ratio = mainPlayerTV > 0 ? tv / mainPlayerTV : 1;
-          const fillerMultiplier = 0.5 + 0.5 * Math.min(ratio, 1);
+          const fillerMultiplier = 0.3 + 0.7 * Math.min(ratio, 1);
           const adjustedTV = tv * fillerMultiplier;
           console.warn(`  ${t.teamName} OUT: ${p.player} TV=$${(tv/1000000).toFixed(1)}M × ${(fillerMultiplier*100).toFixed(0)}% filler = $${(adjustedTV/1000000).toFixed(1)}M`);
           return sum + adjustedTV;
@@ -2901,7 +2901,7 @@
           
           // For secondary players, apply filler discount
           const ratio = mainIncomingTV > 0 ? tv / mainIncomingTV : 1;
-          const fillerMultiplier = 0.5 + 0.5 * Math.min(ratio, 1);
+          const fillerMultiplier = 0.3 + 0.7 * Math.min(ratio, 1);
           const adjustedTV = tv * fillerMultiplier;
           console.warn(`  ${t.teamName} IN: ${p.player} TV=$${(tv/1000000).toFixed(1)}M × ${(fillerMultiplier*100).toFixed(0)}% filler = $${(adjustedTV/1000000).toFixed(1)}M`);
           return sum + adjustedTV;
