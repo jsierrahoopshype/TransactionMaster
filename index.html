@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v16.1-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: More aggressive filler discount (30-100%)');
+    console.log('%c🏀 NBA Trade Machine v16.2-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Double roster release penalty ($2.55M per player)');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2828,7 +2828,7 @@
         // If roster exceeds 15, team must release players
         if (postTradeCount > 15) {
           const mustRelease = postTradeCount - 15;
-          return mustRelease * MINIMUM_SALARY;
+          return mustRelease * MINIMUM_SALARY * 2; // Double penalty for releasing players
         }
         return 0;
       });
