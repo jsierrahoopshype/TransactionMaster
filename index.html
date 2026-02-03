@@ -920,6 +920,70 @@
       color: white;
     }
 
+    /* Realistic Meter */
+    .realistic-meter {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .realistic-meter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .realistic-meter-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .realistic-meter-value {
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .realistic-meter-bar {
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .realistic-meter-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease, background 0.3s ease;
+    }
+    .realistic-meter-segments {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+    }
+    .realistic-meter-segment {
+      flex: 1;
+      border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    .realistic-meter-segment:last-child {
+      border-right: none;
+    }
+    .meter-very-unbalanced { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .meter-unbalanced { background: linear-gradient(90deg, #f97316, #fb923c); }
+    .meter-fair { background: linear-gradient(90deg, #eab308, #facc15); }
+    .meter-balanced { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .realistic-meter-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.35rem;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
     .add-team-card {
       min-width: 200px;
       max-width: 200px;
@@ -2308,6 +2372,27 @@
         </div>
         <a href="#tradeRumorsContainer" class="check-rumors-link" id="checkRumorsLink" style="display: none;">📰 Check Rumors</a>
       </div>
+      
+      <!-- Realistic Meter -->
+      <div class="realistic-meter" id="realisticMeter" style="display: none;">
+        <div class="realistic-meter-header">
+          <span class="realistic-meter-label">⚖️ Trade Balance</span>
+          <span class="realistic-meter-value" id="realisticMeterValue">Balanced</span>
+        </div>
+        <div class="realistic-meter-bar">
+          <div class="realistic-meter-segments">
+            <div class="realistic-meter-segment"></div>
+            <div class="realistic-meter-segment"></div>
+            <div class="realistic-meter-segment"></div>
+            <div class="realistic-meter-segment"></div>
+          </div>
+          <div class="realistic-meter-fill" id="realisticMeterFill" style="width: 100%;"></div>
+        </div>
+        <div class="realistic-meter-labels">
+          <span>Very Unbalanced</span>
+          <span>Balanced</span>
+        </div>
+      </div>
 
       <div class="trade-container" id="tradeContainer">
         <!-- Skeleton loading cards -->
@@ -2726,6 +2811,114 @@
           }
         }
         return true;
+      }
+    }
+    
+    // Calculate trade balance percentage for the realistic meter (0-100%)
+    // Returns an object with percentage and details
+    function calculateTradeBalance(trade) {
+      if (!trade || trade.length < 2) return { percentage: 0, details: null };
+      if (tradeValueMapLower.size === 0) return { percentage: 100, details: null }; // No data = assume balanced
+      
+      // Calculate total trade value each team is sending and receiving
+      const teamData = trade.map((t, idx) => {
+        // Value going OUT (players + picks)
+        const playersOutTV = t.playersOut.reduce((sum, p) => {
+          return sum + (getTradeValue(p.player) || p.salary);
+        }, 0);
+        const picksOutTV = (t.picksOut || []).reduce((sum, pick) => {
+          return sum + getPickTradeValue(pick);
+        }, 0);
+        const totalOut = playersOutTV + picksOutTV;
+        
+        // Value coming IN (players from other teams + picks from other teams)
+        const playersInTV = t.playersIn.reduce((sum, p) => {
+          return sum + (getTradeValue(p.player) || p.salary);
+        }, 0);
+        const picksInTV = trade.reduce((sum, otherTeam, otherIdx) => {
+          if (otherIdx === idx) return sum;
+          return sum + (otherTeam.picksOut || [])
+            .filter(pick => pick.destination === idx)
+            .reduce((pickSum, pick) => pickSum + getPickTradeValue(pick), 0);
+        }, 0);
+        const totalIn = playersInTV + picksInTV;
+        
+        return { teamName: t.teamName, out: totalOut, in: totalIn };
+      });
+      
+      // For 2-team trades: simple ratio comparison
+      if (trade.length === 2) {
+        const [team1, team2] = teamData;
+        if (team1.out === 0 && team2.out === 0) return { percentage: 100, details: teamData };
+        if (team1.out === 0 || team2.out === 0) return { percentage: 50, details: teamData };
+        
+        const ratio = Math.min(team1.out, team2.out) / Math.max(team1.out, team2.out);
+        // Convert ratio to percentage: ratio 1.0 = 100%, ratio 0.0 = 0%
+        const percentage = Math.round(ratio * 100);
+        return { percentage, details: teamData };
+      } else {
+        // For 3+ team trades: check each team's in/out balance
+        let worstRatio = 1.0;
+        for (const team of teamData) {
+          if (team.out === 0 && team.in === 0) continue;
+          if (team.out === 0 || team.in === 0) {
+            worstRatio = Math.min(worstRatio, 0.3); // Penalize but not too harshly
+            continue;
+          }
+          const ratio = Math.min(team.out, team.in) / Math.max(team.out, team.in);
+          worstRatio = Math.min(worstRatio, ratio);
+        }
+        const percentage = Math.round(worstRatio * 100);
+        return { percentage, details: teamData };
+      }
+    }
+    
+    // Update the realistic meter UI
+    function updateRealisticMeter() {
+      const meter = document.getElementById('realisticMeter');
+      const fill = document.getElementById('realisticMeterFill');
+      const value = document.getElementById('realisticMeterValue');
+      
+      if (!meter || !fill || !value) return;
+      
+      // Check if there are any assets in the trade
+      const hasAnyAssets = tradeTeams.some(t => 
+        (t.playersOut && t.playersOut.length > 0) ||
+        (t.picksOut && t.picksOut.length > 0)
+      );
+      
+      if (!hasAnyAssets || tradeValueMapLower.size === 0) {
+        meter.style.display = 'none';
+        return;
+      }
+      
+      meter.style.display = 'block';
+      const balance = calculateTradeBalance(tradeTeams);
+      const pct = balance.percentage;
+      
+      // Update fill width and color
+      fill.style.width = pct + '%';
+      
+      // Remove all color classes
+      fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
+      
+      // Set color and label based on percentage
+      if (pct < 25) {
+        fill.classList.add('meter-very-unbalanced');
+        value.textContent = 'Very Unbalanced';
+        value.style.color = '#ef4444';
+      } else if (pct < 50) {
+        fill.classList.add('meter-unbalanced');
+        value.textContent = 'Unbalanced';
+        value.style.color = '#f97316';
+      } else if (pct < 75) {
+        fill.classList.add('meter-fair');
+        value.textContent = 'Fair';
+        value.style.color = '#eab308';
+      } else {
+        fill.classList.add('meter-balanced');
+        value.textContent = 'Balanced';
+        value.style.color = '#22c55e';
       }
     }
     
@@ -4945,6 +5138,9 @@
         tradeStatus.style.display = 'none';
         const checkRumorsLink = document.getElementById('checkRumorsLink');
         if (checkRumorsLink) checkRumorsLink.style.display = 'none';
+        // Hide realistic meter too
+        const meter = document.getElementById('realisticMeter');
+        if (meter) meter.style.display = 'none';
         return;
       }
 
@@ -4999,6 +5195,9 @@
       if (checkRumorsLink) {
         checkRumorsLink.style.display = hasPlayersInTrade ? 'block' : 'none';
       }
+      
+      // Update the realistic meter
+      updateRealisticMeter();
     }
 
     // Main render function
@@ -5633,6 +5832,15 @@
           if (team1Valid.valid && team2Valid.valid && team3Valid.valid &&
               team1Apron.valid && team2Apron.valid && team3Apron.valid &&
               isTradeValueBalanced(testTrade)) {
+            // Maybe add draft picks (30% chance for each team in 3-team trades)
+            for (let side = 0; side < 3; side++) {
+              if (Math.random() < 0.30) {
+                // Pick a random destination (not the same team)
+                const possibleDests = [0, 1, 2].filter(t => t !== side);
+                const dest = possibleDests[Math.floor(Math.random() * possibleDests.length)];
+                addPicksToTrade(testTrade, side, dest, false);
+              }
+            }
             return testTrade;
           }
         } else {
@@ -5714,6 +5922,19 @@
                     // Remove the additional player if it breaks the trade
                     testTrade[sideToAdd].playersOut.pop();
                     testTrade[otherSide].playersIn.pop();
+                  }
+                }
+              }
+              
+              // Maybe add draft picks (40% chance for each team)
+              for (let side = 0; side < 2; side++) {
+                if (Math.random() < 0.40) {
+                  const otherSide = side === 0 ? 1 : 0;
+                  const picksAdded = addPicksToTrade(testTrade, side, otherSide, false);
+                  // Revalidate after adding picks
+                  if (picksAdded > 0 && !isTradeValueBalanced(testTrade)) {
+                    // Remove picks if they unbalance the trade too much
+                    testTrade[side].picksOut = [];
                   }
                 }
               }
