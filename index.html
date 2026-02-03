@@ -46,6 +46,8 @@
       --orange-dim: rgba(180, 83, 9, 0.15);
       --red: #ff453a;
       --red-dim: rgba(255, 69, 58, 0.15);
+      --purple: #9333ea;
+      --purple-dim: rgba(147, 51, 234, 0.15);
       --valid: #34c759;
     }
 
@@ -1248,6 +1250,40 @@
 
     .pick-conditional {
       font-size: 0.5625rem;
+      
+    .swap-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.6875rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    
+    .swap-toggle:hover {
+      border-color: var(--accent);
+    }
+    
+    .swap-toggle.active {
+      background: var(--purple-dim);
+      border-color: var(--purple);
+      color: var(--purple);
+    }
+    
+    .swap-badge {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      padding: 0.0625rem 0.25rem;
+      border-radius: 2px;
+      background: var(--purple-dim);
+      color: var(--purple);
+      margin-left: 0.25rem;
+    }
       padding: 0.125rem 0.3rem;
       border-radius: 3px;
       font-weight: 600;
@@ -2451,8 +2487,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v16.6-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Auto-add TPE, NA players can be absorbed into TPE');
+    console.log('%c🏀 NBA Trade Machine v17.0 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Pick Swaps, Auto-TPE, NA TPE absorption, Filler discount, Roster penalty');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2497,13 +2533,10 @@
           return;
         }
         tradeValueMap = computeTradeValues(csvText);
-        console.warn('✅ Trade values loaded! tradeValueMapLower.size:', tradeValueMapLower.size);
         // Re-render trade status to update realistic meter with trade values
         if (typeof renderTradeStatus === 'function') {
-          console.warn('✅ Calling renderTradeStatus after trade values load');
           renderTradeStatus();
         } else {
-          console.warn('❌ renderTradeStatus not available yet');
         }
       })
       .catch(err => {
@@ -2690,7 +2723,10 @@
     const SECOND_ROUND_PICK_TV = 3000000;
     
     function getPickTradeValue(pick) {
-      return pick.round === '1st' ? FIRST_ROUND_PICK_TV : SECOND_ROUND_PICK_TV;
+      const baseValue = pick.round === '1st' ? FIRST_ROUND_PICK_TV : SECOND_ROUND_PICK_TV;
+      // Swaps are worth less because you might not get the better pick
+      // Assume ~50% value since it's uncertain which pick you'll end up with
+      return pick.isSwap ? baseValue * 0.5 : baseValue;
     }
     
     function isTradeValueBalanced(testTrade, baseTolerance = 0.50) {
@@ -2779,7 +2815,6 @@
     }
     
     function calculateTradeBalance(trade) {
-      console.warn('📊 calculateTradeBalance called, trade teams:', trade?.length, 'tradeValueMapLower size:', tradeValueMapLower.size);
       if (!trade || trade.length < 2) return { percentage: 0, details: null };
       if (tradeValueMapLower.size === 0) return { percentage: 100, details: null };
       
@@ -2804,7 +2839,6 @@
         // Match team name (tradeTeams uses short names like "Denver", players use full names like "Denver Nuggets")
         const fullTeamName = teams.find(team => team.includes(t.teamName) || t.teamName.includes(team.split(' ')[0]));
         if (!fullTeamName) {
-          console.warn(`  ${t.teamName} ROSTER: team not found in teams array`);
           return 0;
         }
         
@@ -2829,13 +2863,10 @@
         
         const postTradeCount = currentStandardCount - outgoingStandard + incomingStandard;
         
-        console.warn(`  ${t.teamName} ROSTER (${fullTeamName}): current=${currentStandardCount}, out=${outgoingStandard}, in=${incomingStandard}, post=${postTradeCount}`);
-        
         // If roster exceeds 15, team must release players
         if (postTradeCount > 15) {
           const mustRelease = postTradeCount - 15;
           const penalty = mustRelease * MINIMUM_SALARY * 2;
-          console.warn(`  ${t.teamName} ROSTER PENALTY: must release ${mustRelease} players, penalty=$${(penalty/1000000).toFixed(2)}M`);
           return penalty;
         }
         return 0;
@@ -2860,7 +2891,6 @@
           
           // If this is the main player, use full value
           if (p.player === mainPlayerName || t.playersOut.length === 1) {
-            console.warn(`  ${t.teamName} OUT: ${p.player} TV=$${(tv/1000000).toFixed(1)}M (MAIN)`);
             return sum + tv;
           }
           
@@ -2870,14 +2900,12 @@
           const ratio = mainPlayerTV > 0 ? tv / mainPlayerTV : 1;
           const fillerMultiplier = 0.3 + 0.7 * Math.min(ratio, 1);
           const adjustedTV = tv * fillerMultiplier;
-          console.warn(`  ${t.teamName} OUT: ${p.player} TV=$${(tv/1000000).toFixed(1)}M × ${(fillerMultiplier*100).toFixed(0)}% filler = $${(adjustedTV/1000000).toFixed(1)}M`);
           return sum + adjustedTV;
         }, 0);
         const picksOutTV = (t.picksOut || []).reduce((sum, pick) => {
           return sum + getPickTradeValue(pick);
         }, 0);
         // Add roster release penalty to outgoing value
-        console.warn(`  ${t.teamName} PENALTY APPLIED: rosterPenalties[${idx}]=$${(rosterPenalties[idx]/1000000).toFixed(2)}M`);
         let totalOut = playersOutTV + picksOutTV + rosterPenalties[idx];
         
         // Add best player premium to the team SENDING the best player
@@ -2904,7 +2932,6 @@
           
           // If this is the main player, use full value
           if (p.player === mainIncomingName || t.playersIn.length === 1) {
-            console.warn(`  ${t.teamName} IN: ${p.player} TV=$${(tv/1000000).toFixed(1)}M (MAIN)`);
             return sum + tv;
           }
           
@@ -2912,7 +2939,6 @@
           const ratio = mainIncomingTV > 0 ? tv / mainIncomingTV : 1;
           const fillerMultiplier = 0.3 + 0.7 * Math.min(ratio, 1);
           const adjustedTV = tv * fillerMultiplier;
-          console.warn(`  ${t.teamName} IN: ${p.player} TV=$${(tv/1000000).toFixed(1)}M × ${(fillerMultiplier*100).toFixed(0)}% filler = $${(adjustedTV/1000000).toFixed(1)}M`);
           return sum + adjustedTV;
         }, 0);
         
@@ -2939,25 +2965,21 @@
       // For all trades (2-team or more), compare each team's out vs in value
       // This properly factors in best player premium and roster penalties
       let worstRatio = 1.0;
-      console.warn('📊 Trade Balance Debug:', teamData.map((t, idx) => ({
         team: t.teamName,
         out: '$' + (t.out/1000000).toFixed(1) + 'M',
         in: '$' + (t.in/1000000).toFixed(1) + 'M',
         rosterPenalty: '$' + (rosterPenalties[idx]/1000000).toFixed(1) + 'M',
         ratio: t.out > 0 && t.in > 0 ? (Math.min(t.out, t.in) / Math.max(t.out, t.in) * 100).toFixed(1) + '%' : 'N/A'
       })));
-      console.warn('📊 Best Player:', bestPlayer, 'TV: $' + (bestPlayerTV/1000000).toFixed(1) + 'M, Premium:', (getBestPlayerPremium(bestPlayerTV) * 100).toFixed(1) + '%');
       for (const team of teamData) {
         if (team.out === 0 && team.in === 0) continue;
         if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
         // Only penalize teams that are LOSING value (out > in)
         // Teams that are winning (in > out) get ratio = 1.0
         const ratio = team.out > team.in ? (team.in / team.out) : 1.0;
-        console.warn(`📊 ${team.teamName}: out=$${(team.out/1000000).toFixed(1)}M, in=$${(team.in/1000000).toFixed(1)}M, losing=${team.out > team.in}, ratio=${(ratio*100).toFixed(1)}%`);
         worstRatio = Math.min(worstRatio, ratio);
       }
       const finalPercentage = Math.round(worstRatio * 100);
-      console.warn('📊 FINAL: worstRatio=' + (worstRatio*100).toFixed(1) + '%, percentage=' + finalPercentage);
       return { percentage: finalPercentage, details: teamData };
     }
     
@@ -2967,7 +2989,6 @@
       const fill = document.getElementById('realisticMeterFill');
       const value = document.getElementById('realisticMeterValue');
       
-      console.warn('🎯 updateRealisticMeter called, isLegalTrade:', isLegalTrade, 'tradeValueMapLower.size:', tradeValueMapLower.size);
       
       if (!meter || !fill || !value) return;
       
@@ -2985,7 +3006,6 @@
       const balance = calculateTradeBalance(tradeTeams);
       const pct = balance.percentage;
       
-      console.warn('🎯 METER UPDATE: pct=' + pct + ', showing:', pct < 40 ? 'Very Unbalanced' : pct < 60 ? 'Unbalanced' : pct < 85 ? 'Fair' : 'Balanced');
       
       fill.style.width = pct + '%';
       fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
@@ -3015,7 +3035,8 @@
       const teamName = team.teamName;
       const picksOut = team.picksOut || [];
       
-      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
+      // Only count full trades, not swaps
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st' && !p.isSwap);
       if (firstRoundPicksOut.length === 0) return true;
       
       const teamFirstRoundPicks = draftPicks
@@ -3143,7 +3164,8 @@
             pickIndex: pick.pickIndex,
             surePick: pick.surePick,
             linkedTo: pick.linkedTo || '',
-            destination: destination
+            destination: destination,
+            isSwap: false
           });
           picksAdded++;
         }
@@ -3164,7 +3186,8 @@
           pickIndex: pick.pickIndex,
           surePick: pick.surePick,
           linkedTo: pick.linkedTo || '',
-          destination: destination
+          destination: destination,
+          isSwap: false
         });
         picksAdded++;
       }
@@ -4042,10 +4065,11 @@
       const team = tradeTeams[teamIndex];
       const picksOut = team.picksOut || [];
       
-      // Only check first-round picks being traded out
-      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
+      // Only check first-round picks being FULLY traded out (not swaps)
+      // Swaps don't violate Stepien because team still has A pick in that year
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st' && !p.isSwap);
       
-      // Get incoming first-round picks from other teams
+      // Get incoming first-round picks from other teams (including swaps they're receiving)
       const incomingFirstRoundPicks = [];
       tradeTeams.forEach((otherTeam, otherIndex) => {
         if (otherIndex !== teamIndex && otherTeam.picksOut) {
@@ -4752,12 +4776,13 @@
                   } else {
                     pickSource = `From ${pick.fromTeam}`;
                   }
+                  const isSwap = pick.isSwap || false;
                   return `
-                    <div class="player-chip" style="background: var(--orange-dim); border-color: var(--orange);">
+                    <div class="player-chip" style="background: ${isSwap ? 'var(--purple-dim)' : 'var(--orange-dim)'}; border-color: ${isSwap ? 'var(--purple)' : 'var(--orange)'};">
                       <div class="player-chip-row">
                         <div class="player-chip-info">
-                          <div class="player-chip-name" style="color: var(--orange);">
-                            📋 ${pick.year} ${pick.round} Round Pick
+                          <div class="player-chip-name" style="color: ${isSwap ? 'var(--purple)' : 'var(--orange)'};">
+                            📋 ${pick.year} ${pick.round} Round Pick ${isSwap ? '<span class="swap-badge">SWAP</span>' : ''}
                             ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                           </div>
                           <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pickSource}</div>
@@ -4773,6 +4798,13 @@
                               <option value="${t.index}" ${pick.destination === t.index ? 'selected' : ''}>${t.name}</option>
                             `).join('')}
                           </select>
+                        </div>
+                      ` : ''}
+                      ${pick.round === '1st' ? `
+                        <div class="player-destination" style="margin-top: 0.25rem;">
+                          <span class="swap-toggle ${isSwap ? 'active' : ''}" data-team="${index}" data-pick="${pickIdx}" title="Swap: Team keeps worse pick. Trade: Team gives up pick entirely.">
+                            <span style="font-size: 0.75rem;">🔄</span> ${isSwap ? 'Swap Rights' : 'Full Trade'}
+                          </span>
                         </div>
                       ` : ''}
                     </div>
@@ -5435,7 +5467,6 @@
       
       // Update the realistic meter (only for legal trades)
       const isLegalTrade = validation.valid || validation.type?.startsWith('pending');
-      console.warn('🎯 validation.valid:', validation.valid, 'validation.type:', validation.type, 'isLegalTrade:', isLegalTrade);
       updateRealisticMeter(isLegalTrade);
     }
 
@@ -5483,7 +5514,8 @@
               pickTeam: pick.team,
               year: pick.year,
               round: pick.round,
-              destination: pick.destination
+              destination: pick.destination,
+              isSwap: pick.isSwap || false
             });
           });
         }
@@ -5579,13 +5611,15 @@
         params.set('pd', playerDests.join(','));
       }
       
-      // Encode picks (format: fromTeamIdx:pickTeamAbbrev:year:round:destIdx,...)
+      // Encode picks (format: fromTeamIdx:pickTeamAbbrev:year:round:destIdx:isSwap,...)
       if (allPicks.length > 0) {
         const pickStrings = allPicks.slice(0, 6).map(pick => {
           const pickTeamAbbrev = teamAbbreviations[pick.pickTeam] || pick.pickTeam.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
           // Use short round format: 1 or 2 instead of 1st or 2nd
           const roundShort = pick.round === '1st' ? '1' : '2';
-          return `${pick.fromTeamIndex}:${pickTeamAbbrev}:${pick.year}:${roundShort}:${pick.destination !== undefined ? pick.destination : ''}`;
+          // Add swap flag (s for swap, empty for full trade)
+          const swapFlag = pick.isSwap ? 's' : '';
+          return `${pick.fromTeamIndex}:${pickTeamAbbrev}:${pick.year}:${roundShort}:${pick.destination !== undefined ? pick.destination : ''}${swapFlag}`;
         });
         params.set('pk', pickStrings.join(','));
       }
@@ -5738,6 +5772,17 @@
         });
       });
 
+      // Swap toggle click
+      document.querySelectorAll('.swap-toggle').forEach(toggle => {
+        toggle.addEventListener('click', (e) => {
+          const teamIndex = parseInt(e.currentTarget.dataset.team);
+          const pickIndex = parseInt(e.currentTarget.dataset.pick);
+          const pick = tradeTeams[teamIndex].picksOut[pickIndex];
+          pick.isSwap = !pick.isSwap;
+          render();
+        });
+      });
+
       // Rights destination change
       document.querySelectorAll('.rights-destination-select').forEach(select => {
         select.addEventListener('change', (e) => {
@@ -5870,7 +5915,8 @@
               pickIndex: pickIndex,
               surePick: pickSure,
               linkedTo: pickLinked,
-              destination: otherTeamIndex >= 0 ? otherTeamIndex : undefined
+              destination: otherTeamIndex >= 0 ? otherTeamIndex : undefined,
+              isSwap: false // Default to full trade, can toggle to swap
             });
           }
           
@@ -9225,8 +9271,9 @@
         }
       });
       
-      // Parse and add picks (format: fromTeamIdx:pickTeam:year:round:destIdx,...)
+      // Parse and add picks (format: fromTeamIdx:pickTeam:year:round:destIdx[s],...)
       // Supports both old format (team slugs, "1st"/"2nd") and new compact format (abbreviations, "1"/"2")
+      // 's' at end of destIdx indicates a swap
       if (picksParam) {
         const pickStrings = picksParam.split(',');
         pickStrings.forEach(pickStr => {
@@ -9236,7 +9283,14 @@
             const pickTeamIdent = parts[1];
             const year = parts[2];
             let round = parts[3];
-            const destIdx = parts[4] !== undefined && parts[4] !== '' ? parseInt(parts[4]) : undefined;
+            let destPart = parts[4] || '';
+            
+            // Check for swap flag at end of destination
+            const isSwap = destPart.endsWith('s');
+            if (isSwap) {
+              destPart = destPart.slice(0, -1); // Remove 's' from end
+            }
+            const destIdx = destPart !== '' ? parseInt(destPart) : undefined;
             
             // Convert short round format to full format
             if (round === '1') round = '1st';
@@ -9266,7 +9320,8 @@
               if (matchingPick) {
                 tradeTeamsList[fromTeamIdx].picksOut.push({
                   ...matchingPick,
-                  destination: destIdx !== undefined ? destIdx : (fromTeamIdx === 0 ? 1 : 0)
+                  destination: destIdx !== undefined ? destIdx : (fromTeamIdx === 0 ? 1 : 0),
+                  isSwap: isSwap
                 });
               }
             }
