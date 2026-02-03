@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.6-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Re-render meter after trade values load');
+    console.log('%c🏀 NBA Trade Machine v15.7-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Debug trade value load callback');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2497,9 +2497,13 @@
           return;
         }
         tradeValueMap = computeTradeValues(csvText);
+        console.warn('✅ Trade values loaded! tradeValueMapLower.size:', tradeValueMapLower.size);
         // Re-render trade status to update realistic meter with trade values
         if (typeof renderTradeStatus === 'function') {
+          console.warn('✅ Calling renderTradeStatus after trade values load');
           renderTradeStatus();
+        } else {
+          console.warn('❌ renderTradeStatus not available yet');
         }
       })
       .catch(err => {
