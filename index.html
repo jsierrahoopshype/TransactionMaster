@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v16.4-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Debug roster penalty applied to totalOut');
+    console.log('%c🏀 NBA Trade Machine v16.5-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Fixed team name matching for roster penalty');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2801,15 +2801,16 @@
       
       // Calculate roster release penalty for each team
       const rosterPenalties = trade.map((t, idx) => {
-        const teamInfo = teams.find(team => team.team === t.teamName);
-        if (!teamInfo) {
+        // Match team name (tradeTeams uses short names like "Denver", players use full names like "Denver Nuggets")
+        const fullTeamName = teams.find(team => team.includes(t.teamName) || t.teamName.includes(team.split(' ')[0]));
+        if (!fullTeamName) {
           console.warn(`  ${t.teamName} ROSTER: team not found in teams array`);
           return 0;
         }
         
         // Count current standard roster (excluding two-way and 10-day)
         const currentStandardCount = players.filter(p => 
-          p.team === t.teamName &&
+          p.team === fullTeamName &&
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY')
         ).length;
@@ -2828,7 +2829,7 @@
         
         const postTradeCount = currentStandardCount - outgoingStandard + incomingStandard;
         
-        console.warn(`  ${t.teamName} ROSTER: current=${currentStandardCount}, out=${outgoingStandard}, in=${incomingStandard}, post=${postTradeCount}`);
+        console.warn(`  ${t.teamName} ROSTER (${fullTeamName}): current=${currentStandardCount}, out=${outgoingStandard}, in=${incomingStandard}, post=${postTradeCount}`);
         
         // If roster exceeds 15, team must release players
         if (postTradeCount > 15) {
@@ -2938,10 +2939,11 @@
       // For all trades (2-team or more), compare each team's out vs in value
       // This properly factors in best player premium and roster penalties
       let worstRatio = 1.0;
-      console.warn('📊 Trade Balance Debug:', teamData.map(t => ({
+      console.warn('📊 Trade Balance Debug:', teamData.map((t, idx) => ({
         team: t.teamName,
         out: '$' + (t.out/1000000).toFixed(1) + 'M',
         in: '$' + (t.in/1000000).toFixed(1) + 'M',
+        rosterPenalty: '$' + (rosterPenalties[idx]/1000000).toFixed(1) + 'M',
         ratio: t.out > 0 && t.in > 0 ? (Math.min(t.out, t.in) / Math.max(t.out, t.in) * 100).toFixed(1) + '%' : 'N/A'
       })));
       console.warn('📊 Best Player:', bestPlayer, 'TV: $' + (bestPlayerTV/1000000).toFixed(1) + 'M, Premium:', (getBestPlayerPremium(bestPlayerTV) * 100).toFixed(1) + '%');
