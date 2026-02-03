@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.5-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: DEBUG MODE - showing trade value calculations');
+    console.log('%c🏀 NBA Trade Machine v15.6-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Re-render meter after trade values load');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2497,6 +2497,10 @@
           return;
         }
         tradeValueMap = computeTradeValues(csvText);
+        // Re-render trade status to update realistic meter with trade values
+        if (typeof renderTradeStatus === 'function') {
+          renderTradeStatus();
+        }
       })
       .catch(err => {
         // Silently handle trade value fetch errors
@@ -5264,6 +5268,7 @@
       
       // Update the realistic meter (only for legal trades)
       const isLegalTrade = validation.valid || validation.type?.startsWith('pending');
+      console.warn('🎯 validation.valid:', validation.valid, 'validation.type:', validation.type, 'isLegalTrade:', isLegalTrade);
       updateRealisticMeter(isLegalTrade);
     }
 
