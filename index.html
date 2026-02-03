@@ -2432,9 +2432,10 @@
     let tradeValueMap = new Map(); // playerName -> uncappedTV
     
     // Fetch and compute trade values in background
+    console.log('🏀 TRADE VALUE INTEGRATION: Starting fetch...');
     const tradeValueFetchPromise = fetch(TV_CSV_URL)
       .then(r => {
-        console.log(`Trade value fetch status: ${r.status}`);
+        console.log(`🏀 Trade value fetch status: ${r.status}`);
         return r.ok ? r.text() : null;
       })
       .then(csvText => {
@@ -2465,7 +2466,9 @@
     
     // Compact trade value computation (mirrors Trade Value Rankings formula)
     function computeTradeValues(csvText) {
+      console.log('🏀 computeTradeValues called, CSV length:', csvText.length);
       const rows = parseTradeValueCSV(csvText);
+      console.log('🏀 Parsed rows:', rows.length);
       const roster = [], historical = [];
       let todayStr = null;
       
@@ -2497,6 +2500,8 @@
       }
       
       // Build historical lookup (case-insensitive)
+      console.log(`🏀 Roster parsed: ${roster.length} players, first 3 draft picks:`, 
+        roster.slice(0,3).map(p => `${p.player}:${p.draftPick}`));
       const playerHist = {};
       for (const h of historical) {
         const k = h.player.toLowerCase();
@@ -2602,6 +2607,15 @@
       
       const result = new Map();
       let debugCount = 0;
+      
+      // Find Cooper Flagg specifically for debugging
+      const flagg = roster.find(p => p.player.toLowerCase().includes('flagg'));
+      if (flagg) {
+        console.log('🚩 FLAGG FOUND:', JSON.stringify(flagg));
+      } else {
+        console.log('🚩 FLAGG NOT FOUND in roster');
+      }
+      
       for (const p of roster) {
         const baseTV = totalWithAge > 0 ? Math.round((p.tvWithAge / totalWithAge) * totalSalPool) : 0;
         const potentialBonus = calcPotentialBonus(p.age, p.draftPick);
@@ -2611,7 +2625,7 @@
         
         // Debug young players with draft picks
         if (p.age !== null && p.age < 25 && debugCount < 10) {
-          console.log(`Potential debug: ${p.player}, age=${p.age?.toFixed(2)}, draft=${p.draftPick}, baseTV=$${baseTV.toLocaleString()}, bonus=$${potentialBonus.toLocaleString()}, totalTV=$${tv.toLocaleString()}`);
+          console.log(`🌟 POTENTIAL BONUS: ${p.player}, age=${p.age?.toFixed(2)}, draft=${p.draftPick}, baseTV=$${baseTV.toLocaleString()}, bonus=$${potentialBonus.toLocaleString()}, totalTV=$${tv.toLocaleString()}`);
           debugCount++;
         }
       }
