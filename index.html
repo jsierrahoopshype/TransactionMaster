@@ -945,43 +945,32 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
-    .realistic-meter-bar {
-      height: 8px;
-      background: var(--bg-tertiary);
+    .realistic-meter-blocks {
+      display: flex;
+      gap: 4px;
+      height: 24px;
+    }
+    .realistic-meter-block {
+      flex: 1;
       border-radius: 4px;
-      overflow: hidden;
+      background: var(--bg-tertiary);
+      transition: background 0.3s ease;
       position: relative;
     }
-    .realistic-meter-fill {
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s ease, background 0.3s ease;
-    }
-    .realistic-meter-segments {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-    }
-    .realistic-meter-segment {
-      flex: 1;
-      border-right: 1px solid rgba(255,255,255,0.1);
-    }
-    .realistic-meter-segment:last-child {
-      border-right: none;
-    }
-    .meter-very-unbalanced { background: linear-gradient(90deg, #ef4444, #f87171); }
-    .meter-unbalanced { background: linear-gradient(90deg, #f97316, #fb923c); }
-    .meter-fair { background: linear-gradient(90deg, #eab308, #facc15); }
-    .meter-balanced { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .realistic-meter-block.active.block-1 { background: #ef4444; }
+    .realistic-meter-block.active.block-2 { background: #eab308; }
+    .realistic-meter-block.active.block-3 { background: #86efac; }
+    .realistic-meter-block.active.block-4 { background: #22c55e; }
     .realistic-meter-labels {
       display: flex;
       justify-content: space-between;
       margin-top: 0.35rem;
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: var(--text-muted);
+    }
+    .realistic-meter-labels span {
+      flex: 1;
+      text-align: center;
     }
 
     .add-team-card {
@@ -2379,17 +2368,16 @@
           <span class="realistic-meter-label">⚖️ Trade Balance</span>
           <span class="realistic-meter-value" id="realisticMeterValue">Balanced</span>
         </div>
-        <div class="realistic-meter-bar">
-          <div class="realistic-meter-segments">
-            <div class="realistic-meter-segment"></div>
-            <div class="realistic-meter-segment"></div>
-            <div class="realistic-meter-segment"></div>
-            <div class="realistic-meter-segment"></div>
-          </div>
-          <div class="realistic-meter-fill" id="realisticMeterFill" style="width: 100%;"></div>
+        <div class="realistic-meter-blocks">
+          <div class="realistic-meter-block block-1" id="meterBlock1"></div>
+          <div class="realistic-meter-block block-2" id="meterBlock2"></div>
+          <div class="realistic-meter-block block-3" id="meterBlock3"></div>
+          <div class="realistic-meter-block block-4" id="meterBlock4"></div>
         </div>
         <div class="realistic-meter-labels">
           <span>Very Unbalanced</span>
+          <span>Unbalanced</span>
+          <span>Fairly Balanced</span>
           <span>Balanced</span>
         </div>
       </div>
@@ -2874,12 +2862,15 @@
     }
     
     // Update the realistic meter UI
-    function updateRealisticMeter() {
+    function updateRealisticMeter(isLegalTrade = false) {
       const meter = document.getElementById('realisticMeter');
-      const fill = document.getElementById('realisticMeterFill');
       const value = document.getElementById('realisticMeterValue');
+      const block1 = document.getElementById('meterBlock1');
+      const block2 = document.getElementById('meterBlock2');
+      const block3 = document.getElementById('meterBlock3');
+      const block4 = document.getElementById('meterBlock4');
       
-      if (!meter || !fill || !value) return;
+      if (!meter || !value || !block1 || !block2 || !block3 || !block4) return;
       
       // Check if there are any assets in the trade
       const hasAnyAssets = tradeTeams.some(t => 
@@ -2887,7 +2878,8 @@
         (t.picksOut && t.picksOut.length > 0)
       );
       
-      if (!hasAnyAssets || tradeValueMapLower.size === 0) {
+      // Only show for legal trades with assets and trade value data
+      if (!hasAnyAssets || tradeValueMapLower.size === 0 || !isLegalTrade) {
         meter.style.display = 'none';
         return;
       }
@@ -2896,27 +2888,34 @@
       const balance = calculateTradeBalance(tradeTeams);
       const pct = balance.percentage;
       
-      // Update fill width and color
-      fill.style.width = pct + '%';
+      // Reset all blocks
+      block1.classList.remove('active');
+      block2.classList.remove('active');
+      block3.classList.remove('active');
+      block4.classList.remove('active');
       
-      // Remove all color classes
-      fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
-      
-      // Set color and label based on percentage
+      // Light up blocks based on percentage and set label
+      // Ranges: 0-25 (red), 25-50 (yellow), 50-85 (light green), 85-100 (solid green)
       if (pct < 25) {
-        fill.classList.add('meter-very-unbalanced');
+        block1.classList.add('active');
         value.textContent = 'Very Unbalanced';
         value.style.color = '#ef4444';
       } else if (pct < 50) {
-        fill.classList.add('meter-unbalanced');
+        block1.classList.add('active');
+        block2.classList.add('active');
         value.textContent = 'Unbalanced';
-        value.style.color = '#f97316';
-      } else if (pct < 75) {
-        fill.classList.add('meter-fair');
-        value.textContent = 'Fair';
         value.style.color = '#eab308';
+      } else if (pct < 85) {
+        block1.classList.add('active');
+        block2.classList.add('active');
+        block3.classList.add('active');
+        value.textContent = 'Fairly Balanced';
+        value.style.color = '#86efac';
       } else {
-        fill.classList.add('meter-balanced');
+        block1.classList.add('active');
+        block2.classList.add('active');
+        block3.classList.add('active');
+        block4.classList.add('active');
         value.textContent = 'Balanced';
         value.style.color = '#22c55e';
       }
@@ -5196,8 +5195,9 @@
         checkRumorsLink.style.display = hasPlayersInTrade ? 'block' : 'none';
       }
       
-      // Update the realistic meter
-      updateRealisticMeter();
+      // Update the realistic meter (only for legal trades)
+      const isLegalTrade = validation.valid || validation.type?.startsWith('pending');
+      updateRealisticMeter(isLegalTrade);
     }
 
     // Main render function
