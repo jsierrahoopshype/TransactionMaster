@@ -2871,18 +2871,18 @@
       fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
       
       // Set color and label based on percentage
-      // Ranges: 0-25 (red), 25-50 (yellow), 50-85 (light green), 85-100 (solid green)
-      if (pct < 25) {
+      // Ranges: 0-40 (red), 40-60 (yellow), 60-85 (light green), 85-100 (solid green)
+      if (pct < 40) {
         fill.classList.add('meter-very-unbalanced');
         value.textContent = 'Very Unbalanced';
         value.style.color = '#ef4444';
-      } else if (pct < 50) {
+      } else if (pct < 60) {
         fill.classList.add('meter-unbalanced');
         value.textContent = 'Unbalanced';
         value.style.color = '#eab308';
       } else if (pct < 85) {
         fill.classList.add('meter-fair');
-        value.textContent = 'Fairly Balanced';
+        value.textContent = 'Fair';
         value.style.color = '#86efac';
       } else {
         fill.classList.add('meter-balanced');
