@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v16.5-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Fixed team name matching for roster penalty');
+    console.log('%c🏀 NBA Trade Machine v16.6-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Auto-add TPE, NA players can be absorbed into TPE');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -3954,9 +3954,31 @@
       }
       
       // Check for not aggregated players being combined with others
+      // EXCEPTION: NA players can be traded if the receiving team absorbs them into a TPE
       const naPlayers = tradeTeam.playersOut.filter(p => p.notAggregated);
-      if (naPlayers.length > 0 && tradeTeam.playersOut.length > 1) {
-        naPlayers.forEach(p => {
+      const naPlayersNotAbsorbed = naPlayers.filter(p => {
+        // Find the destination team for this player
+        if (p.destination === undefined) return true; // Can't be absorbed if no destination
+        const destTeam = tradeTeams[p.destination];
+        if (!destTeam) return true;
+        
+        // Check if destination team has a TPE that can absorb this player
+        if (destTeam.tpeUsed && destTeam.tpeUsed.value >= getOutgoingSalary(p)) {
+          return false; // Player CAN be absorbed into TPE
+        }
+        
+        // Also check if destination team has ANY TPE large enough (even if not selected yet)
+        const destTPEs = getTeamTPEs(destTeam.teamName);
+        const canBeAbsorbed = destTPEs.some(tpe => tpe.value >= getOutgoingSalary(p));
+        if (canBeAbsorbed) {
+          return false; // Player COULD be absorbed into a TPE
+        }
+        
+        return true; // Player cannot be absorbed, NA restriction applies
+      });
+      
+      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1) {
+        naPlayersNotAbsorbed.forEach(p => {
           restrictions.push(`${p.player} cannot be aggregated with other players`);
         });
       }
@@ -3972,11 +3994,11 @@
         }
       });
 
-      // If there are NA violations, trade is invalid
-      if (naPlayers.length > 0 && tradeTeam.playersOut.length > 1) {
+      // If there are NA violations (and players can't be absorbed into TPE), trade is invalid
+      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1) {
         return {
           valid: false,
-          message: `${naPlayers.map(p => p.player).join(', ')} cannot be aggregated with other players`,
+          message: `${naPlayersNotAbsorbed.map(p => p.player).join(', ')} cannot be aggregated with other players`,
           warnings: restrictions
         };
       }
@@ -4408,6 +4430,71 @@
       return { valid: true, message: 'All teams can complete this trade', type: 'valid' };
     }
 
+    // Auto-add TPE if it would make a trade legal
+    function autoAddTPEIfNeeded() {
+      tradeTeams.forEach((team, teamIndex) => {
+        if (!team.teamName || team.playersIn.length === 0) return;
+        if (team.tpeUsed) return; // Already has TPE selected
+        
+        const teamInfo = getTeamInfo(team.teamName);
+        if (!teamInfo) return;
+        
+        // Check team status - Apron teams can't use TPEs
+        const status = teamInfo.status?.toUpperCase() || 'BELOW TAX';
+        if (status === '1ST APRON' || status === '2ND APRON') return;
+        
+        // Calculate current salary situation
+        const outgoingSalary = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+        const incomingSalary = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+        
+        // Calculate max incoming without TPE
+        let maxIncoming;
+        if (status === 'CAP SPACE') {
+          maxIncoming = teamInfo.capSpace + outgoingSalary;
+        } else if (status === 'TAX TEAM') {
+          maxIncoming = outgoingSalary * 1.25 + 100000;
+        } else {
+          // Below Tax: Tiered system
+          if (outgoingSalary <= 7500000) {
+            maxIncoming = outgoingSalary * 2 + 250000;
+          } else if (outgoingSalary <= 29000000) {
+            maxIncoming = outgoingSalary + 7500000;
+          } else {
+            maxIncoming = outgoingSalary * 1.25 + 250000;
+          }
+        }
+        
+        // Check if there's a deficit
+        const deficit = incomingSalary - maxIncoming;
+        if (deficit <= 0) return; // Trade already works
+        
+        // Find all TPEs that can cover the deficit and pick the smallest one
+        const teamTPEs = getTeamTPEs(team.teamName);
+        const availableTPEs = teamTPEs.filter(tpe => {
+          // Check if TPE is already used by another team in this trade
+          const isUsedElsewhere = tradeTeams.some((t, i) => 
+            i !== teamIndex && t.tpeUsed && 
+            t.tpeUsed.value === tpe.value && 
+            t.tpeUsed.team === tpe.team &&
+            t.tpeUsed.expirationDate === tpe.expirationDate
+          );
+          if (isUsedElsewhere) return false;
+          
+          // TPE must cover the deficit
+          return tpe.value >= deficit;
+        });
+        
+        // Sort by value (smallest first) and pick the smallest sufficient TPE
+        availableTPEs.sort((a, b) => a.value - b.value);
+        const usableTPE = availableTPEs[0];
+        
+        if (usableTPE) {
+          team.tpeUsed = usableTPE;
+          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to cover $${(deficit/1000000).toFixed(1)}M deficit`);
+        }
+      });
+    }
+
     // Distribute players based on their assigned destinations
     function redistributePlayers(addAutoCash = false) {
       // Clear all incoming players
@@ -4424,6 +4511,9 @@
           }
         });
       });
+      
+      // Auto-add TPE if it would make the trade legal
+      autoAddTPEIfNeeded();
       
       // Auto-add cash considerations for teams that send assets but receive nothing
       // Only for generated trades, not manual trades
