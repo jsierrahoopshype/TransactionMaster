@@ -945,33 +945,21 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
-    .realistic-meter-blocks {
-      display: flex;
-      gap: 4px;
-      height: 24px;
-    }
-    .realistic-meter-block {
-      flex: 1;
-      border-radius: 4px;
+    .realistic-meter-bar {
+      height: 10px;
       background: var(--bg-tertiary);
-      transition: background 0.3s ease;
-      position: relative;
+      border-radius: 5px;
+      overflow: hidden;
     }
-    .realistic-meter-block.active.block-1 { background: #ef4444; }
-    .realistic-meter-block.active.block-2 { background: #eab308; }
-    .realistic-meter-block.active.block-3 { background: #86efac; }
-    .realistic-meter-block.active.block-4 { background: #22c55e; }
-    .realistic-meter-labels {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 0.35rem;
-      font-size: 0.6rem;
-      color: var(--text-muted);
+    .realistic-meter-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.3s ease, background 0.3s ease;
     }
-    .realistic-meter-labels span {
-      flex: 1;
-      text-align: center;
-    }
+    .meter-very-unbalanced { background: #ef4444; }
+    .meter-unbalanced { background: #eab308; }
+    .meter-fair { background: #86efac; }
+    .meter-balanced { background: #22c55e; }
 
     .add-team-card {
       min-width: 200px;
@@ -2368,17 +2356,8 @@
           <span class="realistic-meter-label">⚖️ Trade Balance</span>
           <span class="realistic-meter-value" id="realisticMeterValue">Balanced</span>
         </div>
-        <div class="realistic-meter-blocks">
-          <div class="realistic-meter-block block-1" id="meterBlock1"></div>
-          <div class="realistic-meter-block block-2" id="meterBlock2"></div>
-          <div class="realistic-meter-block block-3" id="meterBlock3"></div>
-          <div class="realistic-meter-block block-4" id="meterBlock4"></div>
-        </div>
-        <div class="realistic-meter-labels">
-          <span>Very Unbalanced</span>
-          <span>Unbalanced</span>
-          <span>Fairly Balanced</span>
-          <span>Balanced</span>
+        <div class="realistic-meter-bar">
+          <div class="realistic-meter-fill" id="realisticMeterFill" style="width: 100%;"></div>
         </div>
       </div>
 
@@ -2864,13 +2843,10 @@
     // Update the realistic meter UI
     function updateRealisticMeter(isLegalTrade = false) {
       const meter = document.getElementById('realisticMeter');
+      const fill = document.getElementById('realisticMeterFill');
       const value = document.getElementById('realisticMeterValue');
-      const block1 = document.getElementById('meterBlock1');
-      const block2 = document.getElementById('meterBlock2');
-      const block3 = document.getElementById('meterBlock3');
-      const block4 = document.getElementById('meterBlock4');
       
-      if (!meter || !value || !block1 || !block2 || !block3 || !block4) return;
+      if (!meter || !fill || !value) return;
       
       // Check if there are any assets in the trade
       const hasAnyAssets = tradeTeams.some(t => 
@@ -2888,34 +2864,28 @@
       const balance = calculateTradeBalance(tradeTeams);
       const pct = balance.percentage;
       
-      // Reset all blocks
-      block1.classList.remove('active');
-      block2.classList.remove('active');
-      block3.classList.remove('active');
-      block4.classList.remove('active');
+      // Update fill width
+      fill.style.width = pct + '%';
       
-      // Light up blocks based on percentage and set label
+      // Remove all color classes
+      fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
+      
+      // Set color and label based on percentage
       // Ranges: 0-25 (red), 25-50 (yellow), 50-85 (light green), 85-100 (solid green)
       if (pct < 25) {
-        block1.classList.add('active');
+        fill.classList.add('meter-very-unbalanced');
         value.textContent = 'Very Unbalanced';
         value.style.color = '#ef4444';
       } else if (pct < 50) {
-        block1.classList.add('active');
-        block2.classList.add('active');
+        fill.classList.add('meter-unbalanced');
         value.textContent = 'Unbalanced';
         value.style.color = '#eab308';
       } else if (pct < 85) {
-        block1.classList.add('active');
-        block2.classList.add('active');
-        block3.classList.add('active');
+        fill.classList.add('meter-fair');
         value.textContent = 'Fairly Balanced';
         value.style.color = '#86efac';
       } else {
-        block1.classList.add('active');
-        block2.classList.add('active');
-        block3.classList.add('active');
-        block4.classList.add('active');
+        fill.classList.add('meter-balanced');
         value.textContent = 'Balanced';
         value.style.color = '#22c55e';
       }
@@ -2984,40 +2954,109 @@
     // Add random picks to a trade for star players
     function addPicksToTrade(testTrade, teamIndex, destination, isSuperstar) {
       const teamName = testTrade[teamIndex].teamName;
-      const existingPicksOut = testTrade[teamIndex].picksOut || [];
-      
-      const availablePicks = getAvailablePicksForRandomTrade(teamName, existingPicksOut);
-      
-      // Determine how many picks to add (more for superstars)
-      const maxFirstRound = isSuperstar ? 2 : 1;
-      const maxSecondRound = isSuperstar ? 2 : 1;
-      
-      // Randomly select first round picks
-      const shuffledFirst = [...availablePicks.firstRound].sort(() => Math.random() - 0.5);
-      const firstToAdd = shuffledFirst.slice(0, Math.floor(Math.random() * (maxFirstRound + 1)));
-      
-      // Randomly select second round picks
-      const shuffledSecond = [...availablePicks.secondRound].sort(() => Math.random() - 0.5);
-      const secondToAdd = shuffledSecond.slice(0, Math.floor(Math.random() * (maxSecondRound + 1)));
-      
-      // Add picks to the trade
-      const picksToAdd = [...firstToAdd, ...secondToAdd].map(pick => ({
-        team: pick.team,
-        year: pick.year,
-        round: pick.round,
-        notes: pick.notes || '',
-        pickIndex: pick.pickIndex,
-        surePick: pick.surePick,
-        linkedTo: pick.linkedTo || '',
-        destination: destination
-      }));
       
       if (!testTrade[teamIndex].picksOut) {
         testTrade[teamIndex].picksOut = [];
       }
-      testTrade[teamIndex].picksOut.push(...picksToAdd);
       
-      return picksToAdd.length;
+      // Determine how many picks to try to add (more for superstars)
+      const maxFirstRound = isSuperstar ? 2 : 1;
+      const maxSecondRound = isSuperstar ? 2 : 1;
+      
+      let picksAdded = 0;
+      
+      // Add first round picks one at a time, rechecking Stepien after each
+      for (let i = 0; i < maxFirstRound; i++) {
+        if (Math.random() > 0.5) continue; // 50% chance to skip adding a pick
+        
+        const existingPicksOut = testTrade[teamIndex].picksOut;
+        const availablePicks = getAvailablePicksForRandomTrade(teamName, existingPicksOut);
+        
+        if (availablePicks.firstRound.length > 0) {
+          const pick = availablePicks.firstRound[Math.floor(Math.random() * availablePicks.firstRound.length)];
+          testTrade[teamIndex].picksOut.push({
+            team: pick.team,
+            year: pick.year,
+            round: pick.round,
+            notes: pick.notes || '',
+            pickIndex: pick.pickIndex,
+            surePick: pick.surePick,
+            linkedTo: pick.linkedTo || '',
+            destination: destination
+          });
+          picksAdded++;
+        }
+      }
+      
+      // Add second round picks (no Stepien concern)
+      const existingPicksOut = testTrade[teamIndex].picksOut;
+      const availablePicks = getAvailablePicksForRandomTrade(teamName, existingPicksOut);
+      const shuffledSecond = [...availablePicks.secondRound].sort(() => Math.random() - 0.5);
+      const secondToAdd = shuffledSecond.slice(0, Math.floor(Math.random() * (maxSecondRound + 1)));
+      
+      for (const pick of secondToAdd) {
+        testTrade[teamIndex].picksOut.push({
+          team: pick.team,
+          year: pick.year,
+          round: pick.round,
+          notes: pick.notes || '',
+          pickIndex: pick.pickIndex,
+          surePick: pick.surePick,
+          linkedTo: pick.linkedTo || '',
+          destination: destination
+        });
+        picksAdded++;
+      }
+      
+      return picksAdded;
+    }
+    
+    // Check Stepien Rule for a test trade (not using global tradeTeams)
+    function checkStepienForTestTrade(testTrade, teamIndex) {
+      const team = testTrade[teamIndex];
+      const teamName = team.teamName;
+      const picksOut = team.picksOut || [];
+      
+      // Only check first-round picks being traded out
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st');
+      if (firstRoundPicksOut.length === 0) return true;
+      
+      // Get all first-round picks owned by this team
+      const teamFirstRoundPicks = draftPicks
+        .filter(p => p.team === teamName && p.round === '1st')
+        .map(p => parseInt(p.year));
+      
+      // Get years being traded out
+      const yearsOut = firstRoundPicksOut.map(p => parseInt(p.year));
+      
+      // Get incoming first-round picks from other teams in this test trade
+      const incomingYears = [];
+      testTrade.forEach((otherTeam, otherIdx) => {
+        if (otherIdx !== teamIndex && otherTeam.picksOut) {
+          otherTeam.picksOut.forEach(pick => {
+            if (pick.round === '1st' && pick.destination === teamIndex) {
+              incomingYears.push(parseInt(pick.year));
+            }
+          });
+        }
+      });
+      
+      // Calculate remaining picks after trade
+      const remainingYears = teamFirstRoundPicks
+        .filter(y => !yearsOut.includes(y))
+        .concat(incomingYears);
+      
+      // Check consecutive years (2026-2031)
+      const years = [2026, 2027, 2028, 2029, 2030, 2031];
+      for (let i = 0; i < years.length - 1; i++) {
+        const year1 = years[i];
+        const year2 = years[i + 1];
+        if (!remainingYears.includes(year1) && !remainingYears.includes(year2)) {
+          return false; // Stepien violation
+        }
+      }
+      
+      return true;
     }
     // ========== END TRADE VALUE INTEGRATION ==========
     
@@ -5841,6 +5880,18 @@
                 addPicksToTrade(testTrade, side, dest, false);
               }
             }
+            
+            // Final validation: ensure picks don't violate Stepien Rule
+            const finalStepienCheck = testTrade.every((t, idx) => {
+              if (!t.picksOut || t.picksOut.length === 0) return true;
+              return checkStepienForTestTrade(testTrade, idx);
+            });
+            
+            if (!finalStepienCheck) {
+              // Remove all picks if Stepien is violated
+              testTrade.forEach(t => t.picksOut = []);
+            }
+            
             return testTrade;
           }
         } else {
@@ -5930,13 +5981,19 @@
               for (let side = 0; side < 2; side++) {
                 if (Math.random() < 0.40) {
                   const otherSide = side === 0 ? 1 : 0;
-                  const picksAdded = addPicksToTrade(testTrade, side, otherSide, false);
-                  // Revalidate after adding picks
-                  if (picksAdded > 0 && !isTradeValueBalanced(testTrade)) {
-                    // Remove picks if they unbalance the trade too much
-                    testTrade[side].picksOut = [];
-                  }
+                  addPicksToTrade(testTrade, side, otherSide, false);
                 }
+              }
+              
+              // Final validation: ensure picks don't violate Stepien Rule
+              const finalStepienCheck = testTrade.every((t, idx) => {
+                if (!t.picksOut || t.picksOut.length === 0) return true;
+                return checkStepienForTestTrade(testTrade, idx);
+              });
+              
+              if (!finalStepienCheck) {
+                // Remove all picks if Stepien is violated
+                testTrade.forEach(t => t.picksOut = []);
               }
               
               // Found a valid trade!
