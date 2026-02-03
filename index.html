@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.3 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Gradual Best Player Premium (0-25%), Roster Release Penalty, Pick TV $10M/$3M');
+    console.log('%c🏀 NBA Trade Machine v15.4 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Fixed trade balance calculation (in/out comparison)');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2858,22 +2858,16 @@
         return { teamName: t.teamName, out: totalOut, in: totalIn };
       });
       
-      if (trade.length === 2) {
-        const [team1, team2] = teamData;
-        if (team1.out === 0 && team2.out === 0) return { percentage: 100, details: teamData };
-        if (team1.out === 0 || team2.out === 0) return { percentage: 50, details: teamData };
-        const ratio = Math.min(team1.out, team2.out) / Math.max(team1.out, team2.out);
-        return { percentage: Math.round(ratio * 100), details: teamData };
-      } else {
-        let worstRatio = 1.0;
-        for (const team of teamData) {
-          if (team.out === 0 && team.in === 0) continue;
-          if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
-          const ratio = Math.min(team.out, team.in) / Math.max(team.out, team.in);
-          worstRatio = Math.min(worstRatio, ratio);
-        }
-        return { percentage: Math.round(worstRatio * 100), details: teamData };
+      // For all trades (2-team or more), compare each team's out vs in value
+      // This properly factors in best player premium and roster penalties
+      let worstRatio = 1.0;
+      for (const team of teamData) {
+        if (team.out === 0 && team.in === 0) continue;
+        if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
+        const ratio = Math.min(team.out, team.in) / Math.max(team.out, team.in);
+        worstRatio = Math.min(worstRatio, ratio);
       }
+      return { percentage: Math.round(worstRatio * 100), details: teamData };
     }
     
     // Update the realistic meter UI
