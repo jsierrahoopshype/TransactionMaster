@@ -1257,30 +1257,6 @@
       color: var(--red);
       margin-left: 0.25rem;
     }
-      
-    .swap-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.6875rem;
-      color: var(--text-secondary);
-      cursor: pointer;
-      padding: 0.125rem 0.375rem;
-      border-radius: 3px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      transition: all 0.15s;
-    }
-    
-    .swap-toggle:hover {
-      border-color: var(--accent);
-    }
-    
-    .swap-toggle.active {
-      background: var(--purple-dim);
-      border-color: var(--purple);
-      color: var(--purple);
-    }
     
     .swap-badge {
       font-size: 0.5625rem;
@@ -4795,10 +4771,12 @@
                         </div>
                       ` : ''}
                       ${pick.round === '1st' ? `
-                        <div class="player-destination" style="margin-top: 0.25rem;">
-                          <span class="swap-toggle ${isSwap ? 'active' : ''}" data-team="${index}" data-pick="${pickIdx}" title="Swap: Team keeps worse pick. Trade: Team gives up pick entirely.">
-                            <span style="font-size: 0.75rem;">🔄</span> ${isSwap ? 'Swap Rights' : 'Full Trade'}
-                          </span>
+                        <div class="player-destination">
+                          <span class="player-destination-label">🔄</span>
+                          <select class="player-destination-select swap-select" data-team="${index}" data-pick="${pickIdx}">
+                            <option value="trade" ${!isSwap ? 'selected' : ''}>Full Trade</option>
+                            <option value="swap" ${isSwap ? 'selected' : ''}>Swap Rights</option>
+                          </select>
                         </div>
                       ` : ''}
                     </div>
@@ -5766,13 +5744,13 @@
         });
       });
 
-      // Swap toggle click
-      document.querySelectorAll('.swap-toggle').forEach(toggle => {
-        toggle.addEventListener('click', (e) => {
-          const teamIndex = parseInt(e.currentTarget.dataset.team);
-          const pickIndex = parseInt(e.currentTarget.dataset.pick);
+      // Swap select change
+      document.querySelectorAll('.swap-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const pickIndex = parseInt(e.target.dataset.pick);
           const pick = tradeTeams[teamIndex].picksOut[pickIndex];
-          pick.isSwap = !pick.isSwap;
+          pick.isSwap = e.target.value === 'swap';
           render();
         });
       });
