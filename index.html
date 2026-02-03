@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.7-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Debug trade value load callback');
+    console.log('%c🏀 NBA Trade Machine v15.8-debug - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Debug final percentage and meter display');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2885,9 +2885,12 @@
         if (team.out === 0 && team.in === 0) continue;
         if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
         const ratio = Math.min(team.out, team.in) / Math.max(team.out, team.in);
+        console.warn(`📊 ${team.teamName}: ratio=${(ratio*100).toFixed(1)}%, worstRatio before=${(worstRatio*100).toFixed(1)}%`);
         worstRatio = Math.min(worstRatio, ratio);
       }
-      return { percentage: Math.round(worstRatio * 100), details: teamData };
+      const finalPercentage = Math.round(worstRatio * 100);
+      console.warn('📊 FINAL: worstRatio=' + (worstRatio*100).toFixed(1) + '%, percentage=' + finalPercentage);
+      return { percentage: finalPercentage, details: teamData };
     }
     
     // Update the realistic meter UI
@@ -2913,6 +2916,8 @@
       meter.style.display = 'block';
       const balance = calculateTradeBalance(tradeTeams);
       const pct = balance.percentage;
+      
+      console.warn('🎯 METER UPDATE: pct=' + pct + ', showing:', pct < 40 ? 'Very Unbalanced' : pct < 60 ? 'Unbalanced' : pct < 85 ? 'Fair' : 'Balanced');
       
       fill.style.width = pct + '%';
       fill.classList.remove('meter-very-unbalanced', 'meter-unbalanced', 'meter-fair', 'meter-balanced');
