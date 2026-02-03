@@ -2771,6 +2771,7 @@
     }
     
     function calculateTradeBalance(trade) {
+      console.warn('📊 calculateTradeBalance called, trade teams:', trade?.length, 'tradeValueMapLower size:', tradeValueMapLower.size);
       if (!trade || trade.length < 2) return { percentage: 0, details: null };
       if (tradeValueMapLower.size === 0) return { percentage: 100, details: null };
       
@@ -2827,7 +2828,7 @@
       const teamData = trade.map((t, idx) => {
         const playersOutTV = t.playersOut.reduce((sum, p) => {
           const tv = getTradeValue(p.player);
-          console.log(`  ${t.teamName} OUT: ${p.player} TV=${tv ? '$'+(tv/1000000).toFixed(1)+'M' : 'MISSING'} Salary=$${(p.salary/1000000).toFixed(1)}M`);
+          console.warn(`  ${t.teamName} OUT: ${p.player} TV=${tv ? '$'+(tv/1000000).toFixed(1)+'M' : 'MISSING'} Salary=$${(p.salary/1000000).toFixed(1)}M`);
           return sum + (tv || p.salary);
         }, 0);
         const picksOutTV = (t.picksOut || []).reduce((sum, pick) => {
@@ -2838,7 +2839,7 @@
         
         let playersInTV = t.playersIn.reduce((sum, p) => {
           const tv = getTradeValue(p.player);
-          console.log(`  ${t.teamName} IN: ${p.player} TV=${tv ? '$'+(tv/1000000).toFixed(1)+'M' : 'MISSING'} Salary=$${(p.salary/1000000).toFixed(1)}M`);
+          console.warn(`  ${t.teamName} IN: ${p.player} TV=${tv ? '$'+(tv/1000000).toFixed(1)+'M' : 'MISSING'} Salary=$${(p.salary/1000000).toFixed(1)}M`);
           return sum + (tv || p.salary);
         }, 0);
         
@@ -2865,13 +2866,13 @@
       // For all trades (2-team or more), compare each team's out vs in value
       // This properly factors in best player premium and roster penalties
       let worstRatio = 1.0;
-      console.log('📊 Trade Balance Debug:', teamData.map(t => ({
+      console.warn('📊 Trade Balance Debug:', teamData.map(t => ({
         team: t.teamName,
         out: '$' + (t.out/1000000).toFixed(1) + 'M',
         in: '$' + (t.in/1000000).toFixed(1) + 'M',
         ratio: t.out > 0 && t.in > 0 ? (Math.min(t.out, t.in) / Math.max(t.out, t.in) * 100).toFixed(1) + '%' : 'N/A'
       })));
-      console.log('📊 Best Player:', bestPlayer, 'TV: $' + (bestPlayerTV/1000000).toFixed(1) + 'M, Premium:', (getBestPlayerPremium(bestPlayerTV) * 100).toFixed(1) + '%');
+      console.warn('📊 Best Player:', bestPlayer, 'TV: $' + (bestPlayerTV/1000000).toFixed(1) + 'M, Premium:', (getBestPlayerPremium(bestPlayerTV) * 100).toFixed(1) + '%');
       for (const team of teamData) {
         if (team.out === 0 && team.in === 0) continue;
         if (team.out === 0 || team.in === 0) { worstRatio = Math.min(worstRatio, 0.3); continue; }
@@ -2886,6 +2887,8 @@
       const meter = document.getElementById('realisticMeter');
       const fill = document.getElementById('realisticMeterFill');
       const value = document.getElementById('realisticMeterValue');
+      
+      console.warn('🎯 updateRealisticMeter called, isLegalTrade:', isLegalTrade, 'tradeValueMapLower.size:', tradeValueMapLower.size);
       
       if (!meter || !fill || !value) return;
       
