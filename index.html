@@ -2451,8 +2451,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v15.2 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Best Player Premium (15%), Roster Release Penalty ($1.27M), Pick TV $10M/$3M');
+    console.log('%c🏀 NBA Trade Machine v15.3 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Features: Gradual Best Player Premium (0-25%), Roster Release Penalty, Pick TV $10M/$3M');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2753,7 +2753,22 @@
     // Calculate trade balance percentage for the realistic meter (0-100%)
     // Constants for trade balance adjustments
     const MINIMUM_SALARY = 1272870; // For roster release penalty
-    const BEST_PLAYER_PREMIUM = 0.15; // 15% bonus for getting the best player
+    
+    // Best player premium scales from 0% to 25% based on trade value
+    // - Below $5M TV: 0% premium (rotation/minimum players)
+    // - $5M to $80M TV: linear scale from 0% to 25%
+    // - Above $80M TV: 25% premium cap (superstars like Jokic)
+    const BEST_PLAYER_MIN_TV = 5000000;   // Below this = 0% premium
+    const BEST_PLAYER_MAX_TV = 80000000;  // Above this = 25% premium
+    const BEST_PLAYER_MAX_PREMIUM = 0.25; // Maximum 25% bonus
+    
+    function getBestPlayerPremium(tradeValue) {
+      if (tradeValue <= BEST_PLAYER_MIN_TV) return 0;
+      if (tradeValue >= BEST_PLAYER_MAX_TV) return BEST_PLAYER_MAX_PREMIUM;
+      // Linear interpolation between min and max
+      const ratio = (tradeValue - BEST_PLAYER_MIN_TV) / (BEST_PLAYER_MAX_TV - BEST_PLAYER_MIN_TV);
+      return ratio * BEST_PLAYER_MAX_PREMIUM;
+    }
     
     function calculateTradeBalance(trade) {
       if (!trade || trade.length < 2) return { percentage: 0, details: null };
@@ -2828,7 +2843,7 @@
           // Check if this team is receiving the best player
           const receivingBestPlayer = t.playersIn.some(p => p.player === bestPlayer);
           if (receivingBestPlayer) {
-            playersInTV += bestPlayerTV * BEST_PLAYER_PREMIUM;
+            playersInTV += bestPlayerTV * getBestPlayerPremium(bestPlayerTV);
           }
         }
         
