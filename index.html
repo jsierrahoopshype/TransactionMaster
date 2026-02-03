@@ -2470,16 +2470,22 @@
       let todayStr = null;
       
       for (const row of rows.slice(1)) {
-        while (row.length < 21) row.push('');
+        while (row.length < 22) row.push(''); // Extend to include column U (index 20)
         if (row[18] && !todayStr) todayStr = row[18];
         if (row[0] && row[1]) {
+          const draftVal = row[20];
+          const draftPick = parseInt(draftVal) || null;
           roster.push({
             player: row[1].trim(),
             rat365: parseFloat(row[2]) || 0,
             salary: parseInt(row[3].replace(/[$,]/g, '')) || 0,
             birthday: row[4] || '',
-            draftPick: parseInt(row[20]) || null // Column U = draft position (1-60)
+            draftPick: draftPick // Column U = draft position (1-60)
           });
+          // Debug first few players' draft info
+          if (roster.length <= 5) {
+            console.log(`Player ${row[1]}: draft col raw="${draftVal}", parsed=${draftPick}`);
+          }
         }
         if (row[6] && row[7]) {
           const g = parseInt(row[9]) || 0;
@@ -2595,12 +2601,19 @@
       }
       
       const result = new Map();
+      let debugCount = 0;
       for (const p of roster) {
         const baseTV = totalWithAge > 0 ? Math.round((p.tvWithAge / totalWithAge) * totalSalPool) : 0;
         const potentialBonus = calcPotentialBonus(p.age, p.draftPick);
         const tv = baseTV + potentialBonus;
         result.set(p.player, tv);
-        tradeValueMapLower.set(p.player.toLowerCase().trim(), tv); // Also populate lowercase map
+        tradeValueMapLower.set(p.player.toLowerCase().trim(), tv);
+        
+        // Debug young players with draft picks
+        if (p.age !== null && p.age < 25 && debugCount < 10) {
+          console.log(`Potential debug: ${p.player}, age=${p.age?.toFixed(2)}, draft=${p.draftPick}, baseTV=$${baseTV.toLocaleString()}, bonus=$${potentialBonus.toLocaleString()}, totalTV=$${tv.toLocaleString()}`);
+          debugCount++;
+        }
       }
       return result;
     }
