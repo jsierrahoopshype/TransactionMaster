@@ -2261,7 +2261,7 @@
 <body>
   <div class="container">
     <header>
-      <h1><a href="https://hoopsmatic.com" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
+      <h1>🏀 NBA Trade Machine</h1>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -4484,6 +4484,7 @@
         
         if (usableTPE) {
           team.tpeUsed = usableTPE;
+          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to cover $${(deficit/1000000).toFixed(1)}M deficit`);
         }
       });
     }
@@ -4769,15 +4770,13 @@
                           </select>
                         </div>
                       ` : ''}
-                      ${pick.round === '1st' ? `
-                        <div class="player-destination">
-                          <span class="player-destination-label">🔄</span>
-                          <select class="player-destination-select swap-select" data-team="${index}" data-pick="${pickIdx}">
-                            <option value="trade" ${!isSwap ? 'selected' : ''}>Full Trade</option>
-                            <option value="swap" ${isSwap ? 'selected' : ''}>Swap Rights</option>
-                          </select>
-                        </div>
-                      ` : ''}
+                      <div class="player-destination">
+                        <span class="player-destination-label">🔄</span>
+                        <select class="player-destination-select swap-select" data-team="${index}" data-pick="${pickIdx}">
+                          <option value="trade" ${!isSwap ? 'selected' : ''}>Full Trade</option>
+                          <option value="swap" ${isSwap ? 'selected' : ''}>Swap Rights</option>
+                        </select>
+                      </div>
                     </div>
                   `;
                 }).join('')}
