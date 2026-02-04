@@ -2463,8 +2463,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.0 - Feb 3 2026', 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Features: Pick Swaps, Auto-TPE, NA TPE absorption, Filler discount, Roster penalty');
+    console.log('%c🏀 NBA Trade Machine v17.1 - Feb 4 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('Features: Pick Swaps (1st & 2nd round), TPE one-player rule, Auto-TPE, NA TPE absorption, Filler discount, Roster penalty');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -4318,6 +4318,11 @@
       tradeTeams.forEach(t => {
         if (t.teamName && t.tpeUsed && t.playersIn.length > 0 && t.playersOut.length === 0) {
           // Team is receiving players via TPE but sending no players
+          // TPE can only absorb ONE player - this is a hard CBA rule
+          if (t.playersIn.length > 1) {
+            allValid = false;
+            invalidMessages.push(`${t.teamName}: TPE can only acquire one player (receiving ${t.playersIn.length})`);
+          }
           // They must send at least one asset (pick, rights, or cash)
           const hasAssets = (t.picksOut && t.picksOut.length > 0) ||
                            (t.rightsOut && t.rightsOut.length > 0) ||
@@ -4325,6 +4330,56 @@
           if (!hasAssets) {
             allValid = false;
             invalidMessages.push(`${t.teamName} must send an asset (pick, rights, or cash) when using TPE`);
+          }
+        }
+        
+        // If team IS sending players but ALSO using TPE, check if TPE is actually needed
+        // and if so, verify only one player is being absorbed into the TPE
+        if (t.teamName && t.tpeUsed && t.playersIn.length > 1 && t.playersOut.length > 0) {
+          const outgoingSalary = t.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+          const incomingSalary = t.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+          
+          // Calculate max incoming without TPE
+          const teamInfo = getTeamInfo(t.teamName);
+          if (teamInfo) {
+            const status = teamInfo.status?.toUpperCase() || 'BELOW TAX';
+            let maxIncomingWithoutTPE;
+            if (status === 'CAP SPACE') {
+              maxIncomingWithoutTPE = (teamInfo.capSpace || 0) + outgoingSalary;
+            } else if (status === 'TAX TEAM') {
+              maxIncomingWithoutTPE = outgoingSalary * 1.25 + 100000;
+            } else {
+              if (outgoingSalary <= 7500000) {
+                maxIncomingWithoutTPE = outgoingSalary * 2 + 250000;
+              } else if (outgoingSalary <= 29000000) {
+                maxIncomingWithoutTPE = outgoingSalary + 7500000;
+              } else {
+                maxIncomingWithoutTPE = outgoingSalary * 1.25 + 250000;
+              }
+            }
+            
+            // If TPE is needed (incoming > maxIncomingWithoutTPE), only ONE player can go into TPE
+            // This means: all but one player must fit within normal matching
+            if (incomingSalary > maxIncomingWithoutTPE) {
+              // Find the largest incoming player - that's the one that should go into TPE
+              const sortedIncoming = [...t.playersIn].sort((a, b) => getIncomingSalary(b) - getIncomingSalary(a));
+              const largestPlayer = sortedIncoming[0];
+              const otherPlayers = sortedIncoming.slice(1);
+              const otherPlayersTotal = otherPlayers.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+              
+              // The other players must fit within normal salary matching
+              if (otherPlayersTotal > maxIncomingWithoutTPE) {
+                allValid = false;
+                invalidMessages.push(`${t.teamName}: TPE can only absorb one player - other incoming players exceed salary matching`);
+              }
+              
+              // The largest player must fit within the TPE
+              const largestSalary = getIncomingSalary(largestPlayer);
+              if (largestSalary > t.tpeUsed.value) {
+                allValid = false;
+                invalidMessages.push(`${t.teamName}: ${largestPlayer.player}'s salary ($${(largestSalary/1000000).toFixed(1)}M) exceeds TPE value ($${(t.tpeUsed.value/1000000).toFixed(1)}M)`);
+              }
+            }
           }
         }
         
@@ -4441,6 +4496,12 @@
         const outgoingSalary = team.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
         const incomingSalary = team.playersIn.reduce((sum, p) => sum + getIncomingSalary(p), 0);
         
+        // TPE CAN ONLY ABSORB ONE PLAYER
+        // If team is sending no players, they can only receive 1 player via TPE
+        if (outgoingSalary === 0 && team.playersIn.length > 1) {
+          return; // Can't use TPE for multiple players when sending nothing
+        }
+        
         // Calculate max incoming without TPE
         let maxIncoming;
         if (status === 'CAP SPACE') {
@@ -4461,6 +4522,19 @@
         // Check if there's a deficit
         const deficit = incomingSalary - maxIncoming;
         if (deficit <= 0) return; // Trade already works
+        
+        // If sending players and receiving multiple, check that TPE would only absorb one player
+        if (team.playersOut.length > 0 && team.playersIn.length > 1) {
+          // Find the largest incoming player (the one that would go into TPE)
+          const sortedIncoming = [...team.playersIn].sort((a, b) => getIncomingSalary(b) - getIncomingSalary(a));
+          const otherPlayers = sortedIncoming.slice(1);
+          const otherPlayersTotal = otherPlayers.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+          
+          // The other players must fit within normal salary matching
+          if (otherPlayersTotal > maxIncoming) {
+            return; // Can't use TPE - would need to absorb multiple players
+          }
+        }
         
         // Find all TPEs that can cover the deficit and pick the smallest one
         const teamTPEs = getTeamTPEs(team.teamName);
