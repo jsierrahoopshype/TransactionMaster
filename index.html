@@ -2261,7 +2261,7 @@
 <body>
   <div class="container">
     <header>
-      <h1>🏀 NBA Trade Machine</h1>
+      <h1><a href="https://hoopsmatic.com" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -4484,7 +4484,6 @@
         
         if (usableTPE) {
           team.tpeUsed = usableTPE;
-          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to cover $${(deficit/1000000).toFixed(1)}M deficit`);
         }
       });
     }
@@ -4954,16 +4953,17 @@
                 }).join('')}
                 ${incomingPicks.map(pick => {
                   const isConditional = pick.surePick !== 'YES';
+                  const isSwap = pick.isSwap || false;
                   // For incoming picks, show the team name if notes is "Own pick" or similar
                   const pickSource = (pick.notes && !pick.notes.toLowerCase().includes('own pick')) 
                     ? pick.notes 
                     : `${pick.fromTeam} pick`;
                   return `
-                    <div class="player-chip incoming" style="background: var(--orange-dim); border-color: var(--orange);">
+                    <div class="player-chip incoming" style="background: ${isSwap ? 'var(--purple-dim)' : 'var(--orange-dim)'}; border-color: ${isSwap ? 'var(--purple)' : 'var(--orange)'};">
                       <div class="player-chip-row">
                         <div class="player-chip-info">
-                          <div class="player-chip-name" style="color: var(--orange);">
-                            📋 ${pick.year} ${pick.round} Round Pick
+                          <div class="player-chip-name" style="color: ${isSwap ? 'var(--purple)' : 'var(--orange)'};">
+                            📋 ${pick.year} ${pick.round} Round Pick ${isSwap ? '<span class="swap-badge">SWAP</span>' : ''}
                             ${isConditional ? `<span class="pick-conditional" title="${pick.notes || 'Conditional pick'}">COND</span>` : ''}
                           </div>
                           <div class="player-chip-salary" style="font-size: 0.7em; color: var(--text-secondary);">${pickSource}</div>
@@ -8453,27 +8453,30 @@
           // Picks
           if (team.picksOut) {
             team.picksOut.forEach(pick => {
-              ctx.fillStyle = '#fef3c7';
+              const isSwap = pick.isSwap || false;
+              // Use purple for swaps, orange for full trades
+              ctx.fillStyle = isSwap ? '#f3e8ff' : '#fef3c7';
               ctx.beginPath();
               ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.fill();
               
-              ctx.strokeStyle = '#fcd34d';
+              ctx.strokeStyle = isSwap ? '#d8b4fe' : '#fcd34d';
               ctx.lineWidth = 1;
               ctx.beginPath();
               ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
               ctx.stroke();
               
-              ctx.fillStyle = '#92400e';
+              ctx.fillStyle = isSwap ? '#6b21a8' : '#92400e';
               ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
               ctx.textAlign = 'left';
               
               // Show pick origin if different from trading team
               const pickOrigin = pick.originalTeam && pick.originalTeam !== team.teamName 
                 ? `${pick.originalTeam.split(' ').pop()}` : '';
+              const swapText = isSwap ? ' (SWAP)' : '';
               const pickText = pickOrigin 
-                ? `📋 ${pick.year} ${pick.round} (${pickOrigin})` 
-                : `📋 ${pick.year} ${pick.round} Round Pick`;
+                ? `📋 ${pick.year} ${pick.round} (${pickOrigin})${swapText}` 
+                : `📋 ${pick.year} ${pick.round} Round Pick${swapText}`;
               ctx.fillText(pickText, x + 20, currentY + 23);
               currentY += assetRowHeight;
             });
@@ -8604,21 +8607,23 @@
           
           // Incoming Picks
           incomingPicks.forEach(pick => {
-            ctx.fillStyle = '#fef3c7';
+            const isSwap = pick.isSwap || false;
+            // Use purple for swaps, orange for full trades
+            ctx.fillStyle = isSwap ? '#f3e8ff' : '#fef3c7';
             ctx.beginPath();
             ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.fill();
             
-            ctx.strokeStyle = '#fcd34d';
+            ctx.strokeStyle = isSwap ? '#d8b4fe' : '#fcd34d';
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(x + 12, currentY, teamWidth - 24, assetRowHeight - 6, 8);
             ctx.stroke();
             
-            ctx.fillStyle = '#92400e';
+            ctx.fillStyle = isSwap ? '#6b21a8' : '#92400e';
             ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick`, x + 20, currentY + 23);
+            ctx.fillText(`📋 ${pick.year} ${pick.round} Round Pick${isSwap ? ' (SWAP)' : ''}`, x + 20, currentY + 23);
             currentY += assetRowHeight;
           });
           
