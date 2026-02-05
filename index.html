@@ -2463,8 +2463,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.2 - Feb 4 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
-    console.log('Features: Pick Swaps (1st & 2nd round), TPE multi-player support, Auto-TPE, NA TPE absorption, Filler discount, Roster penalty');
+    console.log('%c🏀 NBA Trade Machine v17.3 - Feb 4 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('Features: Pick Swaps (1st & 2nd round), TPE multi-player, NA decomposition, Auto-TPE, Filler discount, Roster penalty');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -3674,6 +3674,162 @@
       }
     }
 
+    // Check if a trade with NA players can be decomposed into valid sub-trades
+    // Each NA player must form an independent valid "mini-trade" with incoming players
+    // Remaining aggregable players must form a valid trade with remaining incoming players
+    function checkTradeDecomposition(tradeTeam, tradeTeams, teamIndex) {
+      const naPlayers = tradeTeam.playersOut.filter(p => p.notAggregated);
+      const regularPlayers = tradeTeam.playersOut.filter(p => !p.notAggregated);
+      
+      if (naPlayers.length === 0) return true; // No NA players, no decomposition needed
+      
+      // Get team info for salary matching calculations
+      const teamInfo = getTeamInfo(tradeTeam.teamName);
+      if (!teamInfo) return false;
+      const status = teamInfo.status?.toUpperCase() || 'BELOW TAX';
+      
+      // Helper to calculate max incoming for a given outgoing salary
+      function calcMaxIncoming(outgoing, teamStatus) {
+        if (teamStatus === 'CAP SPACE') return Infinity; // Simplified - cap space teams very flexible
+        if (teamStatus === '1ST APRON' || teamStatus === '2ND APRON') return outgoing;
+        if (teamStatus === 'TAX TEAM') return outgoing * 1.25 + 100000;
+        // Below Tax tiers
+        if (outgoing <= 7500000) return outgoing * 2 + 250000;
+        if (outgoing <= 29000000) return outgoing + 7500000;
+        return outgoing * 1.25 + 250000;
+      }
+      
+      // For simplicity, focus on 2-team trades (most common case)
+      // Get all incoming players to this team
+      let incomingPlayers = [];
+      tradeTeams.forEach((t, idx) => {
+        if (idx !== teamIndex && t.playersOut) {
+          t.playersOut.forEach(p => {
+            if (p.destination === teamIndex) {
+              incomingPlayers.push({ ...p, fromTeamIdx: idx });
+            }
+          });
+        }
+      });
+      
+      if (incomingPlayers.length === 0) return false; // No incoming players to match
+      
+      // Try to find a valid decomposition
+      // For each NA player, try to match them with a subset of incoming players
+      // Use a greedy approach: for each NA player, find the smallest subset that works
+      
+      // Sort incoming players by salary (smallest first) for greedy matching
+      const sortedIncoming = [...incomingPlayers].sort((a, b) => getIncomingSalary(a) - getIncomingSalary(b));
+      
+      let usedIncoming = new Set();
+      
+      for (const naPlayer of naPlayers) {
+        const naSalary = getOutgoingSalary(naPlayer);
+        const naMaxIncoming = calcMaxIncoming(naSalary, status);
+        
+        // Find incoming players that can match this NA player
+        // The NA player can receive salary up to naMaxIncoming
+        // And each incoming player being sent to this NA player must be able to match
+        let found = false;
+        
+        // Try single player matches first (most common)
+        for (let i = 0; i < sortedIncoming.length; i++) {
+          if (usedIncoming.has(i)) continue;
+          
+          const inPlayer = sortedIncoming[i];
+          const inSalary = getIncomingSalary(inPlayer);
+          
+          // Check: can this NA player receive this incoming player?
+          if (inSalary > naMaxIncoming) continue;
+          
+          // Check: can the incoming player's team send this player to receive the NA player?
+          const inTeam = tradeTeams[inPlayer.fromTeamIdx];
+          const inTeamInfo = getTeamInfo(inTeam?.teamName);
+          if (!inTeamInfo) continue;
+          
+          const inStatus = inTeamInfo.status?.toUpperCase() || 'BELOW TAX';
+          const inMaxIncoming = calcMaxIncoming(inSalary, inStatus);
+          
+          // The incoming player's team receives the NA player
+          if (naSalary <= inMaxIncoming) {
+            // Match found!
+            usedIncoming.add(i);
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          // Try combinations of 2 incoming players
+          for (let i = 0; i < sortedIncoming.length; i++) {
+            if (usedIncoming.has(i)) continue;
+            for (let j = i + 1; j < sortedIncoming.length; j++) {
+              if (usedIncoming.has(j)) continue;
+              
+              const inSalary1 = getIncomingSalary(sortedIncoming[i]);
+              const inSalary2 = getIncomingSalary(sortedIncoming[j]);
+              const combinedInSalary = inSalary1 + inSalary2;
+              
+              if (combinedInSalary <= naMaxIncoming) {
+                // Check reverse: can these players' team(s) receive the NA player?
+                // Simplified: assume same team for now
+                const inTeam = tradeTeams[sortedIncoming[i].fromTeamIdx];
+                const inTeamInfo = getTeamInfo(inTeam?.teamName);
+                if (inTeamInfo) {
+                  const inStatus = inTeamInfo.status?.toUpperCase() || 'BELOW TAX';
+                  const inMaxIncoming = calcMaxIncoming(combinedInSalary, inStatus);
+                  if (naSalary <= inMaxIncoming) {
+                    usedIncoming.add(i);
+                    usedIncoming.add(j);
+                    found = true;
+                    break;
+                  }
+                }
+              }
+            }
+            if (found) break;
+          }
+        }
+        
+        if (!found) return false; // Couldn't find valid match for this NA player
+      }
+      
+      // Now check if remaining regular players can match remaining incoming players
+      const remainingIncoming = sortedIncoming.filter((_, i) => !usedIncoming.has(i));
+      const regularOutgoing = regularPlayers.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
+      const remainingIncomingSalary = remainingIncoming.reduce((sum, p) => sum + getIncomingSalary(p), 0);
+      
+      if (regularPlayers.length === 0 && remainingIncoming.length === 0) {
+        return true; // Perfect match
+      }
+      
+      if (regularPlayers.length === 0 && remainingIncoming.length > 0) {
+        return false; // Leftover incoming with no one to match
+      }
+      
+      if (remainingIncoming.length === 0 && regularPlayers.length > 0) {
+        return false; // Leftover outgoing with no one to receive
+      }
+      
+      // Check if regular players can match remaining incoming
+      const regularMaxIncoming = calcMaxIncoming(regularOutgoing, status);
+      if (remainingIncomingSalary > regularMaxIncoming) return false;
+      
+      // Check reverse: can remaining incoming players' team receive regular players?
+      // Get the team sending the remaining incoming (assume same team for simplicity)
+      if (remainingIncoming.length > 0) {
+        const inTeam = tradeTeams[remainingIncoming[0].fromTeamIdx];
+        const inTeamInfo = getTeamInfo(inTeam?.teamName);
+        if (inTeamInfo) {
+          const inStatus = inTeamInfo.status?.toUpperCase() || 'BELOW TAX';
+          const inMaxIncoming = calcMaxIncoming(remainingIncomingSalary, inStatus);
+          if (regularOutgoing > inMaxIncoming) return false;
+        }
+      }
+      
+      return true; // Decomposition found!
+    }
+
     // Validate a team's side of the trade
     function validateTeamTrade(tradeTeam) {
       const teamInfo = getTeamInfo(tradeTeam.teamName);
@@ -3947,30 +4103,38 @@
       }
       
       // Check for not aggregated players being combined with others
-      // EXCEPTION: NA players can be traded if the receiving team absorbs them into a TPE
+      // EXCEPTION 1: NA players can be traded if the receiving team absorbs them into a TPE
+      // EXCEPTION 2: NA players can be in multi-player trades if the trade can be decomposed into valid sub-trades
       const naPlayers = tradeTeam.playersOut.filter(p => p.notAggregated);
       const naPlayersNotAbsorbed = naPlayers.filter(p => {
-        // Find the destination team for this player
-        if (p.destination === undefined) return true; // Can't be absorbed if no destination
+        if (p.destination === undefined) return true;
         const destTeam = tradeTeams[p.destination];
         if (!destTeam) return true;
         
-        // Check if destination team has a TPE that can absorb this player
         if (destTeam.tpeUsed && destTeam.tpeUsed.value >= getOutgoingSalary(p)) {
-          return false; // Player CAN be absorbed into TPE
+          return false;
         }
         
-        // Also check if destination team has ANY TPE large enough (even if not selected yet)
         const destTPEs = getTeamTPEs(destTeam.teamName);
         const canBeAbsorbed = destTPEs.some(tpe => tpe.value >= getOutgoingSalary(p));
         if (canBeAbsorbed) {
-          return false; // Player COULD be absorbed into a TPE
+          return false;
         }
         
-        return true; // Player cannot be absorbed, NA restriction applies
+        return true;
       });
       
+      // NEW: Check if trade can be decomposed into valid sub-trades
+      let canDecompose = false;
       if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1) {
+        // Find this team's index in tradeTeams
+        const teamIndex = tradeTeams.findIndex(t => t.teamName === tradeTeam.teamName);
+        if (teamIndex >= 0) {
+          canDecompose = checkTradeDecomposition(tradeTeam, tradeTeams, teamIndex);
+        }
+      }
+      
+      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1 && !canDecompose) {
         naPlayersNotAbsorbed.forEach(p => {
           restrictions.push(`${p.player} cannot be aggregated with other players`);
         });
@@ -3987,8 +4151,8 @@
         }
       });
 
-      // If there are NA violations (and players can't be absorbed into TPE), trade is invalid
-      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1) {
+      // If there are NA violations (and players can't be absorbed into TPE or decomposed), trade is invalid
+      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1 && !canDecompose) {
         return {
           valid: false,
           message: `${naPlayersNotAbsorbed.map(p => p.player).join(', ')} cannot be aggregated with other players`,
