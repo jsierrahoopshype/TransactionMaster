@@ -2463,7 +2463,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.3 - Feb 4 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.3 - Feb 8 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps (1st & 2nd round), TPE multi-player, NA decomposition, Auto-TPE, Filler discount, Roster penalty');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -9781,7 +9781,7 @@
             salary: parseSalary(row['2026']),
             contractStatus: contractStatus,
             teamStatus: row['TEAM STATUS']?.trim() || '',
-            capSpace: parseSalary(row['CAP SPACE'] || row['Cap Space'] || row['H'] || 0),
+            capSpace: parseSalary(row['CAP SPACE'] || row['Cap Space'] || row['K'] || 0),
             globalRating: parseFloat(row['RAT 365'] || 0) || 0,
             gamesPlayed: parseInt(row['GAMES'] || 0) || 0,
             position: row['POSITION']?.trim() || '',
