@@ -1392,7 +1392,7 @@
       margin-bottom: 0.5rem;
     }
 
-    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge {
+    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge, .opt-badge, .exp-badge {
       font-size: 0.5625rem;
       padding: 0.125rem 0.3rem;
       border-radius: 3px;
@@ -1424,6 +1424,16 @@
     .min-badge {
       background: rgba(34, 197, 94, 0.15);
       color: #22c55e;
+    }
+    
+    .opt-badge {
+      background: rgba(234, 179, 8, 0.15);
+      color: #eab308;
+    }
+    
+    .exp-badge {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
     }
 
     .mse-badge {
@@ -2437,6 +2447,18 @@
             <span class="glossary-description"><strong>Trade Restriction</strong> — Date restriction before trade</span>
           </div>
           <div class="glossary-item">
+            <span class="glossary-badge"><span class="opt-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">TO</span></span>
+            <span class="glossary-description"><strong>Team Option</strong> — Team option for 26-27, only tradeable if exercised</span>
+          </div>
+          <div class="glossary-item">
+            <span class="glossary-badge"><span class="opt-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">PO</span></span>
+            <span class="glossary-description"><strong>Player Option</strong> — Player option for 26-27, only tradeable if exercised</span>
+          </div>
+          <div class="glossary-item">
+            <span class="glossary-badge"><span class="exp-badge" style="padding: 0.125rem 0.4rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">EXP</span></span>
+            <span class="glossary-description"><strong>Expiring</strong> — Contract expires this season, not tradeable</span>
+          </div>
+          <div class="glossary-item">
             <span class="glossary-badge"><span class="injury-badge" style="padding: 0 0.15rem; border-radius: 2px; font-size: 0.65rem; font-weight: 700; color: #ff0000; background: white; border: 1.5px solid #ff0000;">✚</span></span>
             <span class="glossary-description"><strong>Inactive</strong> — Player is currently out</span>
           </div>
@@ -2463,8 +2485,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.3 - Feb 8 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
-    console.log('Features: Pick Swaps (1st & 2nd round), TPE multi-player, NA decomposition, Auto-TPE, Filler discount, Roster penalty');
+    console.log('%c🏀 NBA Trade Machine v17.4 - Feb 8 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode (expiring/options)');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -4141,10 +4163,20 @@
       }
       
       tradeTeam.playersOut.forEach(p => {
-        if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
-          restrictions.push(`${p.player} cannot be traded before deadline`);
+        // Check for expiring contracts
+        if (p.isExpiring) {
+          restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
+        } else if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
+          restrictions.push(`${p.player} cannot be traded`);
         } else if (p.tradeAvailable) {
           restrictions.push(`${p.player} available ${p.tradeAvailable}`);
+        }
+        // Check for options
+        if (p.hasTeamOption) {
+          restrictions.push(`${p.player} has a Team Option - only tradeable if option exercised`);
+        }
+        if (p.hasPlayerOption) {
+          restrictions.push(`${p.player} has a Player Option - only tradeable if option exercised`);
         }
         if (p.noTradeClause) {
           restrictions.push(`${p.player} has a no-trade clause`);
@@ -4921,7 +4953,10 @@
                           ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
                           ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                           ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
-                          ${p.tradeAvailable ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
+                          ${p.hasTeamOption ? '<span class="opt-badge" title="Team Option for 26-27 - Only tradeable if option exercised">TO</span>' : ''}
+                          ${p.hasPlayerOption ? '<span class="opt-badge" title="Player Option for 26-27 - Only tradeable if option exercised">PO</span>' : ''}
+                          ${p.isExpiring ? '<span class="exp-badge" title="Expiring Contract - Not tradeable after deadline">EXP</span>' : ''}
+                          ${p.tradeAvailable && !p.isExpiring ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                         </div>
                         <div class="player-chip-salary">${formatSalary(outgoingValue)}${isTwoWay && p.salary > 0 ? ` <span style="color: #6366f1; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}${p.isMinSalaryException ? ` <span style="color: #10b981; font-size: 0.7em;">→ $0 incoming</span>` : ''}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill && !p.isMinSalaryException ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                       </div>
@@ -5406,7 +5441,10 @@
                             ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
-                            ${p.tradeAvailable && !is10Day ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
+                            ${p.hasTeamOption ? '<span class="opt-badge" title="Team Option for 26-27 - Only tradeable if option exercised">TO</span>' : ''}
+                            ${p.hasPlayerOption ? '<span class="opt-badge" title="Player Option for 26-27 - Only tradeable if option exercised">PO</span>' : ''}
+                            ${p.isExpiring ? '<span class="exp-badge" title="Expiring Contract - Not tradeable after deadline">EXP</span>' : ''}
+                            ${p.tradeAvailable && !is10Day && !p.isExpiring ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                             ${(() => {
                               const pct = getPlayerTradePercentage(p.playerId);
                               if (pct >= 3) {
@@ -9775,6 +9813,24 @@
           const contractStatus = row['ST 25-26']?.trim() || '';
           const is10Day = contractStatus.toLowerCase().includes('10-day');
           const tradeKickerValue = parseFloat(row['TRADE KICKER'] || 0) || 0;
+          
+          // New: Check for expiring contracts and options
+          const contractEnd = row['END']?.trim() || '';
+          const status2627 = row['ST 26-27']?.trim().toUpperCase() || '';
+          const salary2627 = parseSalary(row['2027'] || 0);
+          const isExpiring = contractEnd === '2026' || (!salary2627 && !status2627);
+          const hasTeamOption = status2627.includes('TEAM OPT');
+          const hasPlayerOption = status2627.includes('PLAYER OPT');
+          const hasOption = hasTeamOption || hasPlayerOption;
+          
+          // Determine trade availability
+          let tradeAvailable = row['RESTRICTIONS']?.trim() || '';
+          if (is10Day) {
+            tradeAvailable = 'not available';
+          } else if (isExpiring) {
+            tradeAvailable = 'not available'; // Expiring contracts can't be traded after deadline
+          }
+          
           return {
             player: row.PLAYER?.trim() || '',
             team: row.TEAM?.trim() || '',
@@ -9786,7 +9842,7 @@
             gamesPlayed: parseInt(row['GAMES'] || 0) || 0,
             position: row['POSITION']?.trim() || '',
             age: (row['AGE'] != null ? row['AGE'].toString().trim() : ''),
-            contractEnd: row['END']?.trim() || '',
+            contractEnd: contractEnd,
             guaranteedMoney: parseSalary(row['TOTAL GUARANTEED'] || 0),
             noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
             noTradeTo: (row['NO TRADE TO'] || '').toString().trim(),
@@ -9803,7 +9859,7 @@
             apronRoom2nd: parseSalary(row['2nd APRON'] || 0),
             isHardcap1st: (row['HARD CAP 1st?'] || '').toString().trim().toLowerCase().includes('hc'),
             isHardcap2nd: (row['HARD CAP 2nd?'] || '').toString().trim().toLowerCase().includes('hc'),
-            tradeAvailable: is10Day ? 'not available' : (row['RESTRICTIONS']?.trim() || ''),
+            tradeAvailable: tradeAvailable,
             isOut: (row['OUT?'] || '').toString().trim().toUpperCase() === 'OUT',
             injuryReason: row['REASON']?.trim() || '',
             teamLogo: row['LOGO']?.trim() || row['Logo']?.trim() || row['TEAM LOGO']?.trim() || row['Team Logo']?.trim() || '',
@@ -9815,7 +9871,14 @@
               return match ? match[1] : '';
             })(),
             capHold: parseSalary(row['CH 25-26'] || row['CAP HOLD'] || 0),
-            unlikelyBonus: parseSalary(row['UNLIKELY BONUS'] || 0)
+            unlikelyBonus: parseSalary(row['UNLIKELY BONUS'] || 0),
+            // New fields for offseason
+            salary2627: salary2627,
+            status2627: row['ST 26-27']?.trim() || '',
+            isExpiring: isExpiring,
+            hasTeamOption: hasTeamOption,
+            hasPlayerOption: hasPlayerOption,
+            hasOption: hasOption
           };
         });
 
