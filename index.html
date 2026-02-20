@@ -908,6 +908,42 @@
       margin-left: auto;
       padding: 0.5rem 1rem;
       font-size: 0.8125rem;
+
+    /* Roster Manager integration */
+    .rm-banner {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+    .rm-banner-icon { font-size: 1.1rem; }
+    .rm-banner-text { flex: 1; }
+    .rm-send-btn {
+      padding: 0.5rem 1.25rem;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .rm-send-btn:hover { background: #f0f0f2; transform: translateY(-1px); }
+    .rm-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .rm-send-btn.sent { background: #34c759; color: white; }
+    @media (max-width: 600px) {
+      .rm-banner { flex-wrap: wrap; }
+      .rm-send-btn { width: 100%; text-align: center; margin-top: 0.25rem; }
+    }
       font-weight: 500;
       color: var(--accent);
       text-decoration: none;
@@ -2363,6 +2399,12 @@
     </div>
 
     <div id="mainContent">
+      <!-- Roster Manager integration banner -->
+      <div class="rm-banner" id="rmBanner" style="display: none;">
+        <span class="rm-banner-icon">🔄</span>
+        <span class="rm-banner-text">Build your trade here, then send it back to Roster Manager</span>
+        <button class="rm-send-btn" id="rmSendBtn" disabled onclick="sendToRosterManager()">Build a valid trade first</button>
+      </div>
       <div class="trade-status" id="tradeStatus" style="display: none;">
         <div class="trade-status-icon" id="tradeStatusIcon">✓</div>
         <div class="trade-status-text">
@@ -2491,6 +2533,10 @@
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
                         INITIAL_URL_PARAMS.has('exclude');
+    
+    // Roster Manager integration mode
+    const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
+    const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -5682,6 +5728,98 @@
       // Update the realistic meter (only for legal trades)
       const isLegalTrade = validation.valid || validation.type?.startsWith('pending');
       updateRealisticMeter(isLegalTrade);
+      
+      // Update Roster Manager send button if in RM mode
+      if (IS_RM_MODE) {
+        const rmBtn = document.getElementById('rmSendBtn');
+        if (rmBtn) {
+          if (isLegalTrade) {
+            rmBtn.disabled = false;
+            rmBtn.textContent = '✅ Send Trade to Roster Manager';
+            rmBtn.classList.remove('sent');
+          } else {
+            rmBtn.disabled = true;
+            rmBtn.textContent = 'Build a valid trade first';
+            rmBtn.classList.remove('sent');
+          }
+        }
+      }
+    }
+
+    // ========== ROSTER MANAGER INTEGRATION ==========
+    function sendToRosterManager() {
+      if (!IS_RM_MODE) return;
+      
+      // Find the RM team in the trade
+      const rmTeamFull = RM_TEAM ? (abbrevToTeam[RM_TEAM.toUpperCase()] || '') : '';
+      
+      // Collect all players going OUT from the RM team and IN to the RM team
+      const playersOut = [];
+      const playersIn = [];
+      
+      for (const t of tradeTeams) {
+        if (!t.teamName) continue;
+        const isRmTeam = t.teamName === rmTeamFull || teamAbbreviations[t.teamName] === RM_TEAM.toUpperCase();
+        
+        if (isRmTeam) {
+          // Players this team is sending away
+          for (const p of t.playersOut) {
+            playersOut.push({
+              name: p.player,
+              salary: p.salary,
+              pos: p.position || '',
+              headshot: p.headshot || '',
+              playerId: p.playerId || ''
+            });
+          }
+          // Players this team is receiving
+          for (const p of t.playersIn) {
+            playersIn.push({
+              name: p.player,
+              salary: p.salary,
+              pos: p.position || '',
+              headshot: p.headshot || '',
+              playerId: p.playerId || '',
+              fromTeam: teamAbbreviations[p.team] || p.team
+            });
+          }
+        }
+      }
+      
+      const tradeData = {
+        type: 'ROSTER_MANAGER_TRADE',
+        team: RM_TEAM.toUpperCase(),
+        out: playersOut,
+        in: playersIn,
+        timestamp: Date.now()
+      };
+      
+      // Send to opener (popup mode) or parent (iframe mode)
+      const target = window.opener || window.parent;
+      if (target && target !== window) {
+        target.postMessage(tradeData, '*');
+        
+        // Visual feedback
+        const btn = document.getElementById('rmSendBtn');
+        if (btn) {
+          btn.textContent = '✓ Sent! You can close this window';
+          btn.classList.add('sent');
+          btn.disabled = true;
+        }
+      } else {
+        // Fallback: copy trade data to clipboard as JSON
+        navigator.clipboard.writeText(JSON.stringify(tradeData, null, 2)).then(() => {
+          alert('Trade data copied to clipboard. Paste it in Roster Manager.');
+        }).catch(() => {
+          alert('Could not send trade. Please make sure Roster Manager is open.');
+        });
+      }
+    }
+    
+    // Show RM banner on load if in RM mode
+    if (IS_RM_MODE) {
+      const rmBanner = document.getElementById('rmBanner');
+      if (rmBanner) rmBanner.style.display = 'flex';
     }
 
     // Main render function
@@ -9459,7 +9597,22 @@
         }
       });
       
-      if (matchedTeams.length < 2) return null;
+      if (matchedTeams.length < 2) {
+        // In RM mode with 1 team: set up that team with player pre-loaded, leave 2nd team empty
+        if (IS_RM_MODE && matchedTeams.length === 1 && matchedPlayers.length > 0) {
+          const tradeTeamsList = [
+            { teamName: matchedTeams[0], playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
+          // Add matched players to team 0 (destination TBD until 2nd team is selected)
+          matchedPlayers.forEach(p => {
+            const playerCopy = { ...p };
+            tradeTeamsList[0].playersOut.push(playerCopy);
+          });
+          return tradeTeamsList;
+        }
+        return null;
+      }
       
       // Create trade teams
       const tradeTeamsList = matchedTeams.slice(0, 5).map(teamName => ({
@@ -9834,7 +9987,7 @@
           return {
             player: row.PLAYER?.trim() || '',
             team: row.TEAM?.trim() || '',
-            salary: parseSalary(row['2026']),
+            salary: parseSalary(row['2026'] || row['SALARY']),
             contractStatus: contractStatus,
             teamStatus: row['TEAM STATUS']?.trim() || '',
             capSpace: parseSalary(row['CAP SPACE'] || row['Cap Space'] || row['K'] || 0),
