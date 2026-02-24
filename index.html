@@ -918,7 +918,7 @@
       margin-bottom: 1rem;
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.75rem;
       font-size: 0.8125rem;
       font-weight: 500;
       position: sticky;
@@ -926,14 +926,26 @@
       z-index: 50;
       box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
     }
-    .rm-banner-icon { font-size: 1.1rem; }
-    .rm-banner-text { flex: 1; font-size: 0.8rem; opacity: 0.9; }
-    .rm-btn-group { display: flex; gap: 0.4rem; }
+    .rm-banner-icon { font-size: 1.1rem; line-height: 1; }
+    .rm-banner-text { flex: 1; font-size: 0.85rem; font-weight: 600; }
+    .rm-btn-group { display: flex; gap: 0.4rem; flex-shrink: 0; }
     .rm-banner .btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
     .rm-banner .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .rm-banner .btn.sent { background: var(--green); color: white; }
     .rm-banner .btn.ready { animation: rmPulse 2s ease-in-out infinite; }
     @keyframes rmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,0.4)} 50%{box-shadow:0 0 0 6px rgba(52,199,89,0)} }
+
+    /* RM Mode: hide non-essential UI */
+    body.rm-mode .header-actions { display: none !important; }
+    body.rm-mode .glossary-section { display: none !important; }
+    body.rm-mode #tradeRumorsContainer { display: none !important; }
+    body.rm-mode .contact-footer { display: none !important; }
+    body.rm-mode #imageModal { display: none !important; }
+    body.rm-mode .check-rumors-link { display: none !important; }
+    body.rm-mode header h1 { font-size: 1.25rem; }
+    body.rm-mode header { padding: 0.75rem 1rem; }
+    body.rm-mode .rm-team-locked .team-select { pointer-events: none; opacity: 0.7; }
+
     @media (max-width: 600px) {
       .rm-banner { flex-wrap: wrap; border-radius: 0; margin: -1rem -1rem 1rem; position: sticky; top: 0; }
       .rm-btn-group { width: 100%; }
@@ -2302,7 +2314,7 @@
 <body>
   <div class="container">
     <header>
-      <h1><a href="https://hoopsmatic.com" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
+      <h1><a href="https://hoopsmatic.com" target="_blank" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -5818,6 +5830,7 @@
     
     // Show RM banner on load if in RM mode
     if (IS_RM_MODE) {
+      document.body.classList.add('rm-mode');
       const rmBanner = document.getElementById('rmBanner');
       if (rmBanner) rmBanner.style.display = 'flex';
     }
@@ -5830,6 +5843,23 @@
       }
     }
 
+    // Lock RM team dropdown after render (prevent user from changing their team)
+    function lockRmTeam() {
+      if (!IS_RM_MODE || !RM_TEAM) return;
+      const rmTeamFull = abbrevToTeam[RM_TEAM.toUpperCase()] || '';
+      if (!rmTeamFull) return;
+      // Find the trade card for the RM team and lock its dropdown
+      const cards = document.querySelectorAll('.trade-card');
+      cards.forEach(card => {
+        const select = card.querySelector('.team-select');
+        if (select && select.value === rmTeamFull) {
+          card.classList.add('rm-team-locked');
+        } else {
+          card.classList.remove('rm-team-locked');
+        }
+      });
+    }
+
     // Main render function
     function render() {
       tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard();
@@ -5837,6 +5867,9 @@
       attachEventListeners();
       equalizeTradeContentHeights();
       updateUrlAndTitle(); // Update URL and page title based on trade
+      
+      // Lock RM team dropdown if in RM mode
+      if (IS_RM_MODE) lockRmTeam();
       
       // Defer rumors loading to not block initial render
       if (typeof requestIdleCallback !== 'undefined') {
