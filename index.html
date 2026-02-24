@@ -918,7 +918,7 @@
       margin-bottom: 1rem;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
       font-size: 0.8125rem;
       font-weight: 500;
       position: sticky;
@@ -928,46 +928,16 @@
     }
     .rm-banner-icon { font-size: 1.1rem; }
     .rm-banner-text { flex: 1; font-size: 0.8rem; opacity: 0.9; }
-    .rm-btn-group {
-      display: flex;
-      gap: 0.4rem;
-    }
-    .rm-send-btn {
-      padding: 0.45rem 1rem;
-      background: rgba(52,199,89,0.15);
-      color: #34c759;
-      border: 1px solid rgba(52,199,89,0.3);
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-    .rm-send-btn:hover { background: rgba(52,199,89,0.25); }
-    .rm-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .rm-send-btn.sent { background: #34c759; color: white; border-color: #34c759; }
-    .rm-send-btn.ready { animation: rmPulse 2s ease-in-out infinite; }
+    .rm-btn-group { display: flex; gap: 0.4rem; }
+    .rm-banner .btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
+    .rm-banner .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .rm-banner .btn.sent { background: var(--green); color: white; }
+    .rm-banner .btn.ready { animation: rmPulse 2s ease-in-out infinite; }
     @keyframes rmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,0.4)} 50%{box-shadow:0 0 0 6px rgba(52,199,89,0)} }
-    .rm-close-btn {
-      padding: 0.45rem 1rem;
-      background: rgba(255,69,58,0.12);
-      color: #ff453a;
-      border: 1px solid rgba(255,69,58,0.25);
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-    .rm-close-btn:hover { background: rgba(255,69,58,0.22); }
     @media (max-width: 600px) {
       .rm-banner { flex-wrap: wrap; border-radius: 0; margin: -1rem -1rem 1rem; position: sticky; top: 0; }
       .rm-btn-group { width: 100%; }
-      .rm-send-btn, .rm-close-btn { flex: 1; text-align: center; }
+      .rm-banner .btn { flex: 1; text-align: center; }
     }
       font-weight: 500;
       color: var(--accent);
@@ -2429,8 +2399,8 @@
         <span class="rm-banner-icon">🏀</span>
         <span class="rm-banner-text">Roster Manager Mode</span>
         <div class="rm-btn-group">
-          <button class="rm-send-btn" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
-          <button class="rm-close-btn" onclick="closeFromRmMode()">Close</button>
+          <button class="btn btn-success" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
+          <button class="btn btn-danger" onclick="closeFromRmMode()">Close</button>
         </div>
       </div>
       <div class="trade-status" id="tradeStatus" style="display: none;">
