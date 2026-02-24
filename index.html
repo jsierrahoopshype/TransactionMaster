@@ -910,28 +910,22 @@
       font-size: 0.8125rem;
 
     /* Roster Manager integration */
-    .rm-banner {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white;
-      padding: 0.6rem 1rem;
-      border-radius: 10px;
-      margin-bottom: 1rem;
+    .rm-actions {
       display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+      gap: 0.5rem;
+      justify-content: center;
+      margin: 1rem 0;
+      padding: 0;
     }
-    .rm-banner-text { flex: 1; font-size: 0.85rem; font-weight: 600; line-height: 1; }
-    .rm-btn-group { display: flex; gap: 0.4rem; flex-shrink: 0; }
-    .rm-banner .btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
-    .rm-banner .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .rm-banner .btn.sent { background: var(--green); color: white; }
-    .rm-banner .btn.ready { animation: rmPulse 2s ease-in-out infinite; }
+    .rm-actions .btn {
+      padding: 0.7rem 2rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      min-width: 140px;
+    }
+    .rm-actions .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .rm-actions .btn.sent { background: var(--green); color: white; }
+    .rm-actions .btn.ready { animation: rmPulse 2s ease-in-out infinite; }
     @keyframes rmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,0.4)} 50%{box-shadow:0 0 0 6px rgba(52,199,89,0)} }
 
     /* RM Mode: hide non-essential UI */
@@ -946,9 +940,7 @@
     body.rm-mode .rm-team-locked .team-select { pointer-events: none; opacity: 0.7; }
 
     @media (max-width: 600px) {
-      .rm-banner { flex-wrap: wrap; border-radius: 0; margin: -1rem -1rem 1rem; position: sticky; top: 0; }
-      .rm-btn-group { width: 100%; }
-      .rm-banner .btn { flex: 1; text-align: center; }
+      .rm-actions .btn { flex: 1; min-width: 0; }
     }
       font-weight: 500;
       color: var(--accent);
@@ -2405,14 +2397,6 @@
     </div>
 
     <div id="mainContent">
-      <!-- Roster Manager integration banner -->
-      <div class="rm-banner" id="rmBanner" style="display: none;">
-        <span class="rm-banner-text">Roster Manager Mode</span>
-        <div class="rm-btn-group">
-          <button class="btn btn-success" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
-          <button class="btn btn-danger" onclick="closeFromRmMode()">Close</button>
-        </div>
-      </div>
       <div class="trade-status" id="tradeStatus" style="display: none;">
         <div class="trade-status-icon" id="tradeStatusIcon">✓</div>
         <div class="trade-status-text">
@@ -2431,6 +2415,12 @@
         <div class="realistic-meter-bar">
           <div class="realistic-meter-fill" id="realisticMeterFill" style="width: 100%;"></div>
         </div>
+      </div>
+
+      <!-- RM Mode action buttons (below trade status) -->
+      <div class="rm-actions" id="rmActions" style="display: none;">
+        <button class="btn btn-success rm-send" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
+        <button class="btn btn-danger rm-close" onclick="closeFromRmMode()">Close</button>
       </div>
 
       <div class="trade-container" id="tradeContainer">
@@ -5826,11 +5816,11 @@
       }
     }
     
-    // Show RM banner on load if in RM mode
+    // Show RM action buttons if in RM mode
     if (IS_RM_MODE) {
       document.body.classList.add('rm-mode');
-      const rmBanner = document.getElementById('rmBanner');
-      if (rmBanner) rmBanner.style.display = 'flex';
+      const rmActions = document.getElementById('rmActions');
+      if (rmActions) rmActions.style.display = 'flex';
     }
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
