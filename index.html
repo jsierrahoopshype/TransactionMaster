@@ -913,11 +913,11 @@
     .rm-banner {
       background: linear-gradient(135deg, #667eea, #764ba2);
       color: white;
-      padding: 0.75rem 1rem;
+      padding: 0.6rem 1rem;
       border-radius: 10px;
       margin-bottom: 1rem;
       display: flex;
-      flex-direction: column;
+      align-items: center;
       gap: 0.5rem;
       font-size: 0.8125rem;
       font-weight: 500;
@@ -926,50 +926,48 @@
       z-index: 50;
       box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
     }
-    .rm-banner-top {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
     .rm-banner-icon { font-size: 1.1rem; }
     .rm-banner-text { flex: 1; font-size: 0.8rem; opacity: 0.9; }
-    .rm-close-btn {
-      padding: 0.35rem 0.75rem;
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 0.75rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
+    .rm-btn-group {
+      display: flex;
+      gap: 0.4rem;
     }
-    .rm-close-btn:hover { background: rgba(255,255,255,0.35); }
     .rm-send-btn {
-      padding: 0.7rem 1.5rem;
-      background: white;
-      color: #667eea;
-      border: none;
+      padding: 0.45rem 1rem;
+      background: rgba(52,199,89,0.15);
+      color: #34c759;
+      border: 1px solid rgba(52,199,89,0.3);
       border-radius: 8px;
       font-family: inherit;
-      font-size: 0.9rem;
-      font-weight: 700;
+      font-size: 0.8rem;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
       white-space: nowrap;
-      width: 100%;
-      text-align: center;
-      letter-spacing: 0.02em;
     }
-    .rm-send-btn:hover { background: #f0f0f2; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-    .rm-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-    .rm-send-btn.sent { background: #34c759; color: white; }
+    .rm-send-btn:hover { background: rgba(52,199,89,0.25); }
+    .rm-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .rm-send-btn.sent { background: #34c759; color: white; border-color: #34c759; }
     .rm-send-btn.ready { animation: rmPulse 2s ease-in-out infinite; }
-    @keyframes rmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0.4)} 50%{box-shadow:0 0 0 8px rgba(255,255,255,0)} }
+    @keyframes rmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,0.4)} 50%{box-shadow:0 0 0 6px rgba(52,199,89,0)} }
+    .rm-close-btn {
+      padding: 0.45rem 1rem;
+      background: rgba(255,69,58,0.12);
+      color: #ff453a;
+      border: 1px solid rgba(255,69,58,0.25);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .rm-close-btn:hover { background: rgba(255,69,58,0.22); }
     @media (max-width: 600px) {
-      .rm-banner { border-radius: 0; margin: -1rem -1rem 1rem; position: sticky; top: 0; }
+      .rm-banner { flex-wrap: wrap; border-radius: 0; margin: -1rem -1rem 1rem; position: sticky; top: 0; }
+      .rm-btn-group { width: 100%; }
+      .rm-send-btn, .rm-close-btn { flex: 1; text-align: center; }
     }
       font-weight: 500;
       color: var(--accent);
@@ -2428,12 +2426,12 @@
     <div id="mainContent">
       <!-- Roster Manager integration banner -->
       <div class="rm-banner" id="rmBanner" style="display: none;">
-        <div class="rm-banner-top">
-          <span class="rm-banner-icon">🏀</span>
-          <span class="rm-banner-text">Roster Manager Mode — build your trade below</span>
-          <button class="rm-close-btn" onclick="closeFromRmMode()">✕ Close</button>
+        <span class="rm-banner-icon">🏀</span>
+        <span class="rm-banner-text">Roster Manager Mode</span>
+        <div class="rm-btn-group">
+          <button class="rm-send-btn" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
+          <button class="rm-close-btn" onclick="closeFromRmMode()">Close</button>
         </div>
-        <button class="rm-send-btn" id="rmSendBtn" disabled onclick="sendToRosterManager()">Build a valid trade first</button>
       </div>
       <div class="trade-status" id="tradeStatus" style="display: none;">
         <div class="trade-status-icon" id="tradeStatusIcon">✓</div>
@@ -5765,12 +5763,12 @@
         if (rmBtn) {
           if (isLegalTrade) {
             rmBtn.disabled = false;
-            rmBtn.textContent = '✅ Send Trade to Roster Manager';
+            rmBtn.textContent = '✅ Send Trade';
             rmBtn.classList.remove('sent');
             rmBtn.classList.add('ready');
           } else {
             rmBtn.disabled = true;
-            rmBtn.textContent = 'Build a valid trade first';
+            rmBtn.textContent = 'Send Trade';
             rmBtn.classList.remove('sent', 'ready');
           }
         }
@@ -5833,7 +5831,7 @@
         // Visual feedback
         const btn = document.getElementById('rmSendBtn');
         if (btn) {
-          btn.textContent = '✓ Trade sent!';
+          btn.textContent = '✓ Sent!';
           btn.classList.add('sent');
           btn.classList.remove('ready');
           btn.disabled = true;
