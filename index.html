@@ -926,8 +926,7 @@
       z-index: 50;
       box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
     }
-    .rm-banner-icon { font-size: 1.1rem; line-height: 1; }
-    .rm-banner-text { flex: 1; font-size: 0.85rem; font-weight: 600; }
+    .rm-banner-text { flex: 1; font-size: 0.85rem; font-weight: 600; line-height: 1; }
     .rm-btn-group { display: flex; gap: 0.4rem; flex-shrink: 0; }
     .rm-banner .btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
     .rm-banner .btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -2408,7 +2407,6 @@
     <div id="mainContent">
       <!-- Roster Manager integration banner -->
       <div class="rm-banner" id="rmBanner" style="display: none;">
-        <span class="rm-banner-icon">🏀</span>
         <span class="rm-banner-text">Roster Manager Mode</span>
         <div class="rm-btn-group">
           <button class="btn btn-success" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
