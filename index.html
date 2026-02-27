@@ -1426,7 +1426,7 @@
       margin-bottom: 0.5rem;
     }
 
-    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge, .opt-badge, .exp-badge {
+    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge, .opt-badge, .exp-badge, .sat-badge {
       font-size: 0.5625rem;
       padding: 0.125rem 0.3rem;
       border-radius: 3px;
@@ -1483,6 +1483,113 @@
     .tw-badge {
       background: rgba(59, 130, 246, 0.15);
       color: #3b82f6;
+    }
+
+    .sat-badge {
+      background: rgba(6, 182, 212, 0.15);
+      color: #06b6d4;
+    }
+
+    /* S&T popover for expiring players */
+    .sat-popover {
+      position: absolute;
+      z-index: 100;
+      background: var(--bg-card, #1a1a2e);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      border-radius: 8px;
+      padding: 0.75rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      min-width: 220px;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+    }
+    .sat-popover-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #06b6d4;
+      margin-bottom: 0.5rem;
+    }
+    .sat-popover-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+    .sat-popover-row label {
+      font-size: 0.7rem;
+      color: var(--text-secondary, #94a3b8);
+      white-space: nowrap;
+    }
+    .sat-popover-input {
+      flex: 1;
+      background: var(--bg-main, #0f0f23);
+      border: 1px solid var(--border, #2a2a4a);
+      border-radius: 4px;
+      color: var(--text-primary, #e2e8f0);
+      padding: 0.3rem 0.5rem;
+      font-size: 0.75rem;
+      font-family: inherit;
+      width: 100%;
+    }
+    .sat-popover-input:focus {
+      outline: none;
+      border-color: #06b6d4;
+    }
+    .sat-popover-actions {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+    .sat-popover-btn {
+      flex: 1;
+      padding: 0.35rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .sat-popover-btn.confirm {
+      background: #06b6d4;
+      color: white;
+    }
+    .sat-popover-btn.cancel {
+      background: var(--bg-main, #0f0f23);
+      color: var(--text-secondary, #94a3b8);
+      border: 1px solid var(--border, #2a2a4a);
+    }
+    .sat-popover-note {
+      font-size: 0.6rem;
+      color: var(--text-secondary, #94a3b8);
+      margin-top: 0.4rem;
+      line-height: 1.3;
+    }
+
+    /* Make expiring players in roster look clickable for S&T */
+    .player-roster-item.sat-eligible {
+      opacity: 0.7;
+      cursor: pointer !important;
+      position: relative;
+    }
+    .player-roster-item.sat-eligible:hover {
+      opacity: 0.9;
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+    .sat-roster-btn {
+      font-size: 0.55rem;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-weight: 600;
+      background: rgba(6, 182, 212, 0.15);
+      color: #06b6d4;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      cursor: pointer;
+      margin-left: 0.25rem;
+      white-space: nowrap;
+    }
+    .sat-roster-btn:hover {
+      background: rgba(6, 182, 212, 0.3);
     }
 
     .injury-badge {
@@ -1909,7 +2016,7 @@
       }
 
       /* Smaller badges on mobile */
-      .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge, .mse-badge, .tk-badge {
+      .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge, .tw-badge, .mse-badge, .tk-badge, .sat-badge, .sat-roster-btn {
         font-size: 0.5rem;
         padding: 0.1rem 0.2rem;
       }
@@ -3925,6 +4032,14 @@
           message: `Exceeds 1st apron hardcap by ${formatSalary(netIncomingForHardcap - teamInfo.apronRoom1st)}` 
         };
       }
+      // S&T receiving team is hard-capped at 1st apron
+      const hasSATIncoming = tradeTeam.playersIn.some(p => p.isSignAndTrade);
+      if (hasSATIncoming && !teamInfo.isHardcap1st && netIncomingForHardcap > teamInfo.apronRoom1st) {
+        return { 
+          valid: false, 
+          message: `Exceeds 1st apron hardcap (S&T) by ${formatSalary(netIncomingForHardcap - teamInfo.apronRoom1st)}` 
+        };
+      }
       if (teamInfo.isHardcap2nd && netIncomingForHardcap > teamInfo.apronRoom2nd) {
         return { 
           valid: false, 
@@ -4207,6 +4322,8 @@
       }
       
       tradeTeam.playersOut.forEach(p => {
+        // Sign-and-Trade players bypass expiring/availability restrictions
+        if (p.isSignAndTrade) return;
         // Check for expiring contracts
         if (p.isExpiring) {
           restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
@@ -5000,6 +5117,7 @@
                           ${p.hasTeamOption ? '<span class="opt-badge" title="Team Option for 26-27 - Only tradeable if option exercised">TO</span>' : ''}
                           ${p.hasPlayerOption ? '<span class="opt-badge" title="Player Option for 26-27 - Only tradeable if option exercised">PO</span>' : ''}
                           ${p.isExpiring ? '<span class="exp-badge" title="Expiring Contract - Not tradeable after deadline">EXP</span>' : ''}
+                          ${p.isSignAndTrade ? '<span class="sat-badge" title="Sign-and-Trade: New contract, receiving team hard-capped at 1st Apron">S&T</span>' : ''}
                           ${p.tradeAvailable && !p.isExpiring ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                         </div>
                         <div class="player-chip-salary">${formatSalary(outgoingValue)}${isTwoWay && p.salary > 0 ? ` <span style="color: #6366f1; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}${p.isMinSalaryException ? ` <span style="color: #10b981; font-size: 0.7em;">→ $0 incoming</span>` : ''}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill && !p.isMinSalaryException ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
@@ -5227,6 +5345,7 @@
                             ${p.tradeKicker > 0 ? `<span class="tk-badge" title="Trade Kicker: ${p.tradeKicker}%">TK</span>` : ''}
                             ${p.isMinSalaryException ? '<span class="mse-badge" title="Minimum Salary Exception - No salary matching required">MSE</span>' : ''}
                             ${p.isMinimum && !p.isMinSalaryException ? '<span class="min-badge" title="Minimum Salary">MIN</span>' : ''}
+                            ${p.isSignAndTrade ? '<span class="sat-badge" title="Sign-and-Trade: New contract, receiving team hard-capped at 1st Apron">S&T</span>' : ''}
                           </div>
                           <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${adjustedColor}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
                         </div>
@@ -5360,6 +5479,7 @@
                     </span>
                     ${teamInfo.isHardcap1st ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 1st Apron</span>` : ''}
                     ${teamInfo.isHardcap2nd ? `<span class="team-status-item" style="color: var(--orange);">Hard Capped 2nd Apron</span>` : ''}
+                    ${!teamInfo.isHardcap1st && tradeTeam.playersIn.some(p => p.isSignAndTrade) ? `<span class="team-status-item" style="color: #06b6d4;">Hard Capped 1st Apron (S&T)</span>` : ''}
                   </div>
                 ` : ''}
                 <div class="salary-summary">
@@ -5432,10 +5552,11 @@
                       const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
                       const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                       const is10Day = p.is10Day || p.contractStatus?.toUpperCase().includes('10-DAY');
-                      const isUnavailable = is10Day || p.tradeAvailable?.toLowerCase() === 'not available';
-                      const isDisabled = isAdded || isUnavailable;
+                      const isUnavailable = is10Day || (p.tradeAvailable?.toLowerCase() === 'not available' && !p.isExpiring);
+                      const isSATEligible = p.isExpiring && !is10Day && !isAdded;
+                      const isDisabled = isAdded || (isUnavailable && !isSATEligible);
                       return `
-                        <div class="player-roster-item ${isDisabled ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isDisabled ? 'data-disabled="true"' : ''}>
+                        <div class="player-roster-item ${isDisabled ? 'disabled' : ''} ${isSATEligible ? 'sat-eligible' : ''}" data-team="${index}" data-player="${p.player}" ${isDisabled && !isSATEligible ? 'data-disabled="true"' : ''} ${isSATEligible ? 'data-sat-eligible="true"' : ''}>
                           ${p.headshot ? `<img src="${p.headshot}" class="roster-headshot" alt="" onerror="this.style.display='none'">` : '<div class="roster-headshot-placeholder"></div>'}
                           <span class="player-roster-name">
                             ${p.player}
@@ -5488,6 +5609,7 @@
                             ${p.hasTeamOption ? '<span class="opt-badge" title="Team Option for 26-27 - Only tradeable if option exercised">TO</span>' : ''}
                             ${p.hasPlayerOption ? '<span class="opt-badge" title="Player Option for 26-27 - Only tradeable if option exercised">PO</span>' : ''}
                             ${p.isExpiring ? '<span class="exp-badge" title="Expiring Contract - Not tradeable after deadline">EXP</span>' : ''}
+                            ${p.isExpiring && !is10Day && !isAdded ? `<button class="sat-roster-btn" data-team="${index}" data-player="${p.player}" data-salary="${p.salary}" onclick="event.stopPropagation(); openSATPopover(this)" title="Sign and Trade this player">S&T</button>` : ''}
                             ${p.tradeAvailable && !is10Day && !p.isExpiring ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                             ${(() => {
                               const pct = getPlayerTradePercentage(p.playerId);
@@ -5829,6 +5951,121 @@
       if (target && target !== window) {
         target.postMessage({ type: 'ROSTER_MANAGER_CLOSE' }, '*');
       }
+    }
+
+    // ========== SIGN-AND-TRADE FEATURE ==========
+    let activeSATPopover = null;
+    
+    function closeSATPopover() {
+      if (activeSATPopover) {
+        activeSATPopover.remove();
+        activeSATPopover = null;
+      }
+    }
+    
+    function openSATPopover(btn) {
+      closeSATPopover();
+      const teamIndex = parseInt(btn.dataset.team);
+      const playerName = btn.dataset.player;
+      const currentSalary = parseInt(btn.dataset.salary) || 0;
+      const teamName = tradeTeams[teamIndex].teamName;
+      const teamPlayers = getTeamPlayers(teamName);
+      const player = teamPlayers.find(p => p.player === playerName);
+      if (!player) return;
+      
+      // Get trade value as default salary suggestion
+      const tv = getTradeValue(playerName);
+      const defaultSalary = tv || currentSalary || 10000000;
+      
+      const popover = document.createElement('div');
+      popover.className = 'sat-popover';
+      popover.innerHTML = `
+        <div class="sat-popover-title">✍️ Sign & Trade: ${playerName}</div>
+        <div class="sat-popover-row">
+          <label>New salary:</label>
+          <input type="text" class="sat-popover-input" id="satSalaryInput" value="${formatSalary(defaultSalary)}" placeholder="$25,000,000">
+        </div>
+        <div class="sat-popover-actions">
+          <button class="sat-popover-btn confirm" onclick="confirmSATFromRoster(${teamIndex}, '${playerName.replace(/'/g, "\\'")}')">Add to Trade</button>
+          <button class="sat-popover-btn cancel" onclick="closeSATPopover()">Cancel</button>
+        </div>
+        <div class="sat-popover-note">⚠️ Sign-and-Trade: Receiving team hard-capped at 1st Apron</div>
+      `;
+      
+      // Position relative to button's roster item
+      const rosterItem = btn.closest('.player-roster-item');
+      rosterItem.style.position = 'relative';
+      rosterItem.appendChild(popover);
+      activeSATPopover = popover;
+      
+      // Focus and select the salary input
+      const input = popover.querySelector('#satSalaryInput');
+      input.focus();
+      input.select();
+      
+      // Format salary on blur
+      input.addEventListener('blur', () => {
+        const val = parseSalary(input.value);
+        if (val > 0) input.value = formatSalary(val);
+      });
+      
+      // Enter to confirm
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          confirmSATFromRoster(teamIndex, playerName);
+        } else if (e.key === 'Escape') {
+          closeSATPopover();
+        }
+      });
+      
+      // Close on outside click
+      setTimeout(() => {
+        document.addEventListener('click', function handler(e) {
+          if (activeSATPopover && !activeSATPopover.contains(e.target) && !btn.contains(e.target)) {
+            closeSATPopover();
+            document.removeEventListener('click', handler);
+          }
+        });
+      }, 10);
+    }
+    
+    function confirmSATFromRoster(teamIndex, playerName) {
+      const salaryInput = document.getElementById('satSalaryInput');
+      const salary = parseSalary(salaryInput?.value || '0');
+      if (salary <= 0) {
+        salaryInput.style.borderColor = 'var(--red)';
+        return;
+      }
+      
+      const teamName = tradeTeams[teamIndex].teamName;
+      const teamPlayers = getTeamPlayers(teamName);
+      const player = teamPlayers.find(p => p.player === playerName);
+      if (!player) return;
+      
+      // Create S&T copy with new salary
+      const satPlayer = { 
+        ...player, 
+        salary: salary,
+        isSignAndTrade: true, 
+        isExpiring: false, 
+        tradeAvailable: '',
+        contractEnd: '2031',
+        satOriginalSalary: player.salary
+      };
+      
+      // Auto-assign destination for 2-team trades
+      const otherTeams = getOtherActiveTeams(teamIndex);
+      if (otherTeams.length === 1) {
+        satPlayer.destination = otherTeams[0].index;
+      }
+      
+      // Remove any existing instance
+      tradeTeams[teamIndex].playersOut = tradeTeams[teamIndex].playersOut.filter(p => p.player !== playerName);
+      tradeTeams[teamIndex].playersOut.push(satPlayer);
+      
+      closeSATPopover();
+      redistributePlayers();
+      render();
     }
 
     // Lock RM team dropdown after render (prevent user from changing their team)
@@ -6197,8 +6434,10 @@
 
       // Player roster click
       document.querySelectorAll('.player-roster-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
           if (item.dataset.disabled === 'true') return;
+          // S&T-eligible players can only be added via the S&T button
+          if (item.dataset.satEligible === 'true') return;
           
           const teamIndex = parseInt(item.dataset.team);
           const playerName = item.dataset.player;
@@ -9671,6 +9910,52 @@
           tradeTeamsList[teamIdx].playersOut.push(playerCopy);
         }
       });
+      
+      // Handle Sign-and-Trade URL parameters (from Roster Manager or standalone)
+      const satPlayerParam = params.get('sat');
+      const satSalary = parseInt(params.get('sat_sal')) || 0;
+      const satFromParam = params.get('sat_from');
+      if (satPlayerParam && satSalary > 0 && satFromParam) {
+        const satFromTeam = abbrevToTeam[satFromParam.toUpperCase()] || '';
+        if (satFromTeam) {
+          // Find the player in the players array (may be expiring) - prefer match from same team
+          const satSlug = satPlayerParam.toLowerCase().replace(/-/g, '').replace(/[^a-z0-9]/g, '');
+          let satPlayer = players.find(p => {
+            if (p.team !== satFromTeam) return false;
+            const pSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return pSlug === satSlug || pSlug.includes(satSlug) || satSlug.includes(pSlug);
+          });
+          // Fallback: search all teams if not found on specified team
+          if (!satPlayer) {
+            satPlayer = players.find(p => {
+              const pSlug = p.player.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+              return pSlug === satSlug || pSlug.includes(satSlug) || satSlug.includes(pSlug);
+            });
+          }
+          if (satPlayer) {
+            // Create S&T copy with new salary and flags
+            const satCopy = { ...satPlayer, 
+              salary: satSalary,
+              isSignAndTrade: true, 
+              isExpiring: false, 
+              tradeAvailable: '',
+              contractEnd: '2031', // New long-term deal
+              satOriginalSalary: satPlayer.salary
+            };
+            // Find from-team index in trade teams
+            const fromIdx = tradeTeamsList.findIndex(t => t.teamName === satFromTeam);
+            if (fromIdx !== -1) {
+              // Default destination: the other team (for 2-team trades)
+              if (tradeTeamsList.length === 2) {
+                satCopy.destination = fromIdx === 0 ? 1 : 0;
+              }
+              // Remove any existing instance of this player (might have been added as expiring)
+              tradeTeamsList[fromIdx].playersOut = tradeTeamsList[fromIdx].playersOut.filter(p => p.player !== satCopy.player);
+              tradeTeamsList[fromIdx].playersOut.push(satCopy);
+            }
+          }
+        }
+      }
       
       // Parse and add picks (format: fromTeamIdx:pickTeam:year:round:destIdx[s],...)
       // Supports both old format (team slugs, "1st"/"2nd") and new compact format (abbreviations, "1"/"2")
