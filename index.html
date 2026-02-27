@@ -2632,8 +2632,8 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.4 - Feb 8 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
-    console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode (expiring/options)');
+    console.log('%c🏀 NBA Trade Machine v17.5 - Feb 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -5552,8 +5552,8 @@
                       const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
                       const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                       const is10Day = p.is10Day || p.contractStatus?.toUpperCase().includes('10-DAY');
-                      const isUnavailable = is10Day || (p.tradeAvailable?.toLowerCase() === 'not available' && !p.isExpiring);
-                      const isSATEligible = p.isExpiring && !is10Day && !isAdded;
+                      const isUnavailable = is10Day || (p.tradeAvailable?.toLowerCase() === 'not available' && !p.isExpiring && !p.hasTeamOption && !p.hasPlayerOption);
+                      const isSATEligible = (p.isExpiring || p.hasTeamOption || p.hasPlayerOption) && !is10Day && !isAdded;
                       const isDisabled = isAdded || (isUnavailable && !isSATEligible);
                       return `
                         <div class="player-roster-item ${isDisabled ? 'disabled' : ''} ${isSATEligible ? 'sat-eligible' : ''}" data-team="${index}" data-player="${p.player}" ${isDisabled && !isSATEligible ? 'data-disabled="true"' : ''} ${isSATEligible ? 'data-sat-eligible="true"' : ''}>
@@ -5609,7 +5609,7 @@
                             ${p.hasTeamOption ? '<span class="opt-badge" title="Team Option for 26-27 - Only tradeable if option exercised">TO</span>' : ''}
                             ${p.hasPlayerOption ? '<span class="opt-badge" title="Player Option for 26-27 - Only tradeable if option exercised">PO</span>' : ''}
                             ${p.isExpiring ? '<span class="exp-badge" title="Expiring Contract - Not tradeable after deadline">EXP</span>' : ''}
-                            ${p.isExpiring && !is10Day && !isAdded ? `<button class="sat-roster-btn" data-team="${index}" data-player="${p.player}" data-salary="${p.salary}" onclick="event.stopPropagation(); openSATPopover(this)" title="Sign and Trade this player">S&T</button>` : ''}
+                            ${(p.isExpiring || p.hasTeamOption || p.hasPlayerOption) && !is10Day && !isAdded ? `<button class="sat-roster-btn" data-team="${index}" data-player="${p.player}" data-salary="${p.salary}" onclick="event.stopPropagation(); openSATPopover(this)" title="Sign and Trade this player">S&T</button>` : ''}
                             ${p.tradeAvailable && !is10Day && !p.isExpiring ? '<span class="restriction-badge" title="Trade Restriction">!</span>' : ''}
                             ${(() => {
                               const pct = getPlayerTradePercentage(p.playerId);
@@ -6258,6 +6258,27 @@
         );
         params.set('c', cashStrings.join(','));
       }
+      
+      // Preserve RM mode and S&T params if present
+      if (IS_RM_MODE) params.set('rm', RM_TEAM);
+      const initSat = INITIAL_URL_PARAMS.get('sat');
+      const initSatSal = INITIAL_URL_PARAMS.get('sat_sal');
+      const initSatFrom = INITIAL_URL_PARAMS.get('sat_from');
+      if (initSat) params.set('sat', initSat);
+      if (initSatSal) params.set('sat_sal', initSatSal);
+      if (initSatFrom) params.set('sat_from', initSatFrom);
+      
+      // Also preserve S&T params for standalone S&T players
+      tradeTeams.forEach(team => {
+        team.playersOut.forEach(p => {
+          if (p.isSignAndTrade && !params.has('sat')) {
+            const slug = p.player.replace(/\s+/g, '-').toLowerCase();
+            params.set('sat', slug);
+            params.set('sat_sal', p.salary);
+            params.set('sat_from', teamAbbreviations[team.teamName] || '');
+          }
+        });
+      });
       
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState({}, '', newUrl);
@@ -9912,9 +9933,10 @@
       });
       
       // Handle Sign-and-Trade URL parameters (from Roster Manager or standalone)
-      const satPlayerParam = params.get('sat');
-      const satSalary = parseInt(params.get('sat_sal')) || 0;
-      const satFromParam = params.get('sat_from');
+      // Use INITIAL_URL_PARAMS since updateUrlAndTitle() may have rewritten the URL
+      const satPlayerParam = INITIAL_URL_PARAMS.get('sat');
+      const satSalary = parseInt(INITIAL_URL_PARAMS.get('sat_sal')) || 0;
+      const satFromParam = INITIAL_URL_PARAMS.get('sat_from');
       if (satPlayerParam && satSalary > 0 && satFromParam) {
         const satFromTeam = abbrevToTeam[satFromParam.toUpperCase()] || '';
         if (satFromTeam) {
