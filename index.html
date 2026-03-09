@@ -2527,6 +2527,7 @@
       <!-- RM Mode action buttons (below trade status) -->
       <div class="rm-actions" id="rmActions" style="display: none;">
         <button class="btn btn-success rm-send" id="rmSendBtn" disabled onclick="sendToRosterManager()">Send Trade</button>
+        <button class="btn" style="background:var(--surface);color:var(--text1);border:1px solid var(--border)" onclick="resetRMTrade()">🔄 Reset</button>
         <button class="btn btn-danger rm-close" onclick="closeFromRmMode()">Close</button>
       </div>
 
@@ -2632,7 +2633,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.5 - Feb 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.6 - Mar 9 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -5952,6 +5953,34 @@
         target.postMessage({ type: 'ROSTER_MANAGER_CLOSE' }, '*');
       }
     }
+
+    // Reset trade in RM mode — clear all players, keep RM team, pick new partner
+    function resetRMTrade() {
+      const rmTeamFull = RM_TEAM ? (abbrevToTeam[RM_TEAM.toUpperCase()] || '') : '';
+      // Pick a random partner different from RM team
+      const otherTeams = teams.filter(t => t !== rmTeamFull);
+      const partner = otherTeams[Math.floor(Math.random() * otherTeams.length)] || '';
+      tradeTeams = [
+        { teamName: rmTeamFull, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+        { teamName: partner, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+      ];
+      redistributePlayers();
+      render();
+      // Reset send button
+      const rmBtn = document.getElementById('rmSendBtn');
+      if (rmBtn) {
+        rmBtn.disabled = true;
+        rmBtn.textContent = 'Send Trade';
+        rmBtn.classList.remove('sent', 'ready');
+      }
+    }
+
+    // Listen for reset message from Roster Manager parent
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'ROSTER_MANAGER_RESET') {
+        resetRMTrade();
+      }
+    });
 
     // ========== SIGN-AND-TRADE FEATURE ==========
     let activeSATPopover = null;
