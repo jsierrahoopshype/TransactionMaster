@@ -5920,11 +5920,18 @@
       // Same-tab mode: save to localStorage and navigate back
       if (IS_RM_SAME_TAB) {
         localStorage.setItem('rm_pending_trade', JSON.stringify(tradeData));
-        const returnUrl = localStorage.getItem('rm_return_url');
+        const returnUrl = localStorage.getItem('rm_return_url') 
+          || document.referrer 
+          || INITIAL_URL_PARAMS.get('rmurl')
+          || '';
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
         setTimeout(() => {
-          window.location.href = returnUrl || (window.location.origin + window.location.pathname.replace(/Trade_Machine.*/, 'Roster_Manager.html'));
+          if (returnUrl) {
+            window.location.href = returnUrl;
+          } else {
+            window.history.back();
+          }
         }, 300);
         return;
       }
@@ -5967,8 +5974,16 @@
     // Close Trade Machine from within RM mode
     function closeFromRmMode() {
       if (IS_RM_SAME_TAB) {
-        const returnUrl = localStorage.getItem('rm_return_url');
-        window.location.href = returnUrl || (window.location.origin + window.location.pathname.replace(/Trade_Machine.*/, 'Roster_Manager.html'));
+        const returnUrl = localStorage.getItem('rm_return_url') 
+          || document.referrer 
+          || INITIAL_URL_PARAMS.get('rmurl')
+          || '';
+        if (returnUrl && !returnUrl.includes(window.location.host)) {
+          window.location.href = returnUrl;
+        } else {
+          // Last resort: go back in history
+          window.history.back();
+        }
         return;
       }
       const target = window.opener || window.parent;
