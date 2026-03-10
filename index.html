@@ -5923,17 +5923,14 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mode: pass trade data via window.name and navigate to RM
-      if (IS_RM_SAME_TAB) {
-        window.name = 'RMTRADE:' + JSON.stringify(tradeData);
+      // Same-tab mode: encode trade in URL hash and navigate to RM
+      if (IS_RM_SAME_TAB && _rmReturnUrl) {
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
+        const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
+        const cleanUrl = _rmReturnUrl.split('#')[0];
         setTimeout(() => {
-          if (_rmReturnUrl) {
-            window.location.href = _rmReturnUrl;
-          } else {
-            window.history.back();
-          }
+          window.location.href = cleanUrl + '#rmtrade=' + tradeB64;
         }, 300);
         return;
       }
