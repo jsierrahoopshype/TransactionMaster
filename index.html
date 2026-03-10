@@ -5923,14 +5923,20 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mode: encode trade in URL hash and navigate to RM
-      if (IS_RM_SAME_TAB && _rmReturnUrl) {
+      // Same-tab mode: try URL hash first, fall back to window.name + history.back
+      if (IS_RM_SAME_TAB) {
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
-        const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
-        const cleanUrl = _rmReturnUrl.split('#')[0];
+        // Always set window.name as backup
+        window.name = 'RMTRADE:' + JSON.stringify(tradeData);
         setTimeout(() => {
-          window.location.href = cleanUrl + '#rmtrade=' + tradeB64;
+          if (_rmReturnUrl) {
+            const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
+            window.location.href = _rmReturnUrl.split('#')[0] + '#rmtrade=' + tradeB64;
+          } else {
+            // No return URL — use history.back (bfcache will restore RM, pageshow reads window.name)
+            window.history.back();
+          }
         }, 300);
         return;
       }
