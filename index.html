@@ -2644,6 +2644,12 @@
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
     const IS_RM_SAME_TAB = INITIAL_URL_PARAMS.has('rmst'); // same-tab navigation (mobile)
+    let _rmReturnUrl = '';
+    if (IS_RM_SAME_TAB) {
+      try { _rmReturnUrl = JSON.parse(window.name || '{}').rmReturnUrl || ''; } catch(e) {}
+      window.name = '';
+      console.log('[TM] Same-tab mode, return URL:', _rmReturnUrl);
+    }
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -5917,13 +5923,17 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mode: use window.name to pass data cross-domain (persists across same-tab navigations)
+      // Same-tab mode: pass trade data via window.name and navigate to RM
       if (IS_RM_SAME_TAB) {
         window.name = 'RMTRADE:' + JSON.stringify(tradeData);
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
         setTimeout(() => {
-          window.history.back();
+          if (_rmReturnUrl) {
+            window.location.href = _rmReturnUrl;
+          } else {
+            window.history.back();
+          }
         }, 300);
         return;
       }
@@ -5966,7 +5976,11 @@
     // Close Trade Machine from within RM mode
     function closeFromRmMode() {
       if (IS_RM_SAME_TAB) {
-        window.history.back();
+        if (_rmReturnUrl) {
+          window.location.href = _rmReturnUrl;
+        } else {
+          window.history.back();
+        }
         return;
       }
       const target = window.opener || window.parent;
