@@ -5917,18 +5917,21 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mode: save to localStorage and navigate back
+      // Same-tab mode: encode trade data in URL and navigate back
       if (IS_RM_SAME_TAB) {
-        localStorage.setItem('rm_pending_trade', JSON.stringify(tradeData));
         const returnUrl = localStorage.getItem('rm_return_url') 
           || document.referrer 
           || INITIAL_URL_PARAMS.get('rmurl')
           || '';
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
+        // Encode trade data as base64 in URL hash
+        const tradeHash = '#rmtrade=' + btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
         setTimeout(() => {
           if (returnUrl) {
-            window.location.href = returnUrl;
+            // Strip any existing hash from return URL
+            const cleanUrl = returnUrl.split('#')[0];
+            window.location.href = cleanUrl + tradeHash;
           } else {
             window.history.back();
           }
