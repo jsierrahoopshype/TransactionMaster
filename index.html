@@ -5923,20 +5923,16 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mode: try URL hash first, fall back to window.name + history.back
+      // Same-tab mode: relay trade data through Cloudflare Worker redirect
       if (IS_RM_SAME_TAB) {
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
-        // Always set window.name as backup
+        // Also set window.name as belt-and-suspenders backup
         window.name = 'RMTRADE:' + JSON.stringify(tradeData);
+        const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
         setTimeout(() => {
-          if (_rmReturnUrl) {
-            const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
-            window.location.href = _rmReturnUrl.split('#')[0] + '#rmtrade=' + tradeB64;
-          } else {
-            // No return URL — use history.back (bfcache will restore RM, pageshow reads window.name)
-            window.history.back();
-          }
+          // Navigate to worker relay — it will 302 redirect to RM with hash
+          window.location.href = window.location.origin + '/rmrelay?d=' + tradeB64;
         }, 300);
         return;
       }
@@ -5979,11 +5975,8 @@
     // Close Trade Machine from within RM mode
     function closeFromRmMode() {
       if (IS_RM_SAME_TAB) {
-        if (_rmReturnUrl) {
-          window.location.href = _rmReturnUrl;
-        } else {
-          window.history.back();
-        }
+        // Navigate back to RM via worker relay (no trade data)
+        window.location.href = window.location.origin + '/rmrelay';
         return;
       }
       const target = window.opener || window.parent;
