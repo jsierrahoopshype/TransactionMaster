@@ -5917,24 +5917,13 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mode: encode trade data in URL and navigate back
+      // Same-tab mode: use window.name to pass data cross-domain (persists across same-tab navigations)
       if (IS_RM_SAME_TAB) {
-        const returnUrl = localStorage.getItem('rm_return_url') 
-          || document.referrer 
-          || INITIAL_URL_PARAMS.get('rmurl')
-          || '';
+        window.name = 'RMTRADE:' + JSON.stringify(tradeData);
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
-        // Encode trade data as base64 in URL hash
-        const tradeHash = '#rmtrade=' + btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
         setTimeout(() => {
-          if (returnUrl) {
-            // Strip any existing hash from return URL
-            const cleanUrl = returnUrl.split('#')[0];
-            window.location.href = cleanUrl + tradeHash;
-          } else {
-            window.history.back();
-          }
+          window.history.back();
         }, 300);
         return;
       }
@@ -5977,16 +5966,7 @@
     // Close Trade Machine from within RM mode
     function closeFromRmMode() {
       if (IS_RM_SAME_TAB) {
-        const returnUrl = localStorage.getItem('rm_return_url') 
-          || document.referrer 
-          || INITIAL_URL_PARAMS.get('rmurl')
-          || '';
-        if (returnUrl && !returnUrl.includes(window.location.host)) {
-          window.location.href = returnUrl;
-        } else {
-          // Last resort: go back in history
-          window.history.back();
-        }
+        window.history.back();
         return;
       }
       const target = window.opener || window.parent;
