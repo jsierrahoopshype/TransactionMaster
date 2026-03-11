@@ -5922,7 +5922,7 @@
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
         const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
-        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/index.html?rmtrade=' + encodeURIComponent(tradeB64); }, 300);
+        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/?rmtrade=' + encodeURIComponent(tradeB64); }, 300);
         return;
       }
       
