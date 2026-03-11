@@ -5921,7 +5921,7 @@
       if (IS_RM_SAME_TAB) {
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
-        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/index.html?rmtrade=' + encodeURIComponent(JSON.stringify(tradeData)); }, 300);
+        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/?rmtrade=' + encodeURIComponent(JSON.stringify(tradeData)); }, 300);
         return;
       }
       
