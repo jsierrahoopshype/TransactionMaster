@@ -5917,12 +5917,12 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mobile mode: relay trade through Cloudflare Worker redirect
+      // Same-tab mobile mode: navigate directly to RM with trade data
       if (IS_RM_SAME_TAB) {
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
         const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
-        setTimeout(() => { window.location.href = window.location.origin + '/rmrelay?d=' + tradeB64; }, 300);
+        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/index.html?rmtrade=' + encodeURIComponent(tradeB64); }, 300);
         return;
       }
       
@@ -5963,7 +5963,7 @@
     // Close Trade Machine from within RM mode — tells parent iframe to close
     function closeFromRmMode() {
       if (IS_RM_SAME_TAB) {
-        window.location.href = window.location.origin + '/rmrelay';
+        window.location.href = 'https://aderoa.github.io/RosterManager/';
         return;
       }
       const target = window.opener || window.parent;
