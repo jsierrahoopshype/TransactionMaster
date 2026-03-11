@@ -2643,6 +2643,7 @@
     // Roster Manager integration mode
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
+    const IS_RM_SAME_TAB = INITIAL_URL_PARAMS.has('rmst'); // mobile same-tab mode
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -5916,6 +5917,15 @@
         timestamp: Date.now()
       };
       
+      // Same-tab mobile mode: relay trade through Cloudflare Worker redirect
+      if (IS_RM_SAME_TAB) {
+        const btn = document.getElementById('rmSendBtn');
+        if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
+        const tradeB64 = btoa(unescape(encodeURIComponent(JSON.stringify(tradeData))));
+        setTimeout(() => { window.location.href = window.location.origin + '/rmrelay?d=' + tradeB64; }, 300);
+        return;
+      }
+      
       // Send to opener (popup mode) or parent (iframe mode)
       const target = window.opener || window.parent;
       if (target && target !== window) {
@@ -5944,10 +5954,18 @@
       document.body.classList.add('rm-mode');
       const rmActions = document.getElementById('rmActions');
       if (rmActions) rmActions.style.display = 'flex';
+      if (IS_RM_SAME_TAB) {
+        const closeBtn = rmActions?.querySelector('.rm-close');
+        if (closeBtn) closeBtn.textContent = '← Back to Roster Manager';
+      }
     }
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
     function closeFromRmMode() {
+      if (IS_RM_SAME_TAB) {
+        window.location.href = window.location.origin + '/rmrelay';
+        return;
+      }
       const target = window.opener || window.parent;
       if (target && target !== window) {
         target.postMessage({ type: 'ROSTER_MANAGER_CLOSE' }, '*');
