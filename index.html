@@ -6698,7 +6698,7 @@
         p.salary >= 1000000 // At least $1M salary
       );
       
-      // Randomly decide 2-team or 3-team trade (40% chance for 3-team)
+      if (!tradeablePlayers.length) return null;
       const isThreeTeam = Math.random() < 0.4;
       
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -6829,6 +6829,7 @@
         } else {
           // TWO-TEAM TRADE
           // Pick a random player to start
+          if (!tradeablePlayers.length) return null;
           const player1 = tradeablePlayers[Math.floor(Math.random() * tradeablePlayers.length)];
           const team1Info = getTeamInfo(player1.team);
           
