@@ -2643,7 +2643,6 @@
     // Roster Manager integration mode
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
-    const IS_RM_SAME_TAB = INITIAL_URL_PARAMS.has('rmst'); // mobile same-tab mode
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -5917,26 +5916,6 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mobile mode: store trade via worker, navigate to RM
-      if (IS_RM_SAME_TAB) {
-        const btn = document.getElementById('rmSendBtn');
-        if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
-        const tradeJson = JSON.stringify(tradeData);
-        // Store trade in worker cache, get token back
-        fetch(window.location.origin + '/rmstore', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: tradeJson
-        }).then(r => r.json()).then(data => {
-          window.location.href = 'https://aderoa.github.io/RosterManager/?rmt=' + data.token;
-        }).catch(() => {
-          // Fallback: try window.name
-          window.name = 'RMTRADE:' + tradeJson;
-          window.location.href = 'https://aderoa.github.io/RosterManager/';
-        });
-        return;
-      }
-      
       // Send to opener (popup mode) or parent (iframe mode)
       const target = window.opener || window.parent;
       if (target && target !== window) {
@@ -5965,18 +5944,10 @@
       document.body.classList.add('rm-mode');
       const rmActions = document.getElementById('rmActions');
       if (rmActions) rmActions.style.display = 'flex';
-      if (IS_RM_SAME_TAB) {
-        const closeBtn = rmActions?.querySelector('.rm-close');
-        if (closeBtn) closeBtn.textContent = '← Back to Roster Manager';
-      }
     }
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
     function closeFromRmMode() {
-      if (IS_RM_SAME_TAB) {
-        window.location.href = 'https://aderoa.github.io/RosterManager/';
-        return;
-      }
       const target = window.opener || window.parent;
       if (target && target !== window) {
         target.postMessage({ type: 'ROSTER_MANAGER_CLOSE' }, '*');
@@ -6709,6 +6680,7 @@
         p.salary >= 1000000 // At least $1M salary
       );
       
+      // Randomly decide 2-team or 3-team trade (40% chance for 3-team)
       if (!tradeablePlayers.length) return null;
       const isThreeTeam = Math.random() < 0.4;
       
@@ -6840,7 +6812,6 @@
         } else {
           // TWO-TEAM TRADE
           // Pick a random player to start
-          if (!tradeablePlayers.length) return null;
           const player1 = tradeablePlayers[Math.floor(Math.random() * tradeablePlayers.length)];
           const team1Info = getTeamInfo(player1.team);
           
