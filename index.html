@@ -5917,11 +5917,12 @@
         timestamp: Date.now()
       };
       
-      // Same-tab mobile mode: navigate directly to RM with trade data as URL-encoded JSON
+      // Same-tab mobile mode: pass trade data via window.name (survives navigation, no URL issues)
       if (IS_RM_SAME_TAB) {
         const btn = document.getElementById('rmSendBtn');
         if (btn) { btn.textContent = '✓ Sending...'; btn.disabled = true; }
-        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/?rmtrade=' + encodeURIComponent(JSON.stringify(tradeData)); }, 300);
+        window.name = 'RMTRADE:' + JSON.stringify(tradeData);
+        setTimeout(() => { window.location.href = 'https://aderoa.github.io/RosterManager/'; }, 300);
         return;
       }
       
