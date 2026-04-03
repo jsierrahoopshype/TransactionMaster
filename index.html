@@ -1795,6 +1795,9 @@
       color: rgba(255, 255, 255, 0.7);
     }
 
+    /* Mobile team summary strip - hidden on desktop */
+    .mobile-trade-teams { display: none; }
+
     @media (max-width: 768px) {
       .container {
         padding: 0.5rem;
@@ -1885,6 +1888,48 @@
 
       .header-row .btn-danger {
         font-size: 0.7rem;
+      }
+
+      /* Mobile team summary strip */
+      .mobile-trade-teams {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin: 0 0 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      }
+      .mobile-trade-teams .mtt-team {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        max-width: 40%;
+        overflow: hidden;
+      }
+      .mobile-trade-teams .mtt-team img {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+      }
+      .mobile-trade-teams .mtt-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.8rem;
+      }
+      .mobile-trade-teams .mtt-arrow {
+        color: var(--text2, #94a3b8);
+        font-size: 1rem;
+        flex-shrink: 0;
       }
 
       /* Trade container */
@@ -2622,12 +2667,12 @@
       
       <!-- Contact Footer -->
       <div class="contact-footer">
-        Anything wrong? Contact us at support@hoopshype.com
+        Anything wrong? Contact us at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1c6f696c6c736e685c7473736c6f74656c79327f7371">[email&#160;protected]</a>
       </div>
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
     // Capture URL params immediately before anything can modify them
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
@@ -10538,12 +10583,89 @@
            });
         }
       } catch (error) {
-        console.error('Fetch error:', error);
+        console.error('Load error:', error);
         if (!cached) {
           loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
         }
       }
     }
+
+    // === MOBILE TEAM SUMMARY STRIP ===
+    // Shows "Team A ↔ Team B" at top on mobile so users don't have to scroll
+    (function() {
+      if (window.innerWidth > 768) return; // Desktop doesn't need this
+      
+      function updateTeamStrip() {
+        const selects = document.querySelectorAll('.team-select');
+        if (selects.length < 2) return;
+        
+        let strip = document.getElementById('mobileTradeTeams');
+        if (!strip) {
+          strip = document.createElement('div');
+          strip.id = 'mobileTradeTeams';
+          strip.className = 'mobile-trade-teams';
+          const container = document.getElementById('tradeContainer');
+          if (container && container.parentNode) {
+            container.parentNode.insertBefore(strip, container);
+          } else return;
+        }
+        
+        const teams = [];
+        selects.forEach(sel => {
+          const val = sel.value;
+          if (!val) return;
+          const opt = sel.options[sel.selectedIndex];
+          const name = opt ? opt.textContent.trim() : val;
+          // Try to find logo from team-header
+          const card = sel.closest('.team-card');
+          const logoEl = card ? card.querySelector('.team-logo') : null;
+          const logo = logoEl ? logoEl.src : '';
+          teams.push({ name: name.replace(/ Nuggets| Celtics| Lakers| Heat| Warriors| Mavericks| Bucks| Knicks| Suns| 76ers| Clippers| Cavaliers| Thunder| Grizzlies| Kings| Nets| Pacers| Hawks| Bulls| Raptors| Magic| Pistons| Rockets| Pelicans| Spurs| Jazz| Timberwolves| Trail Blazers| Wizards| Hornets/g, '').trim() || name, fullName: name, logo });
+        });
+        
+        if (teams.length < 2) return;
+        
+        let html = '';
+        teams.forEach((t, i) => {
+          if (i > 0) html += '<span class="mtt-arrow">↔</span>';
+          html += `<span class="mtt-team">${t.logo ? `<img src="${t.logo}" onerror="this.style.display='none'">` : ''}`;
+          html += `<span class="mtt-name">${t.fullName}</span></span>`;
+        });
+        strip.innerHTML = html;
+      }
+      
+      // Watch for team changes via MutationObserver on the trade container
+      const observer = new MutationObserver(() => {
+        setTimeout(updateTeamStrip, 100);
+      });
+      
+      // Start observing once DOM is ready
+      function startObserving() {
+        const target = document.getElementById('mainContent') || document.body;
+        observer.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] });
+        updateTeamStrip();
+      }
+      
+      // Also listen for change events on team selects
+      document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('team-select')) {
+          setTimeout(updateTeamStrip, 50);
+        }
+      });
+      
+      // Also update on resize (in case switching to landscape)
+      window.addEventListener('resize', () => {
+        const strip = document.getElementById('mobileTradeTeams');
+        if (window.innerWidth > 768 && strip) strip.style.display = 'none';
+        else if (window.innerWidth <= 768) updateTeamStrip();
+      });
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(startObserving, 500));
+      } else {
+        setTimeout(startObserving, 500);
+      }
+    })();
 
     loadData();
   </script>
