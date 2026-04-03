@@ -63,6 +63,7 @@
       color: var(--text);
       min-height: 100vh;
       line-height: 1.5;
+      overflow-x: clip;
     }
 
     .container {
@@ -1799,12 +1800,23 @@
     .mobile-trade-teams { display: none; }
 
     @media (max-width: 768px) {
+      html, body {
+        overflow-x: hidden;
+        max-width: 100vw;
+      }
+      /* Kill any horizontal scroll from injected nav or wide elements */
+      .container, #mainContent, header, .header-actions, .header-row {
+        max-width: 100vw;
+        overflow-x: hidden;
+      }
       .container {
         padding: 0.5rem;
+        overflow-x: hidden;
       }
 
       header {
         margin-bottom: 1rem;
+        overflow: hidden;
       }
 
       h1 {
@@ -1814,10 +1826,12 @@
 
       .header-actions {
         gap: 0.5rem;
+        overflow: hidden;
       }
 
       .header-row {
         gap: 0.5rem;
+        overflow: hidden;
       }
 
       /* Compact trade machine inputs - 2x2 grid */
@@ -1914,6 +1928,14 @@
         gap: 0.3rem;
         max-width: 40%;
         overflow: hidden;
+        cursor: pointer;
+        padding: 0.2rem 0.4rem;
+        border-radius: 6px;
+        transition: background 0.15s;
+      }
+      .mobile-trade-teams .mtt-team:active {
+        background: rgba(59,130,246,.12);
+        transform: scale(0.97);
       }
       .mobile-trade-teams .mtt-team img {
         width: 22px;
@@ -1938,6 +1960,7 @@
         gap: 0.75rem;
         padding-bottom: 0.5rem;
         width: 100%;
+        overflow-x: hidden;
       }
 
       .team-card, .add-team-card {
@@ -10591,12 +10614,13 @@
     }
 
     // === MOBILE TEAM SUMMARY STRIP ===
-    // Shows "Team A ↔ Team B" at top on mobile so users don't have to scroll
+    // Shows "Team A ↔ Team B" at top on mobile — tap a team to scroll to its card
     (function() {
-      if (window.innerWidth > 768) return; // Desktop doesn't need this
+      function isMobile() { return window.innerWidth <= 768; }
       
       function updateTeamStrip() {
-        const selects = document.querySelectorAll('.team-select');
+        if (!isMobile()) return;
+        const selects = document.querySelectorAll('.team-select[data-index]');
         if (selects.length < 2) return;
         
         let strip = document.getElementById('mobileTradeTeams');
@@ -10609,55 +10633,64 @@
             container.parentNode.insertBefore(strip, container);
           } else return;
         }
+        strip.style.display = '';
         
-        const teams = [];
-        selects.forEach(sel => {
+        const cards = document.querySelectorAll('.team-card');
+        let html = '';
+        selects.forEach((sel, i) => {
           const val = sel.value;
           if (!val) return;
           const opt = sel.options[sel.selectedIndex];
           const name = opt ? opt.textContent.trim() : val;
-          // Try to find logo from team-header
-          const card = sel.closest('.team-card');
+          // Find logo from team card
+          const card = sel.closest('.team-card') || cards[i];
           const logoEl = card ? card.querySelector('.team-logo') : null;
           const logo = logoEl ? logoEl.src : '';
-          teams.push({ name: name.replace(/ Nuggets| Celtics| Lakers| Heat| Warriors| Mavericks| Bucks| Knicks| Suns| 76ers| Clippers| Cavaliers| Thunder| Grizzlies| Kings| Nets| Pacers| Hawks| Bulls| Raptors| Magic| Pistons| Rockets| Pelicans| Spurs| Jazz| Timberwolves| Trail Blazers| Wizards| Hornets/g, '').trim() || name, fullName: name, logo });
-        });
-        
-        if (teams.length < 2) return;
-        
-        let html = '';
-        teams.forEach((t, i) => {
+          
           if (i > 0) html += '<span class="mtt-arrow">↔</span>';
-          html += `<span class="mtt-team">${t.logo ? `<img src="${t.logo}" onerror="this.style.display='none'">` : ''}`;
-          html += `<span class="mtt-name">${t.fullName}</span></span>`;
+          html += `<span class="mtt-team" data-card-index="${i}">`;
+          html += logo ? `<img src="${logo}" onerror="this.style.display='none'">` : '';
+          html += `<span class="mtt-name">${name}</span></span>`;
         });
         strip.innerHTML = html;
+        
+        // Add click handlers — scroll to the team card
+        strip.querySelectorAll('.mtt-team').forEach(el => {
+          el.addEventListener('click', function() {
+            const idx = parseInt(this.dataset.cardIndex);
+            const cards = document.querySelectorAll('.team-card');
+            if (cards[idx]) {
+              cards[idx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+              // Brief highlight
+              cards[idx].style.boxShadow = '0 0 0 2px var(--accent)';
+              setTimeout(() => cards[idx].style.boxShadow = '', 1200);
+            }
+          });
+        });
       }
       
-      // Watch for team changes via MutationObserver on the trade container
+      // Watch for DOM changes (team cards re-render, players added/removed)
       const observer = new MutationObserver(() => {
-        setTimeout(updateTeamStrip, 100);
+        setTimeout(updateTeamStrip, 150);
       });
       
-      // Start observing once DOM is ready
       function startObserving() {
         const target = document.getElementById('mainContent') || document.body;
-        observer.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] });
+        observer.observe(target, { childList: true, subtree: true });
         updateTeamStrip();
       }
       
-      // Also listen for change events on team selects
+      // Team select change events
       document.addEventListener('change', (e) => {
         if (e.target.classList.contains('team-select')) {
-          setTimeout(updateTeamStrip, 50);
+          setTimeout(updateTeamStrip, 80);
         }
       });
       
-      // Also update on resize (in case switching to landscape)
       window.addEventListener('resize', () => {
         const strip = document.getElementById('mobileTradeTeams');
-        if (window.innerWidth > 768 && strip) strip.style.display = 'none';
-        else if (window.innerWidth <= 768) updateTeamStrip();
+        if (!isMobile() && strip) strip.style.display = 'none';
+        else updateTeamStrip();
       });
       
       if (document.readyState === 'loading') {
