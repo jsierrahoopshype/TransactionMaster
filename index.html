@@ -448,10 +448,6 @@
       padding-bottom: 1rem;
     }
 
-    .mobile-trade-teams {
-      display: none;
-    }
-
     .team-card {
       flex: 1;
       min-width: 280px;
@@ -1806,11 +1802,6 @@
 
       header {
         margin-bottom: 1rem;
-        position: sticky;
-        top: 0;
-        z-index: 50;
-        background: var(--bg);
-        padding-bottom: 0.5rem;
       }
 
       h1 {
@@ -1902,35 +1893,6 @@
         gap: 0.75rem;
         padding-bottom: 0.5rem;
         width: 100%;
-      }
-
-      /* Mobile team summary strip */
-      .mobile-trade-teams {
-        display: flex !important;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        font-size: 0.85rem;
-        font-weight: 700;
-      }
-      .mobile-trade-teams .mtt-team {
-        display: flex;
-        align-items: center;
-        gap: 0.35rem;
-        cursor: pointer;
-      }
-      .mobile-trade-teams .mtt-team img {
-        width: 24px;
-        height: 24px;
-      }
-      .mobile-trade-teams .mtt-arrow {
-        color: var(--text-secondary);
-        font-size: 1.1rem;
       }
 
       .team-card, .add-team-card {
@@ -2570,8 +2532,6 @@
       </div>
 
       <div class="trade-container" id="tradeContainer">
-        <!-- Mobile team summary -->
-        <div class="mobile-trade-teams" id="mobileTradeTeams"></div>
         <!-- Skeleton loading cards -->
         <div class="trade-card skeleton-card" style="opacity: 0.6;">
           <div class="team-header">
@@ -2662,12 +2622,12 @@
       
       <!-- Contact Footer -->
       <div class="contact-footer">
-        Anything wrong? Contact us at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c2b1b7b2b2adb0b682aaadadb2b1aabbb2a7eca1adaf">[email&#160;protected]</a>
+        Anything wrong? Contact us at support@hoopshype.com
       </div>
     </div>
   </div>
 
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
     // Capture URL params immediately before anything can modify them
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
@@ -6157,7 +6117,6 @@
     // Main render function
     function render() {
       tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard();
-      updateMobileTradeTeams();
       renderTradeStatus();
       attachEventListeners();
       equalizeTradeContentHeights();
@@ -6174,22 +6133,6 @@
       }
     }
     
-    // Mobile team summary strip — shows teams involved at a glance
-    function updateMobileTradeTeams() {
-      const el = document.getElementById('mobileTradeTeams');
-      if (!el) return;
-      const teams = tradeTeams.filter(t => t.teamName);
-      if (teams.length < 2) { el.innerHTML = ''; return; }
-      el.innerHTML = teams.map((t, i) => {
-        const logo = getTeamLogo(t.teamName);
-        const short = t.teamName.split(' ').pop();
-        return (i > 0 ? '<span class="mtt-arrow">↔</span>' : '') +
-          '<span class="mtt-team" onclick="document.querySelectorAll(\'.team-card\')[' + i + ']?.scrollIntoView({behavior:\'smooth\',block:\'nearest\'})">' +
-          (logo ? '<img src="' + logo + '" onerror="this.style.display=\'none\'">' : '') +
-          short + '</span>';
-      }).join('');
-    }
-
     // Update URL and page title based on current trade
     function updateUrlAndTitle() {
       // Collect all players being traded for URL
@@ -10594,4 +10537,15 @@
             }
            });
         }
-      } catch (error
+      } catch (error) {
+        console.error('Fetch error:', error);
+        if (!cached) {
+          loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+        }
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
