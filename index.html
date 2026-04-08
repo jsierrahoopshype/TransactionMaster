@@ -2713,6 +2713,13 @@
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason'); // 2026-27 salary mode from RM
     
+    // Pre-fetch 2026 draft picks from Sheet4 when in offseason mode
+    const draftPicksFetchPromise = IS_OFFSEASON
+      ? fetch('https://hoopsmatic.com/api/rm-draft')
+          .then(r => r.ok ? r.text() : '')
+          .catch(() => '')
+      : Promise.resolve('');
+    
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
     if (window.__INJECTED_CSV_DATA__) {
@@ -5977,11 +5984,32 @@
         }
       }
       
+      // Collect draft picks traded
+      const picksOut = [];
+      const picksIn = [];
+      for (const t of tradeTeams) {
+        if (!t.teamName) continue;
+        const isRmTeam = t.teamName === rmTeamFull || teamAbbreviations[t.teamName] === RM_TEAM.toUpperCase();
+        if (isRmTeam) {
+          for (const p of (t.picksOut || [])) {
+            picksOut.push({ team: teamAbbreviations[p.team] || p.team, round: p.round, year: p.year, notes: p.notes || '' });
+          }
+        } else {
+          // Picks from other teams going TO the RM team
+          for (const p of (t.picksOut || [])) {
+            // Check if this pick's destination is the RM team
+            picksIn.push({ team: teamAbbreviations[p.team] || p.team, round: p.round, year: p.year, notes: p.notes || '', fromTeam: teamAbbreviations[t.teamName] || t.teamName });
+          }
+        }
+      }
+      
       const tradeData = {
         type: 'ROSTER_MANAGER_TRADE',
         team: RM_TEAM.toUpperCase(),
         out: playersOut,
         in: playersIn,
+        picksOut: picksOut,
+        picksIn: picksIn,
         timestamp: Date.now()
       };
       
@@ -10525,6 +10553,36 @@
           draftedYear: row['DRAFTED YEAR']?.toString().trim() || '',
           team: row['TEAM RIGHTS']?.trim() || ''
         }));
+      
+      // Offseason mode: replace 2026 draft picks with Sheet4 data (actual draft board)
+      if (IS_OFFSEASON) {
+        draftPicksFetchPromise.then(csvText => {
+          if (!csvText) return;
+          const rows = csvText.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
+          // Remove existing 2026 picks
+          draftPicks = draftPicks.filter(p => p.year !== '2026');
+          // Add picks from Sheet4: col 16=TEAM abbrev, col 19=DRAFT RNK
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            if (!r || r.length < 20) continue;
+            const abbrev = (r[16] || '').trim().toUpperCase();
+            const pickNum = parseInt((r[19] || '').trim()) || 0;
+            if (!abbrev || pickNum < 1 || pickNum > 60) continue;
+            const fullName = abbrevToTeam[abbrev] || '';
+            if (!fullName) continue;
+            draftPicks.push({
+              team: fullName,
+              round: pickNum <= 30 ? '1st' : '2nd',
+              year: '2026',
+              surePick: 'YES',
+              notes: `#${pickNum} overall`,
+              linkedTo: ''
+            });
+          }
+          console.log('[TM] Loaded 2026 draft picks from Sheet4:', draftPicks.filter(p => p.year === '2026').length, 'picks');
+          render(); // Re-render to show updated picks
+        });
+      }
       
       // Check if this is a loop URL (uses player= singular) vs a trade URL (uses players= plural)
       if (!IS_LOOP_URL) {
