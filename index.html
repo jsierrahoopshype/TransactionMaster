@@ -2711,6 +2711,7 @@
     // Roster Manager integration mode
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
+    const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason'); // 2026-27 salary mode from RM
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -10470,6 +10471,19 @@
         });
 
       teams = getUniqueTeams();
+
+      // Offseason mode: swap to 2026-27 salaries for trade matching
+      if (IS_OFFSEASON) {
+        players = players.filter(p => p.salary2627 > 0); // Remove expired/FA players
+        players.forEach(p => {
+          p.salary = p.salary2627; // Use 2026-27 salary for matching
+          p.contractStatus = p.status2627 || 'GUARANTEED';
+          p.tradeAvailable = ''; // All under-contract players are tradeable in offseason
+          p.isExpiring = false;
+          p.is10Day = false;
+        });
+        console.log('[TM] Offseason mode: using 2026-27 salaries for', players.length, 'players');
+      }
       
       tradeExceptions = results.data
         .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
