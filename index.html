@@ -2719,7 +2719,9 @@
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason'); // 2026-27 salary mode from RM
     
     // Pre-fetch 2026 draft picks from Sheet4 (always, for accurate pick numbers)
-    const draftPicksFetchPromise = fetch('https://hoopsmatic.com/api/rm-draft')
+    const _draftAbort = new AbortController();
+    setTimeout(() => _draftAbort.abort(), 8000); // 8s timeout
+    const draftPicksFetchPromise = fetch('https://hoopsmatic.com/api/rm-draft', { signal: _draftAbort.signal })
         .then(r => r.ok ? r.text() : '')
         .catch(() => '');
     
@@ -10593,35 +10595,45 @@
         }));
       
       // Replace 2026 draft picks with Sheet4 data (actual draft board with pick numbers)
-      draftPicksFetchPromise.then(csvText => {
-        if (!csvText) return;
-        const rows = csvText.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
-        // Rookie scale cap holds for 2026-27
-        const ROOKIE_SCALE_2026 = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
-        // Remove existing 2026 picks
-        draftPicks = draftPicks.filter(p => p.year !== '2026');
-        // Add picks from Sheet4: col 16=TEAM abbrev, col 19=DRAFT RNK
-        for (let i = 1; i < rows.length; i++) {
-          const r = rows[i];
-          if (!r || r.length < 20) continue;
-          const abbrev = (r[16] || '').trim().toUpperCase();
-          const pickNum = parseInt((r[19] || '').trim()) || 0;
-          if (!abbrev || pickNum < 1 || pickNum > 60) continue;
-          const fullName = abbrevToTeam[abbrev] || '';
-          if (!fullName) continue;
-          const capHold = pickNum <= 30 ? ROOKIE_SCALE_2026[pickNum - 1] || 0 : 0;
-          draftPicks.push({
-            team: fullName,
-            round: pickNum <= 30 ? '1st' : '2nd',
-            year: '2026',
-            surePick: 'YES',
-            notes: `#${pickNum} pick${capHold ? ' · $' + (capHold / 1000000).toFixed(1) + 'M cap hold' : ''}`,
-            linkedTo: ''
-          });
-        }
-        console.log('[TM] Loaded 2026 draft picks from Sheet4:', draftPicks.filter(p => p.year === '2026').length, 'picks');
-        render(); // Re-render to show updated picks
-      });
+      // Guard: only process once (processCSVData can be called twice: cached + fresh)
+      if (!window._draftPicksLoaded) {
+        window._draftPicksLoaded = true;
+        draftPicksFetchPromise.then(csvText => {
+          if (!csvText) return;
+          try {
+            const rows = csvText.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
+            // Rookie scale cap holds for 2026-27
+            const ROOKIE_SCALE_2026 = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
+            // Remove existing 2026 picks
+            draftPicks = draftPicks.filter(p => p.year !== '2026');
+            // Add picks from Sheet4: col 16=TEAM abbrev, col 19=DRAFT RNK
+            let count = 0;
+            for (let i = 1; i < rows.length && count < 60; i++) {
+              const r = rows[i];
+              if (!r || r.length < 20) continue;
+              const abbrev = (r[16] || '').trim().toUpperCase();
+              const pickNum = parseInt((r[19] || '').trim()) || 0;
+              if (!abbrev || pickNum < 1 || pickNum > 60) continue;
+              const fullName = abbrevToTeam[abbrev] || '';
+              if (!fullName) continue;
+              const capHold = pickNum <= 30 ? ROOKIE_SCALE_2026[pickNum - 1] || 0 : 0;
+              draftPicks.push({
+                team: fullName,
+                round: pickNum <= 30 ? '1st' : '2nd',
+                year: '2026',
+                surePick: 'YES',
+                notes: `#${pickNum} pick${capHold ? ' · $' + (capHold / 1000000).toFixed(1) + 'M cap hold' : ''}`,
+                linkedTo: ''
+              });
+              count++;
+            }
+            console.log('[TM] Loaded 2026 draft picks from Sheet4:', count, 'picks');
+            render();
+          } catch (e) {
+            console.error('[TM] Error processing draft picks:', e);
+          }
+        });
+      }
       
       // Check if this is a loop URL (uses player= singular) vs a trade URL (uses players= plural)
       if (!IS_LOOP_URL) {
