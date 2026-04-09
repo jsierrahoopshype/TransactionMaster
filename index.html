@@ -2481,6 +2481,11 @@
   <div class="container">
     <header>
       <h1><a href="https://hoopsmatic.com" target="_blank" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
+      <div id="seasonToggle" style="display:flex;align-items:center;gap:0.4rem;margin:-0.3rem 0 0.4rem 0;font-size:0.75rem">
+        <span style="color:var(--text-secondary)">Season:</span>
+        <button id="seasonBtn2526" onclick="setTMSeason(false)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all .15s">2025-26</button>
+        <button id="seasonBtn2627" onclick="setTMSeason(true)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all .15s">2026-27</button>
+      </div>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -2713,12 +2718,10 @@
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason'); // 2026-27 salary mode from RM
     
-    // Pre-fetch 2026 draft picks from Sheet4 when in offseason mode
-    const draftPicksFetchPromise = IS_OFFSEASON
-      ? fetch('https://hoopsmatic.com/api/rm-draft')
-          .then(r => r.ok ? r.text() : '')
-          .catch(() => '')
-      : Promise.resolve('');
+    // Pre-fetch 2026 draft picks from Sheet4 (always, for accurate pick numbers)
+    const draftPicksFetchPromise = fetch('https://hoopsmatic.com/api/rm-draft')
+        .then(r => r.ok ? r.text() : '')
+        .catch(() => '');
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -6044,6 +6047,37 @@
     }
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
+    // Season toggle: switch between 2025-26 and 2026-27 mode
+    function setTMSeason(offseason) {
+      const url = new URL(window.location.href);
+      if (offseason) {
+        url.searchParams.set('offseason', '1');
+      } else {
+        url.searchParams.delete('offseason');
+      }
+      window.location.href = url.toString();
+    }
+    // Highlight active season button
+    (function() {
+      const btn2526 = document.getElementById('seasonBtn2526');
+      const btn2627 = document.getElementById('seasonBtn2627');
+      if (btn2526 && btn2627) {
+        const active = IS_OFFSEASON ? btn2627 : btn2526;
+        const inactive = IS_OFFSEASON ? btn2526 : btn2627;
+        active.style.background = 'var(--accent, #3b82f6)';
+        active.style.color = '#fff';
+        active.style.borderColor = 'var(--accent, #3b82f6)';
+        active.style.fontWeight = '700';
+        inactive.style.background = 'transparent';
+        inactive.style.color = 'var(--text-secondary)';
+      }
+      // Hide toggle in RM mode (RM controls the season)
+      if (IS_RM_MODE) {
+        const toggle = document.getElementById('seasonToggle');
+        if (toggle) toggle.style.display = 'none';
+      }
+    })();
+
     function closeFromRmMode() {
       const target = window.opener || window.parent;
       if (target && target !== window) {
@@ -10509,6 +10543,10 @@
           p.tradeAvailable = ''; // All under-contract players are tradeable in offseason
           p.isExpiring = false;
           p.is10Day = false;
+          // Clear 25-26 option flags — these are resolved by offseason
+          p.hasTeamOption = false;
+          p.hasPlayerOption = false;
+          p.hasOption = false;
         });
         console.log('[TM] Offseason mode: using 2026-27 salaries for', players.length, 'players');
       }
@@ -10554,35 +10592,36 @@
           team: row['TEAM RIGHTS']?.trim() || ''
         }));
       
-      // Offseason mode: replace 2026 draft picks with Sheet4 data (actual draft board)
-      if (IS_OFFSEASON) {
-        draftPicksFetchPromise.then(csvText => {
-          if (!csvText) return;
-          const rows = csvText.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
-          // Remove existing 2026 picks
-          draftPicks = draftPicks.filter(p => p.year !== '2026');
-          // Add picks from Sheet4: col 16=TEAM abbrev, col 19=DRAFT RNK
-          for (let i = 1; i < rows.length; i++) {
-            const r = rows[i];
-            if (!r || r.length < 20) continue;
-            const abbrev = (r[16] || '').trim().toUpperCase();
-            const pickNum = parseInt((r[19] || '').trim()) || 0;
-            if (!abbrev || pickNum < 1 || pickNum > 60) continue;
-            const fullName = abbrevToTeam[abbrev] || '';
-            if (!fullName) continue;
-            draftPicks.push({
-              team: fullName,
-              round: pickNum <= 30 ? '1st' : '2nd',
-              year: '2026',
-              surePick: 'YES',
-              notes: `#${pickNum} overall`,
-              linkedTo: ''
-            });
-          }
-          console.log('[TM] Loaded 2026 draft picks from Sheet4:', draftPicks.filter(p => p.year === '2026').length, 'picks');
-          render(); // Re-render to show updated picks
-        });
-      }
+      // Replace 2026 draft picks with Sheet4 data (actual draft board with pick numbers)
+      draftPicksFetchPromise.then(csvText => {
+        if (!csvText) return;
+        const rows = csvText.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
+        // Rookie scale cap holds for 2026-27
+        const ROOKIE_SCALE_2026 = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
+        // Remove existing 2026 picks
+        draftPicks = draftPicks.filter(p => p.year !== '2026');
+        // Add picks from Sheet4: col 16=TEAM abbrev, col 19=DRAFT RNK
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r || r.length < 20) continue;
+          const abbrev = (r[16] || '').trim().toUpperCase();
+          const pickNum = parseInt((r[19] || '').trim()) || 0;
+          if (!abbrev || pickNum < 1 || pickNum > 60) continue;
+          const fullName = abbrevToTeam[abbrev] || '';
+          if (!fullName) continue;
+          const capHold = pickNum <= 30 ? ROOKIE_SCALE_2026[pickNum - 1] || 0 : 0;
+          draftPicks.push({
+            team: fullName,
+            round: pickNum <= 30 ? '1st' : '2nd',
+            year: '2026',
+            surePick: 'YES',
+            notes: `#${pickNum} pick${capHold ? ' · $' + (capHold / 1000000).toFixed(1) + 'M cap hold' : ''}`,
+            linkedTo: ''
+          });
+        }
+        console.log('[TM] Loaded 2026 draft picks from Sheet4:', draftPicks.filter(p => p.year === '2026').length, 'picks');
+        render(); // Re-render to show updated picks
+      });
       
       // Check if this is a loop URL (uses player= singular) vs a trade URL (uses players= plural)
       if (!IS_LOOP_URL) {
