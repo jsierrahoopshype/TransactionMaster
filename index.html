@@ -3258,11 +3258,11 @@
       const picksOut = team.picksOut || [];
       
       // Only count full trades, not swaps
-      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st' && !p.isSwap);
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st' && !p.isSwap && p.year !== '2026');
       if (firstRoundPicksOut.length === 0) return true;
       
       const teamFirstRoundPicks = draftPicks
-        .filter(p => p.team === teamName && p.round === '1st')
+        .filter(p => p.team === teamName && p.round === '1st' && p.year !== '2026')
         .map(p => parseInt(p.year));
       
       const yearsOut = firstRoundPicksOut.map(p => parseInt(p.year));
@@ -3282,7 +3282,7 @@
         .filter(y => !yearsOut.includes(y))
         .concat(incomingYears);
       
-      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
+      const years = [2027, 2028, 2029, 2030, 2031, 2032, 2033];
       for (let i = 0; i < years.length - 1; i++) {
         const year1 = years[i];
         const year2 = years[i + 1];
@@ -3313,7 +3313,7 @@
       
       // For first round picks, check Stepien Rule
       // We need to ensure no consecutive years are left without a first round pick
-      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
+      const years = [2027, 2028, 2029, 2030, 2031, 2032, 2033];
       const alreadyTradingYears = existingPicksOut
         .filter(p => p.round === '1st')
         .map(p => parseInt(p.year));
@@ -4473,7 +4473,7 @@
       
       // Only check first-round picks being FULLY traded out (not swaps)
       // Swaps don't violate Stepien because team still has A pick in that year
-      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st' && !p.isSwap);
+      const firstRoundPicksOut = picksOut.filter(p => p.round === '1st' && !p.isSwap && p.year !== '2026');
       
       // Get incoming first-round picks from other teams (including swaps they're receiving)
       const incomingFirstRoundPicks = [];
@@ -4494,11 +4494,11 @@
       // If not trading any first-round picks, no Stepien concern
       if (firstRoundPicksOut.length === 0) return { valid: true };
       
-      // Get all first-round picks for this team from the master list
-      const teamFirstRoundPicks = draftPicks.filter(p => p.team === teamName && p.round === '1st');
+      // Get all first-round picks for this team from the master list (exclude 2026)
+      const teamFirstRoundPicks = draftPicks.filter(p => p.team === teamName && p.round === '1st' && p.year !== '2026');
       
-      // Years to check (need consecutive year coverage)
-      const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032];
+      // Years to check (need consecutive year coverage) - 2026 exempt (current year)
+      const years = [2027, 2028, 2029, 2030, 2031, 2032, 2033];
       
       // Helper to check if a specific pick is being traded out
       const isPickBeingTraded = (pick) => {
@@ -6075,6 +6075,55 @@
       }
     }
 
+    // Add 2026 first-round draft picks as roster players (offseason mode)
+    function addDraftPickPlayers() {
+      if (!IS_OFFSEASON) return;
+      // Remove any previously added draft pick players
+      players = players.filter(p => !p._isDraftPick);
+      const RS = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
+      for (const dp of draftPicks) {
+        if (dp.year !== '2026' || dp.round !== '1st') continue;
+        const pickMatch = dp.notes?.match(/#(\d+)/);
+        const pickNum = pickMatch ? parseInt(pickMatch[1]) : 0;
+        if (pickNum < 1 || pickNum > 30) continue;
+        const capHold = RS[pickNum - 1] || 0;
+        players.push({
+          player: '2026 #' + pickNum + ' Pick',
+          team: dp.team,
+          salary: capHold,
+          contractStatus: 'DRAFT PICK',
+          teamStatus: '',
+          capSpace: 0,
+          globalRating: 0,
+          gamesPlayed: 0,
+          position: '',
+          age: '',
+          contractEnd: '2030',
+          guaranteedMoney: 0,
+          noTradeClause: false,
+          notAggregated: false,
+          poisonPill: 0,
+          tradeKicker: 0,
+          otherNotes: 'Draft pick cap hold',
+          exception: '',
+          isMinimum: false,
+          is10Day: false,
+          tradeAvailable: '',
+          isOut: false,
+          teamLogo: '',
+          headshot: '',
+          playerId: 'draftpick_' + pickNum,
+          salary2627: capHold,
+          status2627: 'DRAFT PICK',
+          isExpiring: false,
+          hasTeamOption: false,
+          hasPlayerOption: false,
+          hasOption: false,
+          _isDraftPick: true
+        });
+      }
+    }
+
     // Apply RM pick assignments to TM draft picks
     function applyRMPicks(rmPicks) {
       if (!rmPicks || !rmPicks.length) return;
@@ -6090,6 +6139,7 @@
       }
       draftPicks.sort((a,b) => (parseInt(a.year)||9999)-(parseInt(b.year)||9999) || (a.round==='1st'?-1:1)-(b.round==='1st'?-1:1));
       console.log('[TM] Applied RM picks:', rmPicks.length);
+      addDraftPickPlayers();
     }
 
     // Listen for messages from Roster Manager parent
@@ -10557,7 +10607,19 @@
         }
       }
       
-      tradeExceptions = results.data
+      // Offseason: add 2033 draft picks for all teams
+      if (IS_OFFSEASON) {
+        const allTeams = getUniqueTeams();
+        for (const tm of allTeams) {
+          // Check if 2033 picks already exist
+          if (!draftPicks.some(p => p.team === tm && p.year === '2033' && p.round === '1st')) {
+            draftPicks.push({ team: tm, round: '1st', year: '2033', surePick: 'YES', notes: '', linkedTo: '' });
+          }
+          if (!draftPicks.some(p => p.team === tm && p.year === '2033' && p.round === '2nd')) {
+            draftPicks.push({ team: tm, round: '2nd', year: '2033', surePick: 'YES', notes: '', linkedTo: '' });
+          }
+        }
+      }
         .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
         .map(row => {
           let value = parseSalary(row['VALUE'] || 0);
@@ -10634,6 +10696,11 @@
       redistributePlayers();
       loadingState.style.display = 'none';
       render();
+      
+      // Signal to RM that TM is ready to receive picks
+      if (IS_RM_MODE && window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'ROSTER_MANAGER_TM_READY' }, '*');
+      }
       
       // Fetch global trade stats (use pre-started fetch for speed, re-render when done)
       fetchTradeStats(true).then(() => render());
@@ -10820,6 +10887,7 @@
               const pi = tp.findIndex(p => p.year==='2026' && p.notes && p.notes.indexOf('#'+ap+' ')>=0);
               if (pi >= 0) { const pk=tp[pi]; if(!tradeTeams[1].picksOut)tradeTeams[1].picksOut=[]; tradeTeams[1].picksOut.push({team:pk.team,round:pk.round,year:pk.year,notes:pk.notes,surePick:pk.surePick,linkedTo:pk.linkedTo,pickIndex:pi,destination:0}); }
             }
+            addDraftPickPlayers();
             setTimeout(render, 100);
           } catch(e) {}
         });
