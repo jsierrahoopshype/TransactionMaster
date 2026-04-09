@@ -931,6 +931,12 @@
 
     /* RM Mode: hide non-essential UI */
     body.rm-mode .header-actions { display: none !important; }
+    body.rm-mode header h1 { display: none !important; }
+    body.rm-mode #seasonToggle { display: none !important; }
+    body.rm-mode .btn-loop, body.rm-mode #loopTradeBtn { display: none !important; }
+    body.rm-mode #generateImageBtn { display: none !important; }
+    body.rm-mode #resetBtn { display: none !important; }
+    body.rm-mode .action-buttons { display: none !important; }
     body.rm-mode .glossary-section { display: none !important; }
     body.rm-mode #tradeRumorsContainer { display: none !important; }
     body.rm-mode .contact-footer { display: none !important; }
@@ -2711,6 +2717,7 @@
     
     // Roster Manager integration mode
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
+    if (IS_RM_MODE) document.body.classList.add('rm-mode');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason');
     const NEED_DRAFT_PICKS = IS_RM_MODE || IS_OFFSEASON;
