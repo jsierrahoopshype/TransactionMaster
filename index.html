@@ -10628,6 +10628,13 @@
               count++;
             }
             console.log('[TM] Loaded 2026 draft picks from Sheet4:', count, 'picks');
+            // Sort so 2026 picks appear first, then by year, then 1st round before 2nd
+            draftPicks.sort((a, b) => {
+              const ya = parseInt(a.year) || 9999, yb = parseInt(b.year) || 9999;
+              if (ya !== yb) return ya - yb;
+              if (a.round !== b.round) return a.round === '1st' ? -1 : 1;
+              return 0;
+            });
             render();
           } catch (e) {
             console.error('[TM] Error processing draft picks:', e);
