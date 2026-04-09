@@ -932,7 +932,6 @@
     /* RM Mode: hide non-essential UI */
     body.rm-mode .header-actions { display: none !important; }
     body.rm-mode header h1 { display: none !important; }
-    body.rm-mode #seasonToggle { display: none !important; }
     body.rm-mode .btn-loop, body.rm-mode #loopTradeBtn { display: none !important; }
     body.rm-mode #generateImageBtn { display: none !important; }
     body.rm-mode #resetBtn { display: none !important; }
@@ -6044,7 +6043,7 @@
       const b = document.getElementById(IS_OFFSEASON ? 'seasonBtn2526' : 'seasonBtn2627');
       if (a) { a.style.cssText += ';background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);font-weight:700'; }
       if (b) { b.style.cssText += ';background:transparent;color:var(--text-secondary)'; }
-      if (IS_RM_MODE) { const t = document.getElementById('seasonToggle'); if (t) t.style.display = 'none'; }
+      if (IS_RM_MODE) { /* season toggle stays visible for season switching */ }
     })();
 
     function closeFromRmMode() {
