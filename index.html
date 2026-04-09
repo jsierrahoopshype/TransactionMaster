@@ -10635,6 +10635,26 @@
               if (a.round !== b.round) return a.round === '1st' ? -1 : 1;
               return 0;
             });
+            
+            // Auto-select a draft pick if specified via URL (from RM draft-night trade)
+            const autoPickNum = parseInt(INITIAL_URL_PARAMS.get('draftpick')) || 0;
+            if (autoPickNum > 0 && tradeTeams.length >= 2) {
+              const partnerTeam = tradeTeams[1]?.teamName;
+              if (partnerTeam) {
+                const teamPicks = getTeamDraftPicks(partnerTeam);
+                const pickIdx = teamPicks.findIndex(p => p.year === '2026' && p.notes?.includes(`#${autoPickNum} `));
+                if (pickIdx >= 0) {
+                  if (!tradeTeams[1].picksOut) tradeTeams[1].picksOut = [];
+                  const pick = teamPicks[pickIdx];
+                  tradeTeams[1].picksOut.push({
+                    team: pick.team, round: pick.round, year: pick.year,
+                    notes: pick.notes, surePick: pick.surePick, linkedTo: pick.linkedTo,
+                    pickIndex: pickIdx, destination: 0
+                  });
+                  console.log(`[TM] Auto-selected pick #${autoPickNum} from ${partnerTeam}`);
+                }
+              }
+            }
             render();
           } catch (e) {
             console.error('[TM] Error processing draft picks:', e);
