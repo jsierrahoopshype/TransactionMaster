@@ -2481,11 +2481,7 @@
   <div class="container">
     <header>
       <h1><a href="https://hoopsmatic.com" target="_blank" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
-      <div id="seasonToggle" style="display:flex;align-items:center;gap:0.4rem;margin:-0.3rem 0 0.4rem 0;font-size:0.75rem">
-        <span style="color:var(--text-secondary)">Season:</span>
-        <button id="seasonBtn2526" onclick="setTMSeason(false)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all .15s">2025-26</button>
-        <button id="seasonBtn2627" onclick="setTMSeason(true)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all .15s">2026-27</button>
-      </div>
+
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -6035,21 +6031,6 @@
     }
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
-    // Season toggle
-    function setTMSeason(offseason) {
-      const url = new URL(window.location.href);
-      if (offseason) url.searchParams.set('offseason', '1');
-      else url.searchParams.delete('offseason');
-      window.location.href = url.toString();
-    }
-    (function() {
-      const a = document.getElementById(IS_OFFSEASON ? 'seasonBtn2627' : 'seasonBtn2526');
-      const b = document.getElementById(IS_OFFSEASON ? 'seasonBtn2526' : 'seasonBtn2627');
-      if (a) { a.style.background = 'var(--accent, #3b82f6)'; a.style.color = '#fff'; a.style.borderColor = 'var(--accent, #3b82f6)'; a.style.fontWeight = '700'; }
-      if (b) { b.style.background = 'transparent'; b.style.color = 'var(--text-secondary)'; }
-      if (IS_RM_MODE) { const t = document.getElementById('seasonToggle'); if (t) t.style.display = 'none'; }
-    })();
-
     function closeFromRmMode() {
       const target = window.opener || window.parent;
       if (target && target !== window) {
