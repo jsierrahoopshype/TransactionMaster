@@ -2720,7 +2720,7 @@
     if (IS_RM_MODE) document.body.classList.add('rm-mode');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason');
-    const NEED_DRAFT_PICKS = IS_RM_MODE || IS_OFFSEASON;
+    const NEED_DRAFT_PICKS = true; // Always load 2026 picks for trading
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -6152,16 +6152,28 @@
         setTimeout(render, 100);
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_DRAFT_TRADE') {
-        // Apply picks first if included
-        if (e.data.picks) applyRMPicks(e.data.picks);
         const pf = abbrevToTeam[(e.data.partner||'').toUpperCase()] || '';
         const pn = parseInt(e.data.pickNum) || 0;
+        // Skip if already set up for this exact trade
+        if (window._lastDraftTrade === pf + '_' + pn && tradeTeams[1]?.teamName === pf) return;
+        window._lastDraftTrade = pf + '_' + pn;
+        // Apply picks first if included
+        if (e.data.picks) applyRMPicks(e.data.picks);
+        console.log('[TM] DRAFT_TRADE: partner=' + pf + ' pickNum=' + pn + ' draftPicks2026=' + draftPicks.filter(p=>p.year==='2026').length);
         if (pf && tradeTeams.length >= 2) {
           tradeTeams[1] = { teamName: pf, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] };
           if (pn > 0) {
             const tp = getTeamDraftPicks(pf);
-            const pi = tp.findIndex(p => p.year === '2026' && p.notes && p.notes.indexOf('#' + pn + ' ') >= 0);
-            if (pi >= 0) { const pk = tp[pi]; tradeTeams[1].picksOut.push({ team:pk.team, round:pk.round, year:pk.year, notes:pk.notes, surePick:pk.surePick, linkedTo:pk.linkedTo, pickIndex:pi, destination:0 }); }
+            console.log('[TM] Team picks for ' + pf + ':', tp.map(p => p.year + ' ' + p.round + ' ' + (p.notes||'')).join(', '));
+            let pi = tp.findIndex(p => p.year === '2026' && p.notes && p.notes.indexOf('#' + pn + ' ') >= 0);
+            if (pi < 0) pi = tp.findIndex(p => p.year === '2026' && p.round === (pn <= 30 ? '1st' : '2nd') && p.notes && p.notes.includes('#' + pn));
+            if (pi >= 0) {
+              const pk = tp[pi];
+              tradeTeams[1].picksOut.push({ team:pk.team, round:pk.round, year:pk.year, notes:pk.notes, surePick:pk.surePick, linkedTo:pk.linkedTo, pickIndex:pi, destination:0 });
+              console.log('[TM] Auto-selected pick #' + pn + ' at index ' + pi);
+            } else {
+              console.warn('[TM] Could not find pick #' + pn + ' for ' + pf);
+            }
           }
           redistributePlayers(); render();
         }
