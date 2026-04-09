@@ -6068,12 +6068,34 @@
       }
     }
 
-    // Listen for reset message from Roster Manager parent
+    // Apply RM pick assignments to TM draft picks
+    function applyRMPicks(rmPicks) {
+      if (!rmPicks || !rmPicks.length) return;
+      window._rmPicksApplied = true; // Flag to skip Sheet4 fetch
+      draftPicks = draftPicks.filter(p => p.year !== '2026');
+      const RS = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
+      for (const p of rmPicks) {
+        const fn = abbrevToTeam[p.team] || '';
+        if (!fn || p.pick < 1 || p.pick > 60) continue;
+        const ch = p.pick <= 30 ? RS[p.pick-1] || 0 : 0;
+        draftPicks.push({ team:fn, round:p.pick<=30?'1st':'2nd', year:'2026', surePick:'YES', notes:'#'+p.pick+' pick'+(ch?' · $'+(ch/1e6).toFixed(1)+'M cap hold':''), linkedTo:'' });
+      }
+      draftPicks.sort((a,b) => (parseInt(a.year)||9999)-(parseInt(b.year)||9999) || (a.round==='1st'?-1:1)-(b.round==='1st'?-1:1));
+      console.log('[TM] Applied RM picks:', rmPicks.length);
+    }
+
+    // Listen for messages from Roster Manager parent
     window.addEventListener('message', function(e) {
       if (e.data && e.data.type === 'ROSTER_MANAGER_RESET') {
         resetRMTrade();
       }
+      if (e.data && e.data.type === 'ROSTER_MANAGER_PICKS') {
+        applyRMPicks(e.data.picks);
+        setTimeout(render, 100);
+      }
       if (e.data && e.data.type === 'ROSTER_MANAGER_DRAFT_TRADE') {
+        // Apply picks first if included
+        if (e.data.picks) applyRMPicks(e.data.picks);
         const pf = abbrevToTeam[(e.data.partner||'').toUpperCase()] || '';
         const pn = parseInt(e.data.pickNum) || 0;
         if (pf && tradeTeams.length >= 2) {
@@ -10764,7 +10786,7 @@
       fetch('https://hoopsmatic.com/api/rm-draft', { signal: _dac.signal })
         .then(r => r.ok ? r.text() : '').catch(() => '')
         .then(csv => {
-          if (!csv) return;
+          if (!csv || window._rmPicksApplied) return; // Skip if RM already sent picks
           try {
             const RS = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
             const rows = csv.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
