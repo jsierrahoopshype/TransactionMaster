@@ -6113,6 +6113,35 @@
       if (e.data && e.data.type === 'ROSTER_MANAGER_RESET') {
         resetRMTrade();
       }
+      if (e.data && e.data.type === 'ROSTER_MANAGER_DRAFT_TRADE') {
+        // Set up a draft trade: change partner team and select a pick
+        const partnerAbbrev = (e.data.partner || '').toUpperCase();
+        const pickNum = parseInt(e.data.pickNum) || 0;
+        const partnerFull = abbrevToTeam[partnerAbbrev] || '';
+        if (partnerFull && tradeTeams.length >= 2) {
+          // Change partner team
+          tradeTeams[1].teamName = partnerFull;
+          tradeTeams[1].playersOut = [];
+          tradeTeams[1].playersIn = [];
+          tradeTeams[1].picksOut = [];
+          // Auto-select the pick
+          if (pickNum > 0) {
+            const teamPicks = getTeamDraftPicks(partnerFull);
+            const pickIdx = teamPicks.findIndex(p => p.year === '2026' && p.notes?.includes(`#${pickNum} `));
+            if (pickIdx >= 0) {
+              const pick = teamPicks[pickIdx];
+              tradeTeams[1].picksOut.push({
+                team: pick.team, round: pick.round, year: pick.year,
+                notes: pick.notes, surePick: pick.surePick, linkedTo: pick.linkedTo,
+                pickIndex: pickIdx, destination: 0
+              });
+            }
+          }
+          redistributePlayers();
+          render();
+          console.log('[TM] Draft trade setup: partner=' + partnerFull + ', pick=#' + pickNum);
+        }
+      }
     });
 
     // ========== SIGN-AND-TRADE FEATURE ==========
@@ -10538,19 +10567,25 @@
 
       // Offseason mode: swap to 2026-27 salaries for trade matching
       if (IS_OFFSEASON) {
-        players = players.filter(p => p.salary2627 > 0); // Remove expired/FA players
-        players.forEach(p => {
-          p.salary = p.salary2627; // Use 2026-27 salary for matching
-          p.contractStatus = p.status2627 || 'GUARANTEED';
-          p.tradeAvailable = ''; // All under-contract players are tradeable in offseason
-          p.isExpiring = false;
-          p.is10Day = false;
-          // Clear 25-26 option flags — these are resolved by offseason
-          p.hasTeamOption = false;
-          p.hasPlayerOption = false;
-          p.hasOption = false;
-        });
-        console.log('[TM] Offseason mode: using 2026-27 salaries for', players.length, 'players');
+        const withSalary = players.filter(p => p.salary2627 > 0);
+        if (withSalary.length > 50) {
+          // Enough players have 2026-27 salary data — safe to filter
+          players = withSalary;
+          players.forEach(p => {
+            p.salary = p.salary2627;
+            p.contractStatus = p.status2627 || 'GUARANTEED';
+            p.tradeAvailable = '';
+            p.isExpiring = false;
+            p.is10Day = false;
+            p.hasTeamOption = false;
+            p.hasPlayerOption = false;
+            p.hasOption = false;
+          });
+          console.log('[TM] Offseason mode: using 2026-27 salaries for', players.length, 'players');
+        } else {
+          // Column mismatch — keep all players but log warning
+          console.warn('[TM] Offseason mode: only', withSalary.length, 'players have 2026-27 salary. Keeping all players with current salaries. Check CSV column header for 2027 data.');
+        }
       }
       
       tradeExceptions = results.data
