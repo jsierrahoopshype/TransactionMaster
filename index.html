@@ -2718,12 +2718,13 @@
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason'); // 2026-27 salary mode from RM
     
-    // Pre-fetch 2026 draft picks from Sheet4 (always, for accurate pick numbers)
-    const _draftAbort = new AbortController();
-    setTimeout(() => _draftAbort.abort(), 8000); // 8s timeout
-    const draftPicksFetchPromise = fetch('https://hoopsmatic.com/api/rm-draft', { signal: _draftAbort.signal })
-        .then(r => r.ok ? r.text() : '')
-        .catch(() => '');
+    // Pre-fetch 2026 draft picks from Sheet4 (only in RM mode or offseason mode)
+    const NEED_DRAFT_PICKS = IS_RM_MODE || IS_OFFSEASON;
+    const draftPicksFetchPromise = NEED_DRAFT_PICKS
+      ? (() => { const ac = new AbortController(); setTimeout(() => ac.abort(), 8000);
+          return fetch('https://hoopsmatic.com/api/rm-draft', { signal: ac.signal }).then(r => r.ok ? r.text() : '').catch(() => '');
+        })()
+      : Promise.resolve('');
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -10690,7 +10691,7 @@
                 }
               }
             }
-            render();
+            setTimeout(render, 50); // Deferred render to avoid blocking
           } catch (e) {
             console.error('[TM] Error processing draft picks:', e);
           }
