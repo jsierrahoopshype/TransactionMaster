@@ -6166,6 +6166,22 @@
       if (e.data && e.data.type === 'ROSTER_MANAGER_PICKS') {
         console.log('[TM] Got PICKS message:', e.data.picks?.length, 'picks');
         applyRMPicks(e.data.picks);
+        // Check for draftpick URL param — auto-select after picks are applied
+        const ap = parseInt(INITIAL_URL_PARAMS.get('draftpick')) || 0;
+        if (ap > 0 && tradeTeams.length >= 2 && tradeTeams[1]?.teamName) {
+          const tp = getTeamDraftPicks(tradeTeams[1].teamName);
+          let pi = tp.findIndex(p => p.year === '2026' && p.notes && p.notes.indexOf('#' + ap + ' ') >= 0);
+          if (pi < 0) pi = tp.findIndex(p => p.year === '2026' && p.notes && p.notes.includes('#' + ap));
+          if (pi >= 0) {
+            if (!tradeTeams[1].picksOut) tradeTeams[1].picksOut = [];
+            // Don't add if already selected
+            if (!tradeTeams[1].picksOut.some(pk => pk.notes && pk.notes.includes('#' + ap))) {
+              const pk = tp[pi];
+              tradeTeams[1].picksOut.push({ team:pk.team, round:pk.round, year:pk.year, notes:pk.notes, surePick:pk.surePick, linkedTo:pk.linkedTo, pickIndex:pi, destination:0 });
+              console.log('[TM] Auto-selected pick #' + ap + ' from URL param after PICKS');
+            }
+          }
+        }
         setTimeout(render, 100);
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_DRAFT_TRADE') {
