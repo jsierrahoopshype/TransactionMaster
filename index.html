@@ -10620,6 +10620,8 @@
           }
         }
       }
+
+      tradeExceptions = results.data
         .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
         .map(row => {
           let value = parseSalary(row['VALUE'] || 0);
