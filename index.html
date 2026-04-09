@@ -6078,7 +6078,8 @@
     // Apply RM pick assignments to TM draft picks
     function applyRMPicks(rmPicks) {
       if (!rmPicks || !rmPicks.length) return;
-      window._rmPicksApplied = true; // Flag to skip Sheet4 fetch
+      window._rmPicksApplied = true;
+      window._rmPicksData = rmPicks; // Save for re-application after CSV reload
       draftPicks = draftPicks.filter(p => p.year !== '2026');
       const RS = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
       for (const p of rmPicks) {
@@ -10589,6 +10590,11 @@
           linkedTo: row['LINKED TO']?.toString().trim() || ''
         }));
       
+      // Re-apply RM picks if they were received before this CSV load
+      if (window._rmPicksApplied && window._rmPicksData) {
+        applyRMPicks(window._rmPicksData);
+      }
+
       draftRights = results.data
         .filter(row => row['DRAFT RIGHTS']?.trim() && row['TEAM RIGHTS']?.trim())
         .map(row => ({
