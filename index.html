@@ -6164,6 +6164,7 @@
         resetRMTrade();
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_PICKS') {
+        console.log('[TM] Got PICKS message:', e.data.picks?.length, 'picks');
         applyRMPicks(e.data.picks);
         setTimeout(render, 100);
       }
@@ -10729,6 +10730,7 @@
       
       // Signal to RM that TM is ready to receive picks
       if (IS_RM_MODE && window.parent && window.parent !== window) {
+        console.log('[TM] Sending TM_READY to RM. IS_OFFSEASON=' + IS_OFFSEASON + ' draftPicks2026=' + draftPicks.filter(p=>p.year==='2026').length);
         window.parent.postMessage({ type: 'ROSTER_MANAGER_TM_READY' }, '*');
       }
       
