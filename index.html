@@ -2481,6 +2481,7 @@
   <div class="container">
     <header>
       <h1><a href="https://hoopsmatic.com" target="_blank" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
+      <div id="seasonToggle" style="display:flex;align-items:center;gap:0.4rem;margin:-0.3rem 0 0.4rem 0;font-size:0.75rem"><span style="color:var(--text-secondary)">Season:</span><button id="seasonBtn2526" onclick="setTMSeason(false)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2025-26</button><button id="seasonBtn2627" onclick="setTMSeason(true)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2026-27</button></div>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -2710,7 +2711,9 @@
     
     // Roster Manager integration mode
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
-    const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || ''; // team abbreviation from Roster Manager
+    const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
+    const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason');
+    const NEED_DRAFT_PICKS = IS_RM_MODE || IS_OFFSEASON;
     
     // Check if data was injected by Cloudflare Worker
     let csvFetchPromise;
@@ -5976,11 +5979,23 @@
         }
       }
       
+      // Collect draft picks
+      const picksOut = [], picksIn = [];
+      for (const t of tradeTeams) {
+        if (!t.teamName) continue;
+        const isRmTeam = t.teamName === rmTeamFull || teamAbbreviations[t.teamName] === RM_TEAM.toUpperCase();
+        for (const p of (t.picksOut || [])) {
+          const entry = { team: teamAbbreviations[p.team] || p.team, round: p.round, year: p.year, notes: p.notes || '' };
+          if (isRmTeam) picksOut.push(entry);
+          else picksIn.push({ ...entry, fromTeam: teamAbbreviations[t.teamName] || t.teamName });
+        }
+      }
       const tradeData = {
         type: 'ROSTER_MANAGER_TRADE',
         team: RM_TEAM.toUpperCase(),
         out: playersOut,
         in: playersIn,
+        picksOut, picksIn,
         timestamp: Date.now()
       };
       
@@ -6015,6 +6030,16 @@
     }
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
+    // Season toggle
+    function setTMSeason(o) { const u = new URL(window.location.href); if (o) u.searchParams.set('offseason','1'); else u.searchParams.delete('offseason'); window.location.href = u.toString(); }
+    (function() {
+      const a = document.getElementById(IS_OFFSEASON ? 'seasonBtn2627' : 'seasonBtn2526');
+      const b = document.getElementById(IS_OFFSEASON ? 'seasonBtn2526' : 'seasonBtn2627');
+      if (a) { a.style.cssText += ';background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);font-weight:700'; }
+      if (b) { b.style.cssText += ';background:transparent;color:var(--text-secondary)'; }
+      if (IS_RM_MODE) { const t = document.getElementById('seasonToggle'); if (t) t.style.display = 'none'; }
+    })();
+
     function closeFromRmMode() {
       const target = window.opener || window.parent;
       if (target && target !== window) {
@@ -6047,6 +6072,19 @@
     window.addEventListener('message', function(e) {
       if (e.data && e.data.type === 'ROSTER_MANAGER_RESET') {
         resetRMTrade();
+      }
+      if (e.data && e.data.type === 'ROSTER_MANAGER_DRAFT_TRADE') {
+        const pf = abbrevToTeam[(e.data.partner||'').toUpperCase()] || '';
+        const pn = parseInt(e.data.pickNum) || 0;
+        if (pf && tradeTeams.length >= 2) {
+          tradeTeams[1] = { teamName: pf, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] };
+          if (pn > 0) {
+            const tp = getTeamDraftPicks(pf);
+            const pi = tp.findIndex(p => p.year === '2026' && p.notes && p.notes.indexOf('#' + pn + ' ') >= 0);
+            if (pi >= 0) { const pk = tp[pi]; tradeTeams[1].picksOut.push({ team:pk.team, round:pk.round, year:pk.year, notes:pk.notes, surePick:pk.surePick, linkedTo:pk.linkedTo, pickIndex:pi, destination:0 }); }
+          }
+          redistributePlayers(); render();
+        }
       }
     });
 
@@ -10470,6 +10508,24 @@
         });
 
       teams = getUniqueTeams();
+
+      // Offseason mode: swap to 2026-27 salaries
+      if (IS_OFFSEASON) {
+        const withSalary = players.filter(p => p.salary2627 > 0);
+        if (withSalary.length > 50) {
+          players = withSalary;
+          players.forEach(p => {
+            p.salary = p.salary2627;
+            p.contractStatus = p.status2627 || 'GUARANTEED';
+            p.tradeAvailable = '';
+            p.isExpiring = false;
+            p.is10Day = false;
+            p.hasTeamOption = false;
+            p.hasPlayerOption = false;
+            p.hasOption = false;
+          });
+        }
+      }
       
       tradeExceptions = results.data
         .filter(row => row['TRADE EXCEPTION'] && row['TRADE EXCEPTION'].trim())
@@ -10701,6 +10757,38 @@
     })();
 
     loadData();
+
+    // Load 2026 draft picks from Sheet4 (RM/offseason mode only, non-blocking)
+    if (NEED_DRAFT_PICKS) {
+      const _dac = new AbortController(); setTimeout(() => _dac.abort(), 8000);
+      fetch('https://hoopsmatic.com/api/rm-draft', { signal: _dac.signal })
+        .then(r => r.ok ? r.text() : '').catch(() => '')
+        .then(csv => {
+          if (!csv) return;
+          try {
+            const RS = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
+            const rows = csv.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
+            draftPicks = draftPicks.filter(p => p.year !== '2026');
+            for (let i = 1, n = 0; i < rows.length && n < 60; i++) {
+              const r = rows[i]; if (!r || r.length < 20) continue;
+              const ab = (r[16]||'').toUpperCase(), pk = parseInt(r[19]) || 0;
+              if (!ab || pk < 1 || pk > 60) continue;
+              const fn = abbrevToTeam[ab]; if (!fn) continue;
+              const ch = pk <= 30 ? RS[pk-1] || 0 : 0;
+              draftPicks.push({ team:fn, round:pk<=30?'1st':'2nd', year:'2026', surePick:'YES', notes:'#'+pk+' pick'+(ch?' · $'+(ch/1e6).toFixed(1)+'M cap hold':''), linkedTo:'' });
+              n++;
+            }
+            draftPicks.sort((a,b) => (parseInt(a.year)||9999)-(parseInt(b.year)||9999) || (a.round==='1st'?-1:1)-(b.round==='1st'?-1:1));
+            const ap = parseInt(INITIAL_URL_PARAMS.get('draftpick')) || 0;
+            if (ap > 0 && tradeTeams[1] && tradeTeams[1].teamName) {
+              const tp = getTeamDraftPicks(tradeTeams[1].teamName);
+              const pi = tp.findIndex(p => p.year==='2026' && p.notes && p.notes.indexOf('#'+ap+' ')>=0);
+              if (pi >= 0) { const pk=tp[pi]; if(!tradeTeams[1].picksOut)tradeTeams[1].picksOut=[]; tradeTeams[1].picksOut.push({team:pk.team,round:pk.round,year:pk.year,notes:pk.notes,surePick:pk.surePick,linkedTo:pk.linkedTo,pickIndex:pi,destination:0}); }
+            }
+            setTimeout(render, 100);
+          } catch(e) {}
+        });
+    }
   </script>
 </body>
 </html>
