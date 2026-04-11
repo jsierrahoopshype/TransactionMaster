@@ -4392,8 +4392,8 @@
       const restrictions = [];
       
       // Check roster size after trade (standard contracts only, not two-way, not cap holds)
-      // Skip in RM mode — Roster Manager tracks roster separately
-      if (!IS_RM_MODE) {
+      // Skip in RM mode and offseason mode — roster sizes are managed elsewhere
+      if (!IS_RM_MODE && !IS_OFFSEASON) {
       const teamPlayers = getTeamPlayers(tradeTeam.teamName);
       const currentStandardCount = teamPlayers.filter(p => 
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' && 
@@ -10711,6 +10711,24 @@
     }
 
     function processCSVData(results) {
+      // Build 2026-27 team financial data lookup (cols 94-118 are a separate team list, NOT per-player)
+      const team2627Data = {};
+      for (const row of results.data) {
+        const teamName = (row['TEAM_2'] || '').trim();
+        if (teamName && !team2627Data[teamName]) {
+          team2627Data[teamName] = {
+            capSpace: parseSalary(row['CAP SPACE_3'] || 0),
+            capSpaceNoHolds: parseSalary(row['CAP SPACE NO HOLDS_1'] || 0),
+            taxRoom: parseSalary(row['TAX_1'] || 0),
+            apronRoom1st: parseSalary(row['1st APRON_2'] || 0),
+            apronRoom2nd: parseSalary(row['2nd APRON_2'] || 0),
+            isHardcap1st: (row['HARD CAP 1st?_2'] || '').toString().trim().toLowerCase().includes('hc'),
+            isHardcap2nd: (row['HARD CAP 2nd?_2'] || '').toString().trim().toLowerCase().includes('hc'),
+            capHolds: parseSalary(row['CAP HOLDS_1'] || 0)
+          };
+        }
+      }
+      
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
@@ -10785,15 +10803,15 @@
             hasTeamOption: hasTeamOption,
             hasPlayerOption: hasPlayerOption,
             hasOption: hasOption,
-            // 2026-27 team financial data (from cols 94-118)
-            capSpace2627: parseSalary(row['CAP SPACE_3'] || 0),
-            capSpaceNoHolds2627: parseSalary(row['CAP SPACE NO HOLDS_1'] || 0),
-            taxRoom2627: parseSalary(row['TAX_1'] || 0),
-            apronRoom1st2627: parseSalary(row['1st APRON_2'] || 0),
-            apronRoom2nd2627: parseSalary(row['2nd APRON_2'] || 0),
-            isHardcap1st2627: (row['HARD CAP 1st?_2'] || '').toString().trim().toLowerCase().includes('hc'),
-            isHardcap2nd2627: (row['HARD CAP 2nd?_2'] || '').toString().trim().toLowerCase().includes('hc'),
-            teamCapHolds2627: parseSalary(row['CAP HOLDS_1'] || 0),
+            // 2026-27 team financial data (from team lookup, NOT per-row)
+            capSpace2627: (team2627Data[row.TEAM?.trim()] || {}).capSpace || 0,
+            capSpaceNoHolds2627: (team2627Data[row.TEAM?.trim()] || {}).capSpaceNoHolds || 0,
+            taxRoom2627: (team2627Data[row.TEAM?.trim()] || {}).taxRoom || 0,
+            apronRoom1st2627: (team2627Data[row.TEAM?.trim()] || {}).apronRoom1st || 0,
+            apronRoom2nd2627: (team2627Data[row.TEAM?.trim()] || {}).apronRoom2nd || 0,
+            isHardcap1st2627: (team2627Data[row.TEAM?.trim()] || {}).isHardcap1st || false,
+            isHardcap2nd2627: (team2627Data[row.TEAM?.trim()] || {}).isHardcap2nd || false,
+            teamCapHolds2627: (team2627Data[row.TEAM?.trim()] || {}).capHolds || 0,
             isCapHold: false,
             isRenounceable: false
           };
