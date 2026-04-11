@@ -6043,7 +6043,9 @@
       const b = document.getElementById(IS_OFFSEASON ? 'seasonBtn2526' : 'seasonBtn2627');
       if (a) { a.style.cssText += ';background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);font-weight:700'; }
       if (b) { b.style.cssText += ';background:transparent;color:var(--text-secondary)'; }
-      if (IS_RM_MODE) { /* season toggle stays visible for season switching */ }
+      if (IS_RM_MODE && INITIAL_URL_PARAMS.has('noseasons')) {
+        const t = document.getElementById('seasonToggle'); if (t) t.style.display = 'none';
+      }
     })();
 
     function closeFromRmMode() {
@@ -6182,6 +6184,27 @@
           }
         }
         setTimeout(render, 100);
+      }
+      if (e.data && e.data.type === 'ROSTER_MANAGER_TRADES') {
+        // Swap players between teams to reflect RM trades
+        const swaps = e.data.trades;
+        if (swaps && swaps.length) {
+          let swapped = 0;
+          for (const s of swaps) {
+            const fromFull = abbrevToTeam[s.from] || s.from;
+            const toFull = abbrevToTeam[s.to] || s.to;
+            const pi = players.findIndex(p => p.player === s.name && p.team === fromFull);
+            if (pi >= 0) {
+              players[pi] = { ...players[pi], team: toFull };
+              swapped++;
+            }
+          }
+          if (swapped) {
+            teams = getUniqueTeams();
+            console.log('[TM] Applied', swapped, 'player swaps from RM trades');
+            setTimeout(render, 150);
+          }
+        }
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_DRAFT_TRADE') {
         const pf = abbrevToTeam[(e.data.partner||'').toUpperCase()] || '';
