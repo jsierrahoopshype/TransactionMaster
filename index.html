@@ -2732,6 +2732,7 @@
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
     const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason');
     const renouncedPlayers = new Set(); // Track renounced cap holds
+    let capHoldsExpanded = false; // Keep cap holds panel open across re-renders
 
     function renounceCapHold(teamIndex, playerName) {
       renouncedPlayers.add(playerName);
@@ -5895,33 +5896,6 @@
                   </div>
                 </div>
               </div>
-              ${IS_OFFSEASON ? (() => {
-                const capHolds = getTeamPlayers(tradeTeam.teamName).filter(p => p.isCapHold);
-                if (capHolds.length === 0) return '';
-                const totalHolds = capHolds.reduce((s, p) => s + p.salary, 0);
-                return `
-                  <div class="cap-hold-section" style="margin:0.5rem 0;padding:0.5rem;border:1px dashed rgba(139,92,246,0.3);border-radius:6px;background:rgba(139,92,246,0.04)">
-                    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:0.2rem 0;font-size:0.7rem;color:#8b5cf6;font-weight:600" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.ch-arrow').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼'">
-                      <span>🔓 Cap Holds (${capHolds.length}) · ${formatSalary(totalHolds)}</span>
-                      <span class="ch-arrow" style="font-size:0.6rem">▶</span>
-                    </div>
-                    <div style="display:none">
-                      <div style="font-size:0.6rem;color:#8b5cf6;opacity:0.7;margin:0.3rem 0">Renounce to free cap space for trades</div>
-                      ${capHolds.sort((a, b) => b.salary - a.salary).map(p => `
-                        <div class="player-roster-item cap-hold" style="display:flex;align-items:center;gap:0.4rem;padding:0.25rem 0.4rem;font-size:0.75rem">
-                          ${p.headshot ? `<img src="${p.headshot}" class="roster-headshot" alt="" onerror="this.style.display='none'">` : '<div class="roster-headshot-placeholder"></div>'}
-                          <span class="player-roster-name" style="flex:1">
-                            ${p.player}
-                            <span class="ch-badge">${p.capHoldType || 'CH'}</span>
-                            <button class="renounce-btn" onclick="event.stopPropagation(); renounceCapHold(${index}, '${p.player.replace(/'/g, "\\'")}')">Renounce</button>
-                          </span>
-                          <span class="player-roster-salary" style="color:#8b5cf6">${formatSalary(p.salary)}</span>
-                        </div>
-                      `).join('')}
-                    </div>
-                  </div>
-                `;
-              })() : ''}
             ` : ''}
           </div>
         </div>
@@ -5997,7 +5971,6 @@
         const teamsWithHolds = tradeTeams
           .filter(t => {
             if (!t.teamName || getTeamCapHolds(t.teamName).length === 0) return false;
-            // Show for teams receiving net salary or when trade is invalid
             return !validation.valid || t.playersIn.length > 0;
           })
           .map(t => ({ name: t.teamName, holds: getTeamCapHolds(t.teamName), total: getTeamCapHoldsTotal(t.teamName) }));
@@ -6011,11 +5984,31 @@
           }
           advisory.style.display = 'block';
           const prefix = validation.valid 
-            ? '<strong>💡 Renounce cap holds to execute:</strong> '
-            : '<strong>💡 Cap Holds:</strong> ';
-          advisory.innerHTML = prefix + teamsWithHolds.map(t => 
-            t.name + ' has ' + formatSalary(t.total) + ' in cap holds (' + t.holds.length + ' FAs). Renounce in the roster panel below.'
+            ? '💡 <strong>Renounce cap holds to execute</strong>'
+            : '💡 <strong>Cap Holds</strong>';
+          const summary = teamsWithHolds.map(t => 
+            t.name + ': ' + formatSalary(t.total) + ' (' + t.holds.length + ' FAs)'
           ).join(' · ');
+          let html = `<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="capHoldsExpanded=!capHoldsExpanded; document.getElementById('capHoldsList').style.display=capHoldsExpanded?'block':'none'; this.querySelector('.ch-arrow').textContent=capHoldsExpanded?'▼':'▶'">
+            <span>${prefix} — ${summary}</span>
+            <span class="ch-arrow" style="font-size:0.6rem;margin-left:0.5rem">${capHoldsExpanded ? '▼' : '▶'}</span>
+          </div>`;
+          html += `<div id="capHoldsList" style="display:${capHoldsExpanded ? 'block' : 'none'};margin-top:0.5rem;border-top:1px solid rgba(139,92,246,0.2);padding-top:0.4rem">`;
+          for (const t of teamsWithHolds) {
+            html += `<div style="font-size:0.65rem;font-weight:700;color:#7c3aed;margin:0.4rem 0 0.2rem">${t.name}</div>`;
+            const sorted = t.holds.sort((a, b) => b.salary - a.salary);
+            for (const p of sorted) {
+              const teamIdx = tradeTeams.findIndex(tt => tt.teamName === t.name);
+              html += `<div style="display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0.3rem;font-size:0.72rem;border-radius:4px;margin-bottom:1px" onmouseenter="this.style.background='rgba(139,92,246,0.08)'" onmouseleave="this.style.background='transparent'">`;
+              html += p.headshot ? `<img src="${p.headshot}" style="width:22px;height:16px;object-fit:cover;border-radius:2px" onerror="this.style.display='none'">` : '';
+              html += `<span style="flex:1">${p.player} <span class="ch-badge">${p.capHoldType || 'CH'}</span></span>`;
+              html += `<span style="color:#8b5cf6;font-weight:600;margin-right:0.3rem">${formatSalary(p.salary)}</span>`;
+              html += `<button class="renounce-btn" onclick="event.stopPropagation(); renounceCapHold(${teamIdx}, '${p.player.replace(/'/g, "\\'")}')">Renounce</button>`;
+              html += `</div>`;
+            }
+          }
+          html += `</div>`;
+          advisory.innerHTML = html;
         } else {
           const advisory = document.getElementById('capHoldAdvisory');
           if (advisory) advisory.style.display = 'none';
