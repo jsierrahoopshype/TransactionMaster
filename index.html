@@ -4204,7 +4204,7 @@
           if (incomingSalary > maxIncomingTax) {
             return {
               valid: false,
-              message: `Trade would push team into tax - can only receive ${formatSalary(maxIncomingTax)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses tax line)`
             };
           }
         }
@@ -4216,14 +4216,14 @@
           if (incomingSalary > maxIncoming1st) {
             return {
               valid: false,
-              message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1st)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 1st apron)`
             };
           }
           // Also check actual cap impact (catches MSE players)
           if (incomingCapImpact > outgoingSalary) {
             return {
               valid: false,
-              message: `Trade would push team into 1st apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 1st apron)`
             };
           }
         }
@@ -4235,14 +4235,14 @@
           if (incomingSalary > maxIncoming2nd) {
             return {
               valid: false,
-              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 2nd apron)`
             };
           }
           // Also check actual cap impact (catches MSE players)
           if (incomingCapImpact > outgoingSalary) {
             return {
               valid: false,
-              message: `Trade would push team into 2nd apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 2nd apron)`
             };
           }
         }
@@ -4253,14 +4253,14 @@
           if (incomingSalary > maxIncoming1st) {
             return {
               valid: false,
-              message: `Trade would push team into 1st apron - can only receive ${formatSalary(maxIncoming1st)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 1st apron)`
             };
           }
           // Also check actual cap impact (catches MSE players)
           if (incomingCapImpact > outgoingSalary) {
             return {
               valid: false,
-              message: `Trade would push team into 1st apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 1st apron)`
             };
           }
         }
@@ -4271,14 +4271,14 @@
           if (incomingSalary > maxIncoming2nd) {
             return {
               valid: false,
-              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 2nd apron)`
             };
           }
           // Also check actual cap impact (catches MSE players)
           if (incomingCapImpact > outgoingSalary) {
             return {
               valid: false,
-              message: `Trade would push team into 2nd apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 2nd apron)`
             };
           }
         }
@@ -4289,14 +4289,14 @@
           if (incomingSalary > maxIncoming2nd) {
             return {
               valid: false,
-              message: `Trade would push team into 2nd apron - can only receive ${formatSalary(maxIncoming2nd)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 2nd apron)`
             };
           }
           // Also check actual cap impact (catches MSE players)
           if (incomingCapImpact > outgoingSalary) {
             return {
               valid: false,
-              message: `Trade would push team into 2nd apron - actual salary received exceeds outgoing by ${formatSalary(incomingCapImpact - outgoingSalary)}`
+              message: `Salaries don't match — ${tradeTeam.teamName} needs to send out more salary (crosses 2nd apron)`
             };
           }
         }
@@ -4372,7 +4372,7 @@
         const deficit = incomingSalary - maxIncoming;
         return { 
           valid: false, 
-          message: `Need to send out ${formatSalary(deficit)} more in salary` 
+          message: `${tradeTeam.teamName} needs to send out ${formatSalary(deficit)} more in salary` 
         };
       }
       
@@ -4383,7 +4383,7 @@
           const deficit = incomingCapImpact - outgoingSalary;
           return { 
             valid: false, 
-            message: `Apron team cannot receive more salary than sent - over by ${formatSalary(deficit)}` 
+            message: `Salaries don't match — ${tradeTeam.teamName} needs to send out ${formatSalary(deficit)} more salary` 
           };
         }
       }
@@ -4924,10 +4924,10 @@
             const capHoldsTotal = getTeamCapHoldsTotal(t.teamName);
             
             if (capSpace < netIncoming && capHoldsTotal > 0) {
-              const needed = netIncoming - Math.max(capSpace, 0);
+              const needed = netIncoming - capSpace;
               return { 
                 valid: false, 
-                message: `${t.teamName} must renounce at least ${formatSalary(needed)} in cap holds to absorb ${formatSalary(netIncoming)} net salary`, 
+                message: `${t.teamName} must renounce at least ${formatSalary(needed)} in cap holds to create room for ${formatSalary(netIncoming)} net incoming salary`, 
                 type: 'error' 
               };
             }
