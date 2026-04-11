@@ -5766,32 +5766,6 @@
                       `;
                     }).join('')}
                 </div>
-                ${IS_OFFSEASON ? (() => {
-                  const capHolds = getTeamPlayers(tradeTeam.teamName).filter(p => p.isCapHold);
-                  if (capHolds.length === 0) return '';
-                  const totalHolds = capHolds.reduce((s, p) => s + p.salary, 0);
-                  return `
-                    <div class="cap-hold-section">
-                      <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:0.3rem 0" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.ch-arrow').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼'">
-                        <span>Cap Holds (${capHolds.length}) · ${formatSalary(totalHolds)}</span>
-                        <span class="ch-arrow" style="font-size:0.6rem">▶</span>
-                      </div>
-                      <div style="display:none">
-                        ${capHolds.sort((a, b) => b.salary - a.salary).map(p => `
-                          <div class="player-roster-item cap-hold" style="display:flex;align-items:center;gap:0.4rem;padding:0.25rem 0.4rem;font-size:0.75rem">
-                            ${p.headshot ? `<img src="${p.headshot}" class="roster-headshot" alt="" onerror="this.style.display='none'">` : '<div class="roster-headshot-placeholder"></div>'}
-                            <span class="player-roster-name" style="flex:1">
-                              ${p.player}
-                              <span class="ch-badge">${p.capHoldType || 'CH'}</span>
-                              <button class="renounce-btn" onclick="event.stopPropagation(); renounceCapHold(${index}, '${p.player.replace(/'/g, "\\'")}')">Renounce</button>
-                            </span>
-                            <span class="player-roster-salary" style="color:#8b5cf6">${formatSalary(p.salary)}</span>
-                          </div>
-                        `).join('')}
-                      </div>
-                    </div>
-                  `;
-                })() : ''}
                 ${(() => {
                   const teamTPEs = getTeamTPEs(tradeTeam.teamName);
                   if (teamTPEs.length === 0) return '';
@@ -5921,6 +5895,33 @@
                   </div>
                 </div>
               </div>
+              ${IS_OFFSEASON ? (() => {
+                const capHolds = getTeamPlayers(tradeTeam.teamName).filter(p => p.isCapHold);
+                if (capHolds.length === 0) return '';
+                const totalHolds = capHolds.reduce((s, p) => s + p.salary, 0);
+                return `
+                  <div class="cap-hold-section" style="margin:0.5rem 0;padding:0.5rem;border:1px dashed rgba(139,92,246,0.3);border-radius:6px;background:rgba(139,92,246,0.04)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:0.2rem 0;font-size:0.7rem;color:#8b5cf6;font-weight:600" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.ch-arrow').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼'">
+                      <span>🔓 Cap Holds (${capHolds.length}) · ${formatSalary(totalHolds)}</span>
+                      <span class="ch-arrow" style="font-size:0.6rem">▶</span>
+                    </div>
+                    <div style="display:none">
+                      <div style="font-size:0.6rem;color:#8b5cf6;opacity:0.7;margin:0.3rem 0">Renounce to free cap space for trades</div>
+                      ${capHolds.sort((a, b) => b.salary - a.salary).map(p => `
+                        <div class="player-roster-item cap-hold" style="display:flex;align-items:center;gap:0.4rem;padding:0.25rem 0.4rem;font-size:0.75rem">
+                          ${p.headshot ? `<img src="${p.headshot}" class="roster-headshot" alt="" onerror="this.style.display='none'">` : '<div class="roster-headshot-placeholder"></div>'}
+                          <span class="player-roster-name" style="flex:1">
+                            ${p.player}
+                            <span class="ch-badge">${p.capHoldType || 'CH'}</span>
+                            <button class="renounce-btn" onclick="event.stopPropagation(); renounceCapHold(${index}, '${p.player.replace(/'/g, "\\'")}')">Renounce</button>
+                          </span>
+                          <span class="player-roster-salary" style="color:#8b5cf6">${formatSalary(p.salary)}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              })() : ''}
             ` : ''}
           </div>
         </div>
