@@ -3855,9 +3855,9 @@
       return Array.from(teamSet).sort();
     }
 
-    // Get team info (status, cap space, hardcap) from first player of that team
+    // Get team info (status, cap space, hardcap) from first non-cap-hold player of that team
     function getTeamInfo(teamName) {
-      const teamPlayer = players.find(p => p.team === teamName);
+      const teamPlayer = players.find(p => p.team === teamName && !p.isCapHold) || players.find(p => p.team === teamName);
       if (!teamPlayer) return null;
       if (IS_OFFSEASON && teamPlayer.capSpace2627 !== undefined) {
         const cs = teamPlayer.capSpace2627 || 0;
@@ -6306,6 +6306,17 @@
           }
         }
         setTimeout(render, 100);
+      }
+      if (e.data && e.data.type === 'ROSTER_MANAGER_TRADE_REJECTED') {
+        // Re-enable Send button so user can modify and re-send
+        const btn = document.getElementById('rmSendBtn');
+        if (btn) {
+          btn.textContent = '✅ Send Trade';
+          btn.classList.remove('sent');
+          btn.classList.add('ready');
+          btn.disabled = false;
+        }
+        console.log('[TM] Trade rejected by RM — Send button re-enabled');
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_TRADES') {
         // Swap players between teams to reflect RM trades
