@@ -10796,10 +10796,42 @@
         if (withSalary.length > 50) {
           // Identify expiring players to convert to cap holds
           const expiringFAs = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player);
+          
+          // NBA CBA cap hold formula (matches Roster Manager)
+          const CAP_2627 = 165000000;
+          const MAX_SALARY_2627 = Math.round(CAP_2627 * 0.35);
+          const MIN_SAL_0YOS = 1366314;
+          const MIN_CAP_HOLD = Math.round(MIN_SAL_0YOS * 1.5); // ~$2.05M
+          const EST_AVG_SAL = 13200000;
+          const MIN_SAL_2YOS = 2464849; // Min salary for 2 YOS
+          function tmCalcCapHold(salary, exception) {
+            if (!salary) return MIN_CAP_HOLD;
+            const exc = exception.toLowerCase();
+            let hold;
+            if (exc.includes('bird') && !exc.includes('early') && !exc.includes('non')) {
+              hold = salary > EST_AVG_SAL ? Math.round(salary * 1.50) : Math.round(salary * 1.90);
+            } else if (exc.includes('early bird')) {
+              hold = Math.max(Math.round(salary * 1.30), EST_AVG_SAL);
+            } else if (exc.includes('non-bird') || exc.includes('non bird')) {
+              hold = Math.max(Math.round(salary * 1.20), MIN_CAP_HOLD);
+            } else if (exc.includes('minimum')) {
+              hold = MIN_SAL_2YOS;
+            } else if (exc.includes('rookie')) {
+              hold = Math.round(salary * (salary < EST_AVG_SAL ? 3.00 : 2.50));
+            } else if (exc.includes('mid-level') || exc.includes('taxpayer') || exc.includes('room')) {
+              hold = Math.max(Math.round(salary * 1.50), MIN_CAP_HOLD);
+            } else {
+              hold = Math.max(Math.round(salary * 1.50), MIN_CAP_HOLD);
+            }
+            return Math.min(hold, MAX_SALARY_2627);
+          }
+          
           const capHoldPlayers = expiringFAs.map(p => {
             const exc = (p.exception || '').toLowerCase();
-            const isBird = exc.includes('bird') && !exc.includes('non-bird');
-            const capHoldValue = isBird ? Math.round(p.salary * 1.3) : LEAGUE_MINIMUM_2627;
+            const isBird = exc.includes('bird') && !exc.includes('early') && !exc.includes('non');
+            const isEarlyBird = exc.includes('early bird');
+            const capHoldValue = tmCalcCapHold(p.salary, p.exception || '');
+            const holdType = isBird ? 'Bird' : isEarlyBird ? 'Early' : exc.includes('rookie') ? 'Rookie' : exc.includes('mid-level') || exc.includes('taxpayer') || exc.includes('room') ? 'MLE' : exc.includes('minimum') ? 'Min' : exc.includes('non-bird') ? 'Non-Bird' : 'Min';
             return {
               ...p,
               salary: capHoldValue,
@@ -10814,9 +10846,9 @@
               hasOption: false,
               isCapHold: true,
               isRenounceable: true,
-              capHoldType: isBird ? 'Bird' : 'Min',
+              capHoldType: holdType,
               originalSalary: p.salary,
-              otherNotes: isBird ? 'Bird Rights · ' + formatSalary(capHoldValue) + ' cap hold' : 'Min cap hold'
+              otherNotes: holdType + ' Rights · ' + formatSalary(capHoldValue) + ' cap hold'
             };
           }).filter(p => !renouncedPlayers.has(p.player));
 
@@ -10833,6 +10865,23 @@
               p.hasOption = false;
             }
           });
+
+          // Recalculate cap space per team: use "no holds" baseline, subtract generated cap holds
+          const teamHoldTotals = {};
+          capHoldPlayers.forEach(p => {
+            if (!teamHoldTotals[p.team]) teamHoldTotals[p.team] = 0;
+            teamHoldTotals[p.team] += p.salary;
+          });
+          for (const [teamName, holdTotal] of Object.entries(teamHoldTotals)) {
+            const csvHoldAmt = players.find(p => p.team === teamName && !p.isCapHold)?.teamCapHolds2627 || 0;
+            const delta = holdTotal - csvHoldAmt; // Extra holds beyond what CSV already counted
+            players.filter(p => p.team === teamName && !p.isCapHold).forEach(p => {
+              p.capSpace2627 = (p.capSpaceNoHolds2627 || 0) - holdTotal;
+              p.taxRoom2627 = (p.taxRoom2627 || 0) - delta;
+              p.apronRoom1st2627 = (p.apronRoom1st2627 || 0) - delta;
+              p.apronRoom2nd2627 = (p.apronRoom2nd2627 || 0) - delta;
+            });
+          }
         }
       }
       
