@@ -3114,7 +3114,8 @@
         const currentStandardCount = players.filter(p => 
           p.team === fullTeamName &&
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
-          !p.contractStatus?.toUpperCase().includes('10-DAY')
+          !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+          !p.isCapHold
         ).length;
         
         // Count outgoing standard players
@@ -4389,11 +4390,14 @@
       // Check for trade restrictions
       const restrictions = [];
       
-      // Check roster size after trade (standard contracts only, not two-way)
+      // Check roster size after trade (standard contracts only, not two-way, not cap holds)
+      // Skip in RM mode — Roster Manager tracks roster separately
+      if (!IS_RM_MODE) {
       const teamPlayers = getTeamPlayers(tradeTeam.teamName);
       const currentStandardCount = teamPlayers.filter(p => 
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' && 
-        !p.contractStatus?.toUpperCase().includes('10-DAY')
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
+        !p.isCapHold
       ).length;
       
       const outgoingStandard = tradeTeam.playersOut.filter(p => 
@@ -4416,6 +4420,7 @@
         const excess = postTradeCount - 15;
         const playerWord = excess === 1 ? 'one player' : excess === 2 ? 'two players' : excess === 3 ? 'three players' : `${excess} players`;
         restrictions.push(`${tradeTeam.teamName} roster goes to ${postTradeCount} - must release ${playerWord}`);
+      }
       }
       
       // Check for not aggregated players being combined with others
@@ -5987,9 +5992,13 @@
       document.getElementById('tradeStatusMessage').textContent = validation.message;
       
       // Cap hold renounce advisory in offseason mode
-      if (IS_OFFSEASON && !validation.valid && validation.type === 'error') {
+      if (IS_OFFSEASON) {
         const teamsWithHolds = tradeTeams
-          .filter(t => t.teamName && getTeamCapHolds(t.teamName).length > 0)
+          .filter(t => {
+            if (!t.teamName || getTeamCapHolds(t.teamName).length === 0) return false;
+            // Show for teams receiving net salary or when trade is invalid
+            return !validation.valid || t.playersIn.length > 0;
+          })
           .map(t => ({ name: t.teamName, holds: getTeamCapHolds(t.teamName), total: getTeamCapHoldsTotal(t.teamName) }));
         if (teamsWithHolds.length > 0) {
           let advisory = document.getElementById('capHoldAdvisory');
@@ -6000,8 +6009,11 @@
             tradeStatus.parentElement.insertBefore(advisory, tradeStatus.nextSibling);
           }
           advisory.style.display = 'block';
-          advisory.innerHTML = '<strong>💡 Cap Holds:</strong> ' + teamsWithHolds.map(t => 
-            t.name + ' has ' + formatSalary(t.total) + ' in cap holds (' + t.holds.length + ' FAs). Renouncing cap holds in the roster frees cap space.'
+          const prefix = validation.valid 
+            ? '<strong>💡 Renounce cap holds to execute:</strong> '
+            : '<strong>💡 Cap Holds:</strong> ';
+          advisory.innerHTML = prefix + teamsWithHolds.map(t => 
+            t.name + ' has ' + formatSalary(t.total) + ' in cap holds (' + t.holds.length + ' FAs). Renounce in the roster panel below.'
           ).join(' · ');
         } else {
           const advisory = document.getElementById('capHoldAdvisory');
