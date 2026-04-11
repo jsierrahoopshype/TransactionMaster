@@ -6076,9 +6076,9 @@
       }
     }
 
-    // Add 2026 first-round draft picks as roster players (offseason mode)
+    // Add 2026 draft picks as roster players in 2026-27 mode
     function addDraftPickPlayers() {
-      if (!IS_OFFSEASON || IS_RM_MODE) return;
+      if (!IS_OFFSEASON) return;
       // Remove any previously added draft pick players/rights
       players = players.filter(p => !p._isDraftPick);
       draftRights = draftRights.filter(r => !r._isDraftPick);
@@ -6091,11 +6091,12 @@
         }
       }
       for (const dp of draftPicks) {
-        if (dp.year !== '2026' || dp.round !== '1st') continue;
+        if (dp.year !== '2026') continue;
         const pickMatch = dp.notes?.match(/#(\d+)/);
         const pickNum = pickMatch ? parseInt(pickMatch[1]) : 0;
-        if (pickNum < 1 || pickNum > 30) continue;
-        const capHold = RS[pickNum - 1] || 0;
+        if (pickNum < 1 || pickNum > 60) continue;
+        const isFirstRound = pickNum <= 30;
+        const capHold = isFirstRound ? (RS[pickNum - 1] || 0) : 0;
         const rm = rmMap[pickNum];
         if (rm && rm.prospect && !rm.isSigned) {
           // Drafted but NOT signed → add as draft rights
@@ -6103,10 +6104,11 @@
         } else {
           // Signed or undrafted → add as roster player
           const name = (rm && rm.prospect && rm.isSigned) ? rm.prospect : ('2026 #' + pickNum + ' Pick');
+          const salary = (rm && rm.isSigned) ? (rm.capHold || capHold) : capHold;
           players.push({
             player: name,
             team: dp.team,
-            salary: capHold,
+            salary: salary,
             contractStatus: 'DRAFT PICK',
             teamStatus: '',
             capSpace: 0,
@@ -6114,22 +6116,22 @@
             gamesPlayed: 0,
             position: '',
             age: '',
-            contractEnd: '2030',
+            contractEnd: isFirstRound ? '2030' : '2028',
             guaranteedMoney: 0,
             noTradeClause: false,
             notAggregated: false,
             poisonPill: 0,
             tradeKicker: 0,
-            otherNotes: rm?.prospect ? 'Drafted #' + pickNum : 'Draft pick cap hold',
+            otherNotes: rm?.prospect ? 'Drafted #' + pickNum : (isFirstRound ? 'Draft pick cap hold' : '2nd round pick'),
             exception: '',
-            isMinimum: false,
+            isMinimum: !isFirstRound,
             is10Day: false,
             tradeAvailable: '',
             isOut: false,
             teamLogo: '',
             headshot: '',
             playerId: 'draftpick_' + pickNum,
-            salary2627: capHold,
+            salary2627: salary,
             status2627: 'DRAFT PICK',
             isExpiring: false,
             hasTeamOption: false,
@@ -6139,6 +6141,8 @@
           });
         }
       }
+      // Remove 2026 picks from draft assets (they're now on rosters)
+      draftPicks = draftPicks.filter(p => p.year !== '2026');
     }
 
     // Apply RM pick assignments to TM draft picks
