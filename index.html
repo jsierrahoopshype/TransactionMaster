@@ -2730,7 +2730,7 @@
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     if (IS_RM_MODE) document.body.classList.add('rm-mode');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
-    const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason');
+    const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason') || INITIAL_URL_PARAMS.has('lockseason');
     const renouncedPlayers = new Set(); // Track renounced cap holds
     let capHoldsExpanded = false; // Keep cap holds panel open across re-renders
 
