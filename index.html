@@ -2529,8 +2529,9 @@
             <div class="unified-input-group">
               <label class="unified-label">To</label>
               <div class="autocomplete-container">
-                <input type="text" id="unifiedDestInput" class="player-search-input" placeholder="Any team..." autocomplete="off">
+                <input type="text" id="unifiedDestInput" class="player-search-input" placeholder="Any team... (add one or more)" autocomplete="off">
                 <div class="autocomplete-dropdown" id="unifiedDestDropdown"></div>
+                <div class="excluded-chips" id="destTeamChips"></div>
               </div>
             </div>
             
@@ -2719,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.6 - Mar 9 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.7 - multi-destination - Jun 15 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -7949,7 +7950,8 @@
     // Unified trade generator variables
     let unifiedSelectedPlayers = []; // Players to trade
     let unifiedOriginTeam = null; // Auto-set from player, or manually set
-    let unifiedDestTeam = null; // Destination team
+    let unifiedDestTeam = null; // Destination team (single — kept for team↔team / URL / RM paths)
+    let unifiedDestTeams = []; // Destination teams (multi — for player→team generation; restricts trade to these only)
     let excludedPlayers = []; // Players to exclude from trades
     
     // Render selected player chips for unified interface
@@ -8101,7 +8103,6 @@
     
     unifiedDestInput.addEventListener('input', () => {
       const searchTerm = unifiedDestInput.value.toLowerCase().trim();
-      unifiedDestTeam = null;
       
       if (searchTerm.length < 2) {
         unifiedDestDropdown.classList.remove('show');
@@ -8113,6 +8114,7 @@
       if (unifiedOriginTeam) {
         matches = matches.filter(t => t !== unifiedOriginTeam);
       }
+      matches = matches.filter(t => !unifiedDestTeams.includes(t)); // hide already-added teams
       matches = matches.slice(0, 10);
       
       if (matches.length === 0) {
@@ -8130,13 +8132,36 @@
       
       unifiedDestDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
         item.addEventListener('click', () => {
-          unifiedDestTeam = item.dataset.team;
-          unifiedDestInput.value = unifiedDestTeam;
+          const team = item.dataset.team;
+          if (!unifiedDestTeams.includes(team)) unifiedDestTeams.push(team);
+          unifiedDestTeam = unifiedDestTeams[0] || null; // keep single var in sync (first chosen)
+          unifiedDestInput.value = '';                    // clear so more can be added
           unifiedDestDropdown.classList.remove('show');
+          renderDestTeamChips();
         });
       });
     });
     
+    // Destination team chips (multi-team: trade restricted to these teams only)
+    const destTeamChipsContainer = document.getElementById('destTeamChips');
+    function renderDestTeamChips() {
+      if (!destTeamChipsContainer) return;
+      destTeamChipsContainer.innerHTML = unifiedDestTeams.map(name => `
+        <span class="excluded-chip" data-team="${name}">
+          ${name}
+          <span class="excluded-chip-remove" data-team="${name}">×</span>
+        </span>
+      `).join('');
+      destTeamChipsContainer.querySelectorAll('.excluded-chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const t = e.target.dataset.team;
+          unifiedDestTeams = unifiedDestTeams.filter(x => x !== t);
+          unifiedDestTeam = unifiedDestTeams[0] || null;
+          renderDestTeamChips();
+        });
+      });
+    }
+
     // Exclude players autocomplete
     const excludePlayersInput = document.getElementById('excludePlayersInput');
     const excludePlayersDropdown = document.getElementById('excludePlayersDropdown');
@@ -8229,7 +8254,7 @@
       if (hasPlayers && hasDest) {
         // Player(s) to specific team
         const playerNames = unifiedSelectedPlayers.map(p => p.player);
-        result = generateTradePlayersToTeam(playerNames, unifiedDestTeam, excludedPlayers);
+        result = generateTradePlayersToTeam(playerNames, unifiedDestTeam, excludedPlayers, unifiedDestTeams);
       } else if (hasPlayers) {
         // Trade player(s) to any team
         const playerNames = unifiedSelectedPlayers.map(p => p.player);
@@ -8392,7 +8417,13 @@
     let previousPlayerToTeamTrades = new Set();
     
     // Generate trade for specific player to specific team
-    function generateTradePlayerToTeam(playerName, destTeamName, excludedPlayerNames = []) {
+    function generateTradePlayerToTeam(playerName, destTeamName, excludedPlayerNames = [], allowedTeams = []) {
+      // Multi-destination: if a set of allowed teams was given, the destination is
+      // chosen at random from it on each generation, and ONLY those teams may take
+      // part in the trade (no outside filler teams).
+      if (allowedTeams && allowedTeams.length > 1) {
+        destTeamName = allowedTeams[Math.floor(Math.random() * allowedTeams.length)];
+      }
       // Convert excluded names to lowercase for comparison
       const excludedSet = new Set(excludedPlayerNames.map(n => n.toLowerCase()));
       
@@ -8456,8 +8487,14 @@
         ).sort().join('|');
       }
       
-      // Get all other teams for potential 3rd/4th team - shuffled for variety
-      const otherTeams = shuffle(teams.filter(t => t !== sourceTeam && t !== destTeamName));
+      // Get all other teams for potential 3rd/4th team - shuffled for variety.
+      // When the user restricted destinations to a set of teams, only those teams
+      // (besides source + destination) may join as the 3rd/4th team.
+      let otherTeamsPool = teams.filter(t => t !== sourceTeam && t !== destTeamName);
+      if (allowedTeams && allowedTeams.length > 1) {
+        otherTeamsPool = otherTeamsPool.filter(t => allowedTeams.includes(t));
+      }
+      const otherTeams = shuffle(otherTeamsPool);
       
       // Get destination team players - shuffled for variety on repeated clicks
       const destTeamPlayers = shuffle(getTradeablePlayers(destTeamName));
@@ -8651,10 +8688,15 @@
     }
     
     // Generate trade for multiple players to a specific team
-    function generateTradePlayersToTeam(playerNames, destTeamName, excludedPlayerNames = []) {
+    function generateTradePlayersToTeam(playerNames, destTeamName, excludedPlayerNames = [], allowedTeams = []) {
+      // Multi-destination: choose the destination at random from the allowed set,
+      // and restrict any 3rd/4th team to that same set.
+      if (allowedTeams && allowedTeams.length > 1) {
+        destTeamName = allowedTeams[Math.floor(Math.random() * allowedTeams.length)];
+      }
       // If single player, use original function
       if (playerNames.length === 1) {
-        return generateTradePlayerToTeam(playerNames[0], destTeamName, excludedPlayerNames);
+        return generateTradePlayerToTeam(playerNames[0], destTeamName, excludedPlayerNames, allowedTeams);
       }
       
       const excludedSet = new Set(excludedPlayerNames.map(n => n.toLowerCase()));
@@ -8725,7 +8767,11 @@
       }
       
       const destTeamPlayers = shuffle(getTradeablePlayers(destTeamName));
-      const otherTeams = shuffle(teams.filter(t => t !== sourceTeam && t !== destTeamName));
+      let otherTeamsPool2 = teams.filter(t => t !== sourceTeam && t !== destTeamName);
+      if (allowedTeams && allowedTeams.length > 1) {
+        otherTeamsPool2 = otherTeamsPool2.filter(t => allowedTeams.includes(t));
+      }
+      const otherTeams = shuffle(otherTeamsPool2);
       
       if (destTeamPlayers.length === 0) {
         return { error: `No tradeable players on ${destTeamName} (after exclusions)` };
@@ -8928,6 +8974,8 @@
       unifiedSelectedPlayers = [];
       unifiedOriginTeam = null;
       unifiedDestTeam = null;
+      unifiedDestTeams = [];
+      if (typeof renderDestTeamChips === 'function') renderDestTeamChips();
       excludedPlayers = [];
       document.getElementById('unifiedPlayerInput').value = '';
       document.getElementById('unifiedOriginInput').value = '';
