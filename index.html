@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.13 - cooling period hard-block + Dec15/Jan15 tokens - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.14 - cooling diagnostics - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -4472,8 +4472,13 @@
           restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
         } else if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
           restrictions.push(`${p.player} cannot be traded`);
-        } else if (isInCoolingPeriod(p)) {
-          coolingPlayers.push(p);
+        } else if (p.tradeAvailable) {
+          const _elig = tradeEligibleDate(p);
+          const _cooling = isInCoolingPeriod(p);
+          console.log(`[TM cooling] ${p.player}: RESTRICTIONS="${p.tradeAvailable}" → `
+            + (_elig ? 'eligible ' + _elig.toISOString().slice(0,10) : 'NO parseable date/token')
+            + ` → ${_cooling ? 'IN COOLING — trade BLOCKED' : 'tradeable (eligibility not in the future)'}`);
+          if (_cooling) coolingPlayers.push(p);
         }
         // Check for options
         if (p.hasTeamOption) {
