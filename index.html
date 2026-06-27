@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.7 - multi-destination - Jun 15 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.8 - 2026-27 default + DRAFTEE rights - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -2731,7 +2731,7 @@
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     if (IS_RM_MODE) document.body.classList.add('rm-mode');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
-    const IS_OFFSEASON = INITIAL_URL_PARAMS.has('offseason') || INITIAL_URL_PARAMS.has('lockseason');
+    const IS_OFFSEASON = !INITIAL_URL_PARAMS.has('regular'); // 100% on 2026-27 by default; opt out with ?regular
     const renouncedPlayers = new Set(); // Track renounced cap holds
     let capHoldsExpanded = false; // Keep cap holds panel open across re-renders
 
@@ -6188,7 +6188,7 @@
 
     // Close Trade Machine from within RM mode — tells parent iframe to close
     // Season toggle
-    function setTMSeason(o) { const u = new URL(window.location.href); if (o) u.searchParams.set('offseason','1'); else u.searchParams.delete('offseason'); window.location.href = u.toString(); }
+    function setTMSeason(o) { const u = new URL(window.location.href); if (o) u.searchParams.delete('regular'); else u.searchParams.set('regular','1'); window.location.href = u.toString(); }
     (function() {
       const a = document.getElementById(IS_OFFSEASON ? 'seasonBtn2627' : 'seasonBtn2526');
       const b = document.getElementById(IS_OFFSEASON ? 'seasonBtn2526' : 'seasonBtn2627');
@@ -11267,6 +11267,7 @@
             const RS = [14840913,13278454,11924409,10750955,9735678,8842385,8072104,7394952,6797405,6457735,6134680,5828114,5536618,5260064,4996777,4747016,4509491,4284332,4091376,3927401,3770382,3619804,3475151,3336294,3202333,3096322,3006929,2988251,2966869,2945229];
             const rows = csv.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
             draftPicks = draftPicks.filter(p => p.year !== '2026');
+            const _draftees = [];
             for (let i = 1, n = 0; i < rows.length && n < 60; i++) {
               const r = rows[i]; if (!r || r.length < 20) continue;
               const ab = (r[16]||'').toUpperCase(), pk = parseInt(r[19]) || 0;
@@ -11274,6 +11275,9 @@
               const fn = abbrevToTeam[ab]; if (!fn) continue;
               const ch = pk <= 30 ? RS[pk-1] || 0 : 0;
               draftPicks.push({ team:fn, round:pk<=30?'1st':'2nd', year:'2026', surePick:'YES', notes:'#'+pk+' pick'+(ch?' · $'+(ch/1e6).toFixed(1)+'M cap hold':''), linkedTo:'' });
+              // DRAFTEE (col 17) = actual 2026 pick → named draft right (until signed)
+              const _dn = (r[17]||'').trim();
+              if (_dn) _draftees.push({ pick: pk, prospect: _dn, isDrafted: true, isSigned: false });
               n++;
             }
             draftPicks.sort((a,b) => (parseInt(a.year)||9999)-(parseInt(b.year)||9999) || (a.round==='1st'?-1:1)-(b.round==='1st'?-1:1));
@@ -11283,6 +11287,9 @@
               const pi = tp.findIndex(p => p.year==='2026' && p.notes && p.notes.indexOf('#'+ap+' ')>=0);
               if (pi >= 0) { const pk=tp[pi]; if(!tradeTeams[1].picksOut)tradeTeams[1].picksOut=[]; tradeTeams[1].picksOut.push({team:pk.team,round:pk.round,year:pk.year,notes:pk.notes,surePick:pk.surePick,linkedTo:pk.linkedTo,pickIndex:pi,destination:0}); }
             }
+            // If RM didn't supply pick data, use the DRAFTEE column so 2026 draft
+            // rights are named (drafted-but-unsigned → draft right; signed → roster).
+            if (!window._rmPicksData && _draftees.length) window._rmPicksData = _draftees;
             addDraftPickPlayers();
             setTimeout(render, 100);
           } catch(e) {}
