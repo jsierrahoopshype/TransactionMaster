@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.14 - cooling diagnostics - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.15 - CSV-level restriction diagnostics - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -4467,6 +4467,7 @@
       tradeTeam.playersOut.forEach(p => {
         // Sign-and-Trade players bypass expiring/availability restrictions
         if (p.isSignAndTrade) return;
+        console.log(`[TM player] ${tradeTeam.teamName} sends ${p.player}: RESTRICTIONS="${p.tradeAvailable||''}", notAggregated=${!!p.notAggregated}, expiring=${!!p.isExpiring}`);
         // Check for expiring contracts
         if (p.isExpiring) {
           restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
@@ -10860,6 +10861,16 @@
     }
 
     function processCSVData(results) {
+      // DIAGNOSTIC: does the RESTRICTIONS / NOT AGGREGATED data reach the engine?
+      try {
+        const _hdrs = (results.data && results.data[0]) ? Object.keys(results.data[0]) : [];
+        console.log('[TM CSV] RESTRICTIONS column present:', _hdrs.includes('RESTRICTIONS'),
+                    '| NOT AGGREGATED column present:', _hdrs.includes('NOT AGGREGATED'));
+        const _cw = (results.data || []).find(r => (r.PLAYER || '').toLowerCase().includes('coby white'));
+        if (_cw) console.log('[TM CSV] Coby White → TEAM="' + (_cw.TEAM || '') + '", RESTRICTIONS="' + (_cw['RESTRICTIONS'] || '') + '", NOT AGGREGATED="' + (_cw['NOT AGGREGATED'] || '') + '"');
+        else console.log('[TM CSV] Coby White NOT found among CSV rows');
+      } catch (e) { console.log('[TM CSV] diagnostic error', e); }
+
       // Build 2026-27 team financial data lookup (cols 94-118 are a separate team list, NOT per-player)
       const team2627Data = {};
       for (const row of results.data) {
