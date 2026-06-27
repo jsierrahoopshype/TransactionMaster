@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.10 - cap-hold trades legal-with-note - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.11 - cap-hold check only for cap-space teams - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -4907,28 +4907,32 @@
         return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
       }
 
-      // Offseason: needing to renounce cap holds is NOT a hard block. Err on the
-      // side of a legal trade and just note how much must be renounced — the cap
-      // hold advisory below provides per-hold Renounce buttons to actually do it.
+      // Offseason cap-hold absorption. This ONLY applies to teams using CAP SPACE
+      // to absorb incoming salary. Over-the-cap teams match salaries (validated
+      // above), so cap holds are irrelevant to them — skip them, otherwise we'd
+      // demand they "renounce" far more than the cap holds they actually have.
       if (IS_OFFSEASON) {
         for (const t of tradeTeams) {
           if (!t.teamName || t.playersIn.length === 0) continue;
-          const capHolds = getTeamCapHolds(t.teamName);
-          if (capHolds.length === 0) continue;
           const teamInfo = getTeamInfo(t.teamName);
           if (!teamInfo) continue;
+          const capSpace = teamInfo.capSpace || 0;
+          if (capSpace <= 0) continue; // over the cap → salary matching, not cap holds
+          const capHoldsTotal = getTeamCapHoldsTotal(t.teamName);
+          if (capHoldsTotal <= 0) continue;
 
           const outgoing = t.playersOut.reduce((sum, p) => sum + getOutgoingSalary(p), 0);
           const incoming = t.playersIn.reduce((sum, p) => sum + getCapImpactSalary(p), 0);
           const netIncoming = incoming - outgoing;
 
-          if (netIncoming > 0) {
-            const capSpace = teamInfo.capSpace || 0;
-            const capHoldsTotal = getTeamCapHoldsTotal(t.teamName);
-
-            if (capSpace < netIncoming && capHoldsTotal > 0) {
-              const needed = netIncoming - capSpace;
+          if (netIncoming > capSpace) {
+            const needed = netIncoming - capSpace;
+            if (needed <= capHoldsTotal) {
+              // Renouncing available holds CAN create the room → legal, with note.
               allWarnings.push(`${t.teamName} must renounce ${formatSalary(needed)} in cap holds for this trade to be legal`);
+            } else {
+              // Even renouncing ALL holds isn't enough → genuinely can't absorb it.
+              return { valid: false, message: `${t.teamName} can't take on ${formatSalary(netIncoming)} in salary — even renouncing all ${formatSalary(capHoldsTotal)} in cap holds leaves them ${formatSalary(needed - capHoldsTotal)} short of cap room`, type: 'error' };
             }
           }
         }
@@ -6021,7 +6025,7 @@
             tradeStatus.parentElement.insertBefore(advisory, tradeStatus.nextSibling);
           }
           advisory.style.display = 'block';
-          const prefix = validation.valid 
+          const prefix = (validation.type === 'pending-holds')
             ? '💡 <strong>Renounce cap holds to execute</strong>'
             : '💡 <strong>Cap Holds</strong>';
           const summary = teamsWithHolds.map(t => 
