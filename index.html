@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.12 - enforce trade-availability cooling period - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.13 - cooling period hard-block + Dec15/Jan15 tokens - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -4463,6 +4463,7 @@
         });
       }
       
+      const coolingPlayers = [];
       tradeTeam.playersOut.forEach(p => {
         // Sign-and-Trade players bypass expiring/availability restrictions
         if (p.isSignAndTrade) return;
@@ -4471,8 +4472,8 @@
           restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
         } else if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
           restrictions.push(`${p.player} cannot be traded`);
-        } else if (p.tradeAvailable && isInCoolingPeriod(p)) {
-          restrictions.push(`${p.player} available ${p.tradeAvailable}`);
+        } else if (isInCoolingPeriod(p)) {
+          coolingPlayers.push(p);
         }
         // Check for options
         if (p.hasTeamOption) {
@@ -4485,6 +4486,16 @@
           restrictions.push(`${p.player} has a no-trade clause`);
         }
       });
+
+      // Cooling-period players (just signed/re-signed/acquired) can't be traded
+      // until their eligibility date — hard block, not a soft note.
+      if (coolingPlayers.length > 0) {
+        return {
+          valid: false,
+          message: coolingPlayers.map(p => `${p.player} can't be traded until ${p.tradeAvailable} (cooling period)`).join('; '),
+          warnings: restrictions
+        };
+      }
 
       // If there are NA violations (and players can't be absorbed into TPE or decomposed), trade is invalid
       if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1 && !canDecompose) {
@@ -5732,7 +5743,7 @@
                       const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
                       const isTwoWay = p.contractStatus?.toUpperCase() === 'TWO-WAY';
                       const is10Day = p.is10Day || p.contractStatus?.toUpperCase().includes('10-DAY');
-                      const isUnavailable = is10Day || (p.tradeAvailable?.toLowerCase() === 'not available' && !p.isExpiring && !p.hasTeamOption && !p.hasPlayerOption);
+                      const isUnavailable = is10Day || (p.tradeAvailable?.toLowerCase() === 'not available' && !p.isExpiring && !p.hasTeamOption && !p.hasPlayerOption) || isInCoolingPeriod(p);
                       const isSATEligible = (p.isExpiring || p.hasTeamOption || p.hasPlayerOption) && !is10Day && !isAdded;
                       const isDisabled = isAdded || (isUnavailable && !isSATEligible);
                       return `
@@ -8263,11 +8274,25 @@
     // cannot be traded yet — excluded from generated trades and blocked from
     // manual ones, like "not available". A past/today date imposes no restriction;
     // a blank or non-date value is a free-form note only.
-    function isInCoolingPeriod(p) {
+    // Resolve a player's trade-eligibility date from the RESTRICTIONS column.
+    // Accepts a real date (12/15/2026, 2026-12-15, ...) OR the convenience tokens
+    // "Dec 15" / "Jan 15" for the standard offseason re-/signing rules:
+    //   • Signed/re-signed in the offseason → eligible Dec 15 of the league year.
+    //   • Bird re-sign with a >20% raise (over-the-cap team) → eligible Jan 15.
+    // Returns a Date, or null for blank / "not available" / unparseable values.
+    // NOTE: the tokens are pinned to the 2026-27 league year — bump if reused.
+    function tradeEligibleDate(p) {
       const ta = (p && p.tradeAvailable != null ? String(p.tradeAvailable) : '').trim();
-      if (!ta || ta.toLowerCase() === 'not available') return false;
+      if (!ta || ta.toLowerCase() === 'not available') return null;
+      const lc = ta.toLowerCase();
+      if (/\bdec(ember)?\b/.test(lc) && /\b15\b/.test(lc)) return new Date('2026-12-15T00:00:00');
+      if (/\bjan(uary)?\b/.test(lc) && /\b15\b/.test(lc)) return new Date('2027-01-15T00:00:00');
       const d = new Date(ta);
-      if (isNaN(d.getTime())) return false;
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function isInCoolingPeriod(p) {
+      const d = tradeEligibleDate(p);
+      if (!d) return false;
       const today = new Date(); today.setHours(0, 0, 0, 0);
       d.setHours(0, 0, 0, 0);
       return d.getTime() > today.getTime();
