@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.11 - cap-hold check only for cap-space teams - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.12 - enforce trade-availability cooling period - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -4471,7 +4471,7 @@
           restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
         } else if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
           restrictions.push(`${p.player} cannot be traded`);
-        } else if (p.tradeAvailable) {
+        } else if (p.tradeAvailable && isInCoolingPeriod(p)) {
           restrictions.push(`${p.player} available ${p.tradeAvailable}`);
         }
         // Check for options
@@ -7111,6 +7111,7 @@
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
         !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        !isInCoolingPeriod(p) &&
         p.salary >= 1000000 // At least $1M salary
       );
       
@@ -7370,7 +7371,7 @@
       // Check if player is tradeable
       if (targetPlayer.contractStatus?.toUpperCase() === 'TWO-WAY' ||
           targetPlayer.contractStatus?.toUpperCase().includes('10-DAY') ||
-          targetPlayer.tradeAvailable?.toLowerCase() === 'not available') {
+          targetPlayer.tradeAvailable?.toLowerCase() === 'not available' || isInCoolingPeriod(targetPlayer)) {
         return { error: `${targetPlayer.player} is not available for trade` };
       }
       
@@ -7387,6 +7388,7 @@
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
         !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        !isInCoolingPeriod(p) &&
         p.salary >= 500000
       );
       
@@ -7652,7 +7654,7 @@
       for (const p of targetPlayers) {
         if (p.contractStatus?.toUpperCase() === 'TWO-WAY' ||
             p.contractStatus?.toUpperCase().includes('10-DAY') ||
-            p.tradeAvailable?.toLowerCase() === 'not available') {
+            p.tradeAvailable?.toLowerCase() === 'not available' || isInCoolingPeriod(p)) {
           return { error: `${p.player} is not available for trade` };
         }
       }
@@ -7673,6 +7675,7 @@
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
         !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        !isInCoolingPeriod(p) &&
         p.salary >= 500000
       );
       
@@ -7821,6 +7824,7 @@
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
         !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        !isInCoolingPeriod(p) &&
         p.salary >= 500000
       );
       
@@ -8253,6 +8257,22 @@
     });
     
     // Unified generate trade function
+    // Trade-availability cooling period. The RESTRICTIONS column holds the date a
+    // player BECOMES tradeable ("available [date]"). If that date is still in the
+    // future, the player is in a cooling-off window (e.g. just re-signed) and
+    // cannot be traded yet — excluded from generated trades and blocked from
+    // manual ones, like "not available". A past/today date imposes no restriction;
+    // a blank or non-date value is a free-form note only.
+    function isInCoolingPeriod(p) {
+      const ta = (p && p.tradeAvailable != null ? String(p.tradeAvailable) : '').trim();
+      if (!ta || ta.toLowerCase() === 'not available') return false;
+      const d = new Date(ta);
+      if (isNaN(d.getTime())) return false;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() > today.getTime();
+    }
+
     function generateUnifiedTrade() {
       const hasPlayers = unifiedSelectedPlayers.length > 0;
       const hasOrigin = unifiedOriginTeam !== null && unifiedOriginTeam !== '';
@@ -8306,6 +8326,7 @@
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
         !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        !isInCoolingPeriod(p) &&
         p.salary >= 500000
       );
       
@@ -8448,7 +8469,7 @@
       // Check if player is tradeable
       if (targetPlayer.contractStatus?.toUpperCase() === 'TWO-WAY' ||
           targetPlayer.contractStatus?.toUpperCase().includes('10-DAY') ||
-          targetPlayer.tradeAvailable?.toLowerCase() === 'not available') {
+          targetPlayer.tradeAvailable?.toLowerCase() === 'not available' || isInCoolingPeriod(targetPlayer)) {
         return { error: `${targetPlayer.player} is not available for trade` };
       }
       
@@ -8475,6 +8496,7 @@
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY') &&
           p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          !isInCoolingPeriod(p) &&
           p.salary > 0 &&
           !isExcluded(p)
         );
@@ -8729,7 +8751,7 @@
       for (const p of targetPlayers) {
         if (p.contractStatus?.toUpperCase() === 'TWO-WAY' ||
             p.contractStatus?.toUpperCase().includes('10-DAY') ||
-            p.tradeAvailable?.toLowerCase() === 'not available') {
+            p.tradeAvailable?.toLowerCase() === 'not available' || isInCoolingPeriod(p)) {
           return { error: `${p.player} is not available for trade` };
         }
       }
@@ -8761,6 +8783,7 @@
           p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
           !p.contractStatus?.toUpperCase().includes('10-DAY') &&
           p.tradeAvailable?.toLowerCase() !== 'not available' &&
+          !isInCoolingPeriod(p) &&
           p.salary > 0 &&
           !isExcluded(p)
         );
@@ -9001,6 +9024,7 @@
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
         !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
+        !isInCoolingPeriod(p) &&
         p.salary >= 1000000
       );
       
