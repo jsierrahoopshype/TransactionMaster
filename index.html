@@ -2498,7 +2498,7 @@
   <div class="container">
     <header>
       <h1><a href="https://hoopsmatic.com" target="_blank" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
-      <div id="seasonToggle" style="display:flex;align-items:center;gap:0.4rem;margin:-0.3rem 0 0.4rem 0;font-size:0.75rem"><span style="color:var(--text-secondary)">Season:</span><button id="seasonBtn2526" onclick="setTMSeason(false)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2025-26</button><button id="seasonBtn2627" onclick="setTMSeason(true)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2026-27</button></div>
+      <div id="seasonToggle" style="display:none"><span style="color:var(--text-secondary)">Season:</span><button id="seasonBtn2526" onclick="setTMSeason(false)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2025-26</button><button id="seasonBtn2627" onclick="setTMSeason(true)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2026-27</button></div>
       <div class="header-actions">
         <div class="header-row">
           <div class="trade-machine unified-trade-machine">
@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.8 - 2026-27 default + DRAFTEE rights - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.9 - 2026-27 only - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -2731,7 +2731,7 @@
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     if (IS_RM_MODE) document.body.classList.add('rm-mode');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
-    const IS_OFFSEASON = !INITIAL_URL_PARAMS.has('regular'); // 100% on 2026-27 by default; opt out with ?regular
+    const IS_OFFSEASON = true; // 2026-27 only — 2025-26 mode removed entirely
     const renouncedPlayers = new Set(); // Track renounced cap holds
     let capHoldsExpanded = false; // Keep cap holds panel open across re-renders
 
