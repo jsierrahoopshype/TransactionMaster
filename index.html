@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.21 - waived (blank cap-hold) players excluded from cap holds - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.22 - stronger best-player premium (45% cap, maxes at $55M TV) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -3188,11 +3188,11 @@
     
     // Best player premium scales from 0% to 25% based on trade value
     // - Below $5M TV: 0% premium (rotation/minimum players)
-    // - $5M to $80M TV: linear scale from 0% to 25%
-    // - Above $80M TV: 25% premium cap (superstars like Jokic)
+    // - $5M to $55M TV: linear scale from 0% to 45%
+    // - Above $55M TV: 45% premium cap (superstars like Jokic)
     const BEST_PLAYER_MIN_TV = 5000000;   // Below this = 0% premium
-    const BEST_PLAYER_MAX_TV = 80000000;  // Above this = 25% premium
-    const BEST_PLAYER_MAX_PREMIUM = 0.25; // Maximum 25% bonus
+    const BEST_PLAYER_MAX_TV = 55000000;  // At/above this = full premium (real stars reach this)
+    const BEST_PLAYER_MAX_PREMIUM = 0.45; // Maximum 45% bonus (was 25%)
     
     function getBestPlayerPremium(tradeValue) {
       if (tradeValue <= BEST_PLAYER_MIN_TV) return 0;
