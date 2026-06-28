@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.18 - auto no-aggregation from restrictions-table trade date - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.19 - no-aggregation fetched from restrictions tab (gid 1889032294) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -2865,6 +2865,71 @@
         if (typeof renderTradeStatus === 'function') renderTradeStatus();
       })
       .catch(() => {});
+
+    // ===== AUTO no-aggregation FROM RESTRICTIONS-TABLE TRADE DATE =====
+    // The roster CSV the engine loads (pub gid=0) does NOT contain the standalone
+    // restrictions table (PLAYER REST | TEAM REST | TRADE DATE) — it lives in a
+    // separate tab (gid 1889032294). Fetch it directly, build a name -> trade-date map,
+    // and DERIVE no-aggregation: a player acquired by trade within the last 2 months
+    // can't be aggregated. This fetch resolves after players are built, so we apply the
+    // flag to the player objects on completion and re-render.
+    let tradeDateMap = new Map(); // normalized name -> 'M/D/YYYY'
+    function isRecentTrade(dateStr) {
+      const td = parseTradeDateStr(dateStr);
+      if (!td) return false;
+      const naEnd = new Date(td.getFullYear(), td.getMonth() + 2, td.getDate());
+      const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+      return naEnd.getTime() > today0.getTime();
+    }
+    function parseTradeDateTable(csvText) {
+      const map = new Map();
+      try {
+        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+        const fields = (parsed.meta && parsed.meta.fields) || [];
+        const find = re => fields.find(h => re.test((h || '').trim()));
+        const pCol = find(/^player\s*rest$/i) || find(/player.*rest|rest.*player/i) || find(/^player$/i);
+        const dCol = find(/^trade\s*date$/i) || find(/trade\s*date|date\s*of\s*trade|traded\s*on|acquir/i);
+        console.log('[TM trade-date] tab cols: player="' + (pCol || 'NONE') + '" date="' + (dCol || 'NONE') + '"');
+        if (pCol && dCol) {
+          for (const row of (parsed.data || [])) {
+            const pr = (row[pCol] || '').toString().trim();
+            const td = (row[dCol] || '').toString().trim();
+            if (pr && td) map.set(normPlayerName(pr), td);
+          }
+        }
+      } catch (e) {}
+      return map;
+    }
+    function applyTradeDateRestrictions() {
+      try {
+        if (!tradeDateMap.size || typeof players === 'undefined' || !Array.isArray(players)) return;
+        let n = 0;
+        for (const p of players) {
+          if (p && p.player && isRecentTrade(tradeDateMap.get(normPlayerName(p.player)))) { p.notAggregated = true; n++; }
+        }
+        console.log('[TM trade-date] applied no-aggregation to ' + n + ' players');
+      } catch (e) {}
+    }
+    const REST_PUB_URL = `https://docs.google.com/spreadsheets/d/e/${TV_SHEET_ID}/pub?gid=1889032294&single=true&output=csv`;
+    const REST_EXPORT_URL = 'https://docs.google.com/spreadsheets/d/11llk0icQqoi0JwJXat5KO8y2RQeBMN5rS9FhAY56Idc/export?format=csv&gid=1889032294';
+    function loadTradeDateTable(url, tag) {
+      return fetch(url)
+        .then(r => r.ok ? r.text() : null)
+        .then(csvText => {
+          if (!csvText) return false;
+          const m = parseTradeDateTable(csvText);
+          if (m.size) {
+            tradeDateMap = m;
+            console.log('[TM trade-date] loaded ' + m.size + ' trade dates (' + tag + ')');
+            applyTradeDateRestrictions();
+            if (typeof renderTradeStatus === 'function') renderTradeStatus();
+            return true;
+          }
+          return false;
+        })
+        .catch(() => false);
+    }
+    loadTradeDateTable(REST_PUB_URL, 'pub').then(ok => { if (!ok) loadTradeDateTable(REST_EXPORT_URL, 'export'); });
 
     // Case-insensitive trade value lookup
     let tradeValueMapLower = new Map(); // lowercase name -> trade value
@@ -10965,25 +11030,6 @@
         }
       }
       
-      // Build a trade-date lookup from the standalone restrictions table
-      // (PLAYER REST | TEAM REST | TRADE DATE). It's a separate list keyed by its own
-      // player names, so we map name -> trade date and match roster players against it.
-      // No-aggregation is then DERIVED: a player acquired by trade within the last
-      // 2 months can't be aggregated.
-      const _fields = (results.meta && results.meta.fields) || [];
-      const _find = re => _fields.find(h => re.test((h || '').trim()));
-      const playerRestHeader = _find(/^player\s*rest$/i) || _find(/player.*rest|rest.*player/i) || null;
-      const tradeDateHeader = _find(/^trade\s*date$/i) || _find(/trade\s*date|date\s*of\s*trade|traded\s*on|acquir/i) || null;
-      const tradeDateMap = new Map(); // normalized name -> 'M/D/YYYY'
-      if (playerRestHeader && tradeDateHeader) {
-        for (const row of results.data) {
-          const pr = (row[playerRestHeader] || '').toString().trim();
-          const td = (row[tradeDateHeader] || '').toString().trim();
-          if (pr && td) tradeDateMap.set(normPlayerName(pr), td);
-        }
-      }
-      console.log('[TM trade-date] playerCol="' + (playerRestHeader || 'NONE') + '" dateCol="' + (tradeDateHeader || 'NONE') + '" entries=' + tradeDateMap.size);
-
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
@@ -11010,18 +11056,11 @@
             tradeAvailable = 'not available'; // Expiring contracts can't be traded after deadline
           }
 
-          // No-aggregation: explicit flag OR derived from a recent trade date (<2 months).
+          // No-aggregation: explicit flag here; recent-trade derivation from the
+          // restrictions tab is applied on fetch completion (applyTradeDateRestrictions).
           let na = (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO';
-          if (!na && tradeDateMap.size) {
-            const td = parseTradeDateStr(tradeDateMap.get(normPlayerName(row.PLAYER)));
-            if (td) {
-              const naEnd = new Date(td.getFullYear(), td.getMonth() + 2, td.getDate());
-              const today0 = new Date(); today0.setHours(0, 0, 0, 0);
-              if (naEnd.getTime() > today0.getTime()) na = true;
-            }
-          }
-          if ((row.PLAYER || '').trim() === 'Naz Reid') {
-            console.log('[TM trade-date] Naz Reid lookup="' + (tradeDateMap.get(normPlayerName(row.PLAYER)) || '') + '" -> notAggregated=' + na);
+          if (!na && tradeDateMap.size && isRecentTrade(tradeDateMap.get(normPlayerName(row.PLAYER)))) {
+            na = true;
           }
           
           return {
