@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.19 - no-aggregation fetched from restrictions tab (gid 1889032294) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.20 - no-aggregation enforced via decomposition (TPE no longer launders) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -4154,6 +4154,20 @@
       
       for (const naPlayer of naPlayers) {
         const naSalary = getOutgoingSalary(naPlayer);
+
+        // Option A: the NA player is absorbed into the destination team's TPE. This
+        // consumes no incoming players, but the regular-player remainder is still
+        // validated below — so a destination TPE can't be used to launder an aggregation.
+        let absorbedIntoTPE = false;
+        if (naPlayer.destination !== undefined) {
+          const destTeam = tradeTeams[naPlayer.destination];
+          if (destTeam) {
+            if (destTeam.tpeUsed && destTeam.tpeUsed.value >= naSalary) absorbedIntoTPE = true;
+            else if (getTeamTPEs(destTeam.teamName).some(tpe => tpe.value >= naSalary)) absorbedIntoTPE = true;
+          }
+        }
+        if (absorbedIntoTPE) continue;
+
         const naMaxIncoming = calcMaxIncoming(naSalary, status);
         
         // Find incoming players that can match this NA player
@@ -4543,42 +4557,21 @@
       }
       }
       
-      // Check for not aggregated players being combined with others
-      // EXCEPTION 1: NA players can be traded if the receiving team absorbs them into a TPE
-      // EXCEPTION 2: NA players can be in multi-player trades if the trade can be decomposed into valid sub-trades
+      // Not-aggregated players combined with others: an NA player in a multi-player
+      // outgoing package is only legal if the trade genuinely decomposes into valid
+      // sub-trades. checkTradeDecomposition lets an NA player be absorbed into the
+      // destination team's TPE, but the remaining (regular) players must still match on
+      // their own — a destination TPE by itself is NOT enough to launder an aggregation.
       const naPlayers = tradeTeam.playersOut.filter(p => p.notAggregated);
-      const naPlayersNotAbsorbed = naPlayers.filter(p => {
-        if (p.destination === undefined) return true;
-        const destTeam = tradeTeams[p.destination];
-        if (!destTeam) return true;
-        
-        if (destTeam.tpeUsed && destTeam.tpeUsed.value >= getOutgoingSalary(p)) {
-          return false;
-        }
-        
-        const destTPEs = getTeamTPEs(destTeam.teamName);
-        const canBeAbsorbed = destTPEs.some(tpe => tpe.value >= getOutgoingSalary(p));
-        if (canBeAbsorbed) {
-          return false;
-        }
-        
-        return true;
-      });
-      
-      // NEW: Check if trade can be decomposed into valid sub-trades
-      let canDecompose = false;
-      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1) {
-        // Find this team's index in tradeTeams
+      let canDecompose = true;
+      if (naPlayers.length > 0 && tradeTeam.playersOut.length > 1) {
         const teamIndex = tradeTeams.findIndex(t => t.teamName === tradeTeam.teamName);
-        if (teamIndex >= 0) {
-          canDecompose = checkTradeDecomposition(tradeTeam, tradeTeams, teamIndex);
+        canDecompose = teamIndex >= 0 ? checkTradeDecomposition(tradeTeam, tradeTeams, teamIndex) : false;
+        if (!canDecompose) {
+          naPlayers.forEach(p => {
+            restrictions.push(`${p.player} cannot be aggregated with other players`);
+          });
         }
-      }
-      
-      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1 && !canDecompose) {
-        naPlayersNotAbsorbed.forEach(p => {
-          restrictions.push(`${p.player} cannot be aggregated with other players`);
-        });
       }
       
       const coolingPlayers = [];
@@ -4621,11 +4614,11 @@
         };
       }
 
-      // If there are NA violations (and players can't be absorbed into TPE or decomposed), trade is invalid
-      if (naPlayersNotAbsorbed.length > 0 && tradeTeam.playersOut.length > 1 && !canDecompose) {
+      // NA players that can't be decomposed (incl. TPE absorption) make the trade invalid
+      if (naPlayers.length > 0 && tradeTeam.playersOut.length > 1 && !canDecompose) {
         return {
           valid: false,
-          message: `${naPlayersNotAbsorbed.map(p => p.player).join(', ')} cannot be aggregated with other players`,
+          message: `${naPlayers.map(p => p.player).join(', ')} cannot be aggregated with other players`,
           warnings: restrictions
         };
       }
