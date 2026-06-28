@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.16 - auto cooling from signing date - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.17 - auto cooling + auto no-aggregation from trade date - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -2827,6 +2827,18 @@
         .replace(/\b(jr|sr|ii|iii|iv|v)\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim().toLowerCase();
+    }
+    function parseTradeDateStr(str) {
+      const v = String(str || '').trim();
+      if (!v) return null;
+      const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if (m) {
+        let y = parseInt(m[3], 10); if (y < 100) y += 2000;
+        const d = new Date(y, parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+        return isNaN(d.getTime()) ? null : d;
+      }
+      const d2 = new Date(v);
+      return isNaN(d2.getTime()) ? null : d2;
     }
     function parseSigningDates(csvText) {
       const map = new Map();
@@ -10953,6 +10965,15 @@
         }
       }
       
+      // Resolve the trade-date column (added at column AX of the roster tab) so the
+      // no-aggregation restriction can be DERIVED: a player acquired by trade within
+      // the last 2 months can't be aggregated. Match by header name, fall back to the
+      // AX position (index 49).
+      const _fields = (results.meta && results.meta.fields) || [];
+      let tradeDateHeader = _fields.find(h => /trade\s*date|date\s*of\s*trade|traded\s*on|acquir/i.test(h || '')) || null;
+      if (!tradeDateHeader && _fields.length > 49) tradeDateHeader = _fields[49];
+      console.log('[TM trade-date] column="' + (tradeDateHeader || 'NONE') + '" (fields=' + _fields.length + ')');
+
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
@@ -10978,6 +10999,20 @@
           } else if (isExpiring) {
             tradeAvailable = 'not available'; // Expiring contracts can't be traded after deadline
           }
+
+          // No-aggregation: explicit flag OR derived from a recent trade date (<2 months).
+          let na = (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO';
+          if (!na && tradeDateHeader) {
+            const td = parseTradeDateStr(row[tradeDateHeader]);
+            if (td) {
+              const naEnd = new Date(td.getFullYear(), td.getMonth() + 2, td.getDate());
+              const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+              if (naEnd.getTime() > today0.getTime()) na = true;
+            }
+          }
+          if ((row.PLAYER || '').trim() === 'Naz Reid') {
+            console.log('[TM trade-date] Naz Reid raw="' + (tradeDateHeader ? (row[tradeDateHeader] || '') : '') + '" -> notAggregated=' + na);
+          }
           
           return {
             player: row.PLAYER?.trim() || '',
@@ -10994,7 +11029,7 @@
             guaranteedMoney: parseSalary(row['TOTAL GUARANTEED'] || 0),
             noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
             noTradeTo: (row['NO TRADE TO'] || '').toString().trim(),
-            notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
+            notAggregated: na,
             poisonPill: parseSalary(row['POISON PILL'] || 0),
             tradeKicker: tradeKickerValue,
             otherNotes: otherNotes,
