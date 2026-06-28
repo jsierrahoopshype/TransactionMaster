@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.20 - no-aggregation enforced via decomposition (TPE no longer launders) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.21 - waived (blank cap-hold) players excluded from cap holds - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -11022,12 +11022,25 @@
           };
         }
       }
-      
+
+      // Resolve the cap-hold column maintained in the data (sourced from Contracts).
+      // Waived players have this cell BLANK, so they must NOT be turned into cap holds.
+      const _chFields = (results.meta && results.meta.fields) || [];
+      const _findCH = re => _chFields.find(h => re.test((h || '').trim()));
+      const capHoldCol = _findCH(/cap\s*hold.*26.?27|26.?27.*cap\s*hold|^ch\s*26.?27/i)
+                      || _findCH(/cap\s*hold/i)
+                      || _findCH(/^ch\b/i)
+                      || null;
+      console.log('[TM capholds] cap-hold column = "' + (capHoldCol || 'NONE') + '" (blank cell = no cap hold / waived)');
+
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
         .map(row => {
           const otherNotes = row['OTHER NOTES']?.trim() || '';
+          if ((row.PLAYER || '').trim() === 'Jonathan Isaac') {
+            console.log('[TM capholds] Jonathan Isaac: col="' + (capHoldCol || 'NONE') + '" raw="' + (capHoldCol ? (row[capHoldCol] || '') : '') + '" hasCapHold=' + (capHoldCol ? (row[capHoldCol] || '').toString().trim() !== '' : true));
+          }
           const contractStatus = row['ST 25-26']?.trim() || '';
           const is10Day = contractStatus.toLowerCase().includes('10-day');
           const tradeKickerValue = parseFloat(row['TRADE KICKER'] || 0) || 0;
@@ -11096,6 +11109,7 @@
               return match ? match[1] : '';
             })(),
             capHold: parseSalary(row['CH 25-26'] || row['CAP HOLD'] || 0),
+            dataHasCapHold: capHoldCol ? (row[capHoldCol] || '').toString().trim() !== '' : true,
             unlikelyBonus: parseSalary(row['UNLIKELY BONUS'] || 0),
             // New fields for offseason
             salary2627: salary2627,
@@ -11125,7 +11139,9 @@
         const withSalary = players.filter(p => p.salary2627 > 0);
         if (withSalary.length > 50) {
           // Identify expiring players to convert to cap holds
-          const expiringFAs = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player);
+          const expiringFAs = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player && p.dataHasCapHold);
+          const _excludedWaived = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player && !p.dataHasCapHold);
+          console.log('[TM capholds] excluded ' + _excludedWaived.length + ' blank-cap-hold (waived) players' + (_excludedWaived.length ? ': ' + _excludedWaived.slice(0, 10).map(p => p.player).join(', ') : ''));
           
           // NBA CBA cap hold formula (matches Roster Manager)
           const CAP_2627 = 165000000;
