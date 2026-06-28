@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.15 - CSV-level restriction diagnostics - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.16 - auto cooling from signing date - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -2812,7 +2812,48 @@
       .catch(err => {
         // Silently handle trade value fetch errors
       });
-    
+
+    // ===== AUTO-DERIVE COOLING PERIOD FROM SIGNING DATE =====
+    // The roster CSV (gid=0) has no signing dates, so cooling can't be computed from
+    // it. The contracts data does — same source the Contracts tool uses
+    // (name = col 0, signing date = col 29). Fetch it in the background and build a
+    // name -> signingDate map; tradeEligibleDate() then derives the cooling window
+    // automatically, so no manual RESTRICTIONS entry is required.
+    let signingDateMap = new Map(); // normalized name -> 'M/D/YYYY'
+    function normPlayerName(s) {
+      return String(s || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\./g, '')
+        .replace(/\b(jr|sr|ii|iii|iv|v)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim().toLowerCase();
+    }
+    function parseSigningDates(csvText) {
+      const map = new Map();
+      try {
+        const parsed = Papa.parse(csvText, { skipEmptyLines: true });
+        const rows = (parsed && parsed.data) || [];
+        for (const r of rows) {
+          if (!Array.isArray(r)) continue;
+          const name = (r[0] || '').trim();
+          const sig = (r[29] || '').trim();
+          if (name && sig && sig.includes('/')) { // M/D/YYYY skips header row
+            map.set(normPlayerName(name), sig);
+          }
+        }
+      } catch (e) {}
+      return map;
+    }
+    const signingDatesFetchPromise = fetch('https://hoopsmatic.com/api/contracts')
+      .then(r => r.ok ? r.text() : null)
+      .then(csvText => {
+        if (!csvText) return;
+        signingDateMap = parseSigningDates(csvText);
+        console.log('[TM signings] loaded ' + signingDateMap.size + ' signing dates for auto cooling-period derivation');
+        if (typeof renderTradeStatus === 'function') renderTradeStatus();
+      })
+      .catch(() => {});
+
     // Case-insensitive trade value lookup
     let tradeValueMapLower = new Map(); // lowercase name -> trade value
     function getTradeValue(playerName) {
@@ -8288,13 +8329,36 @@
     // Returns a Date, or null for blank / "not available" / unparseable values.
     // NOTE: the tokens are pinned to the 2026-27 league year — bump if reused.
     function tradeEligibleDate(p) {
+      // 1) Explicit RESTRICTIONS column value (date or Dec15/Jan15 token) wins.
       const ta = (p && p.tradeAvailable != null ? String(p.tradeAvailable) : '').trim();
-      if (!ta || ta.toLowerCase() === 'not available') return null;
-      const lc = ta.toLowerCase();
-      if (/\bdec(ember)?\b/.test(lc) && /\b15\b/.test(lc)) return new Date('2026-12-15T00:00:00');
-      if (/\bjan(uary)?\b/.test(lc) && /\b15\b/.test(lc)) return new Date('2027-01-15T00:00:00');
-      const d = new Date(ta);
-      return isNaN(d.getTime()) ? null : d;
+      if (ta && ta.toLowerCase() !== 'not available') {
+        const lc = ta.toLowerCase();
+        if (/\bdec(ember)?\b/.test(lc) && /\b15\b/.test(lc)) return new Date('2026-12-15T00:00:00');
+        if (/\bjan(uary)?\b/.test(lc) && /\b15\b/.test(lc)) return new Date('2027-01-15T00:00:00');
+        const d = new Date(ta);
+        if (!isNaN(d.getTime())) return d;
+      }
+      // 2) Otherwise DERIVE from the signing date (same rule as the Contracts tool):
+      //    an offseason 2026-27 signing becomes tradeable on the LATER of
+      //    (signing + 3 months) or Dec 15, 2026; pre-offseason signings use plain +3mo.
+      const sig = signingDateMap.get(normPlayerName(p && p.player));
+      if (sig) {
+        const parts = sig.split('/');
+        if (parts.length === 3) {
+          const sm = parseInt(parts[0], 10), sd = parseInt(parts[1], 10), sy = parseInt(parts[2], 10);
+          if (!isNaN(sm) && !isNaN(sd) && !isNaN(sy)) {
+            const signDate = new Date(sy, sm - 1, sd);
+            const OFFSEASON_START = new Date(2026, 5, 15); // Jun 15, 2026
+            const threeMo = new Date(sy, sm - 1 + 3, sd);
+            if (signDate.getTime() >= OFFSEASON_START.getTime()) {
+              const dec15 = new Date(2026, 11, 15);
+              return threeMo.getTime() > dec15.getTime() ? threeMo : dec15;
+            }
+            return threeMo;
+          }
+        }
+      }
+      return null;
     }
     function isInCoolingPeriod(p) {
       const d = tradeEligibleDate(p);
