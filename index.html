@@ -2720,7 +2720,7 @@
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
     // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.17 - auto cooling + auto no-aggregation from trade date - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
+    console.log('%c🏀 NBA Trade Machine v17.18 - auto no-aggregation from restrictions-table trade date - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
     console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
@@ -10965,14 +10965,24 @@
         }
       }
       
-      // Resolve the trade-date column (added at column AX of the roster tab) so the
-      // no-aggregation restriction can be DERIVED: a player acquired by trade within
-      // the last 2 months can't be aggregated. Match by header name, fall back to the
-      // AX position (index 49).
+      // Build a trade-date lookup from the standalone restrictions table
+      // (PLAYER REST | TEAM REST | TRADE DATE). It's a separate list keyed by its own
+      // player names, so we map name -> trade date and match roster players against it.
+      // No-aggregation is then DERIVED: a player acquired by trade within the last
+      // 2 months can't be aggregated.
       const _fields = (results.meta && results.meta.fields) || [];
-      let tradeDateHeader = _fields.find(h => /trade\s*date|date\s*of\s*trade|traded\s*on|acquir/i.test(h || '')) || null;
-      if (!tradeDateHeader && _fields.length > 49) tradeDateHeader = _fields[49];
-      console.log('[TM trade-date] column="' + (tradeDateHeader || 'NONE') + '" (fields=' + _fields.length + ')');
+      const _find = re => _fields.find(h => re.test((h || '').trim()));
+      const playerRestHeader = _find(/^player\s*rest$/i) || _find(/player.*rest|rest.*player/i) || null;
+      const tradeDateHeader = _find(/^trade\s*date$/i) || _find(/trade\s*date|date\s*of\s*trade|traded\s*on|acquir/i) || null;
+      const tradeDateMap = new Map(); // normalized name -> 'M/D/YYYY'
+      if (playerRestHeader && tradeDateHeader) {
+        for (const row of results.data) {
+          const pr = (row[playerRestHeader] || '').toString().trim();
+          const td = (row[tradeDateHeader] || '').toString().trim();
+          if (pr && td) tradeDateMap.set(normPlayerName(pr), td);
+        }
+      }
+      console.log('[TM trade-date] playerCol="' + (playerRestHeader || 'NONE') + '" dateCol="' + (tradeDateHeader || 'NONE') + '" entries=' + tradeDateMap.size);
 
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
@@ -11002,8 +11012,8 @@
 
           // No-aggregation: explicit flag OR derived from a recent trade date (<2 months).
           let na = (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO';
-          if (!na && tradeDateHeader) {
-            const td = parseTradeDateStr(row[tradeDateHeader]);
+          if (!na && tradeDateMap.size) {
+            const td = parseTradeDateStr(tradeDateMap.get(normPlayerName(row.PLAYER)));
             if (td) {
               const naEnd = new Date(td.getFullYear(), td.getMonth() + 2, td.getDate());
               const today0 = new Date(); today0.setHours(0, 0, 0, 0);
@@ -11011,7 +11021,7 @@
             }
           }
           if ((row.PLAYER || '').trim() === 'Naz Reid') {
-            console.log('[TM trade-date] Naz Reid raw="' + (tradeDateHeader ? (row[tradeDateHeader] || '') : '') + '" -> notAggregated=' + na);
+            console.log('[TM trade-date] Naz Reid lookup="' + (tradeDateMap.get(normPlayerName(row.PLAYER)) || '') + '" -> notAggregated=' + na);
           }
           
           return {
