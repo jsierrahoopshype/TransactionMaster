@@ -3780,7 +3780,7 @@
     }
     
     // Track a completed trade
-    async function trackCompletedTrade(playerIds) {
+    async function trackCompletedTrade(playerIds, playerNames, teamNames) {
       try {
         // Create a hash of the trade to avoid tracking duplicates
         const sortedIds = [...playerIds].sort().join(',');
@@ -3788,17 +3788,18 @@
           return;
         }
         lastTrackedTradeHash = sortedIds;
+
+        // Single POST -> feeds both the analytics dashboard (/analytics) and the in-page trade %
+        try {
+          fetch('/api/tracker', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tool: 'tm', action: 'trade', players: (playerNames || []), teams: (teamNames || []), playerIds: playerIds })
+          }).catch(function(){});
+        } catch (e) {}
         
         
-        const response = await fetch('/api/track-trade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerIds })
-        });
-        
-        const result = await response.json();
-        
-        // Update local stats optimistically
+        // Update local stats optimistically (server already updated via /api/tracker above)
         globalTradeStats.totalTrades++;
         playerIds.forEach(id => {
           if (!globalTradeStats.players[id]) {
@@ -6190,16 +6191,19 @@
       
       // Track completed/valid trade
       if (validation.valid || validation.type?.startsWith('pending')) {
-        const playerIds = [];
+        const playerIds = [], playerNames = [], teamSet = new Set();
         tradeTeams.forEach(t => {
-          if (t.playersOut) {
+          if (t.playersOut && t.playersOut.length) {
+            if (t.teamName) teamSet.add(t.teamName);
             t.playersOut.forEach(p => {
               if (p.playerId) playerIds.push(p.playerId);
+              const nm = p.player || p.name || p.playerName;
+              if (nm) playerNames.push(nm);
             });
           }
         });
         if (playerIds.length > 0) {
-          trackCompletedTrade(playerIds);
+          trackCompletedTrade(playerIds, playerNames, [...teamSet]);
         }
       }
       
