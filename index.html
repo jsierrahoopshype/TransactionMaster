@@ -4459,11 +4459,36 @@
         }
       }
 
-      // Calculate TPE contribution for salary MATCHING purposes only
-      let tpeValue = 0;
-      if (tradeTeam.tpeUsed) {
-        tpeValue = tradeTeam.tpeUsed.value;
+      /* A traded player exception absorbs WHOLE contracts. It is not extra
+         salary-matching room, and it cannot part-fund a player with the rest
+         covered by outgoing salary -- an incoming player is either taken
+         entirely into the exception or matched conventionally, never both.
+         One exception may take several players so long as each fits in what
+         is left of it. The $100K allowance applies once per absorbed player.
+
+         Previously this added tpe.value straight onto maxIncoming, which let
+         a $23.8M exception bring back a $29.6M player by leaning on the
+         outgoing salary for the difference. */
+      const tpeAbsorbed = [];
+      let tpeRoom = tradeTeam.tpeUsed ? tradeTeam.tpeUsed.value : 0;
+      if (tpeRoom > 0) {
+        // Biggest contracts first -- the exception is worth most where the
+        // conventional rules help least.
+        const byBiggest = tradeTeam.playersIn.slice()
+          .sort((a, b) => getIncomingSalary(b) - getIncomingSalary(a));
+        for (const p of byBiggest) {
+          const sal = getIncomingSalary(p);
+          if (sal > 0 && sal <= tpeRoom + 100000) {
+            tpeRoom -= sal;
+            tpeAbsorbed.push(p);
+          }
+        }
       }
+      const absorbedSet = new Set(tpeAbsorbed);
+      // Only the players NOT taken into the exception have to match.
+      const incomingToMatch = tradeTeam.playersIn
+        .filter(p => !absorbedSet.has(p))
+        .reduce((sum, p) => sum + getIncomingSalary(p), 0);
 
       // Check salary matching using EFFECTIVE status (where team ends up after trade)
       // Rules for 2024-25 CBA:
@@ -4499,14 +4524,20 @@
         }
       }
       
-      // Add TPE value to max incoming for salary matching
-      maxIncoming += tpeValue;
-
-      if (incomingSalary > maxIncoming) {
-        const deficit = incomingSalary - maxIncoming;
+      if (incomingToMatch > maxIncoming) {
+        const deficit = incomingToMatch - maxIncoming;
+        // Name the player the exception could not swallow -- otherwise the
+        // message reads as a pure salary shortfall and hides the real reason.
+        const tooBig = tradeTeam.tpeUsed
+          ? tradeTeam.playersIn.filter(p => !absorbedSet.has(p))
+              .sort((a, b) => getIncomingSalary(b) - getIncomingSalary(a))[0]
+          : null;
+        const why = (tooBig && getIncomingSalary(tooBig) > tradeTeam.tpeUsed.value + 100000)
+          ? ` — ${tooBig.player} (${formatSalary(getIncomingSalary(tooBig))}) does not fit the ${formatSalary(tradeTeam.tpeUsed.value)} trade exception, which must absorb a whole contract`
+          : '';
         return { 
           valid: false, 
-          message: `${tradeTeam.teamName} needs to send out ${formatSalary(deficit)} more in salary` 
+          message: `${tradeTeam.teamName} needs to send out ${formatSalary(deficit)} more in salary${why}` 
         };
       }
       
@@ -4988,9 +5019,21 @@
               }
             }
             
-            // The amount that must be absorbed by TPE = incoming - maxIncomingWithoutTPE
-            const tpeNeeded = incomingSalary - maxIncomingWithoutTPE;
-            if (tpeNeeded > 0 && tpeNeeded > t.tpeUsed.value) {
+            /* Same rule as the main validator: the exception takes whole
+               contracts, so what matters is whether the players it cannot
+               swallow still match on their own. */
+            let room = t.tpeUsed.value;
+            const taken = new Set();
+            t.playersIn.slice()
+              .sort((a, b) => getIncomingSalary(b) - getIncomingSalary(a))
+              .forEach(p => {
+                const sal = getIncomingSalary(p);
+                if (sal > 0 && sal <= room + 100000) { room -= sal; taken.add(p); }
+              });
+            const mustMatch = t.playersIn.filter(p => !taken.has(p))
+              .reduce((sum, p) => sum + getIncomingSalary(p), 0);
+            const tpeNeeded = mustMatch - maxIncomingWithoutTPE;
+            if (tpeNeeded > 0) {
               allValid = false;
               invalidMessages.push(`${t.teamName}: Salary absorbed by TPE ($${(tpeNeeded/1000000).toFixed(1)}M) exceeds TPE value ($${(t.tpeUsed.value/1000000).toFixed(1)}M)`);
             }
@@ -5179,17 +5222,24 @@
           );
           if (isUsedElsewhere) return false;
           
-          // TPE must cover the deficit
-          return tpe.value >= deficit;
+          /* An exception is only usable if it can take an entire incoming
+             contract. Choosing one because it covers the DEFICIT was the
+             root of the bug: it let the exception top up conventional
+             matching rather than absorb a player outright. */
+          return team.playersIn.some(p => {
+            const sal = getIncomingSalary(p);
+            return sal > 0 && sal <= tpe.value + 100000;
+          });
         });
         
-        // Sort by value (smallest first) and pick the smallest sufficient TPE
+        // Smallest exception that still does the job, so the bigger ones stay
+        // available for other trades.
         availableTPEs.sort((a, b) => a.value - b.value);
         const usableTPE = availableTPEs[0];
         
         if (usableTPE) {
           team.tpeUsed = usableTPE;
-          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to cover $${(deficit/1000000).toFixed(1)}M deficit`);
+          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to absorb an incoming contract`);
         }
       });
     }
