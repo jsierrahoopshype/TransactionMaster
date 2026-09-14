@@ -3779,8 +3779,37 @@
       }
     }
     
+    /*
+     * A session is a random id in this browser, rotated after ninety days.
+     *
+     * It is what lets the Trade Market say "forty different people built this"
+     * rather than "this was built forty times" -- very different claims, and
+     * only one of them is worth publishing. It is not an account and carries
+     * nothing about the person.
+     */
+    function marketSession() {
+      try {
+        const raw = localStorage.getItem('hm_market_session');
+        if (raw) {
+          const o = JSON.parse(raw);
+          if (o && o.id && o.born && (Date.now() - o.born) < 90 * 86400000) {
+            return o.id;
+          }
+        }
+        const id = (crypto.randomUUID ? crypto.randomUUID()
+                    : String(Math.random()).slice(2) + Date.now().toString(36));
+        localStorage.setItem('hm_market_session',
+          JSON.stringify({ id: id, born: Date.now() }));
+        return id;
+      } catch (e) {
+        // Private browsing, storage disabled, quota full. No session is better
+        // than no trade: the trade still logs, it just cannot be attributed.
+        return null;
+      }
+    }
+
     // Track a completed trade
-    async function trackCompletedTrade(playerIds, playerNames, teamNames, sides) {
+    async function trackCompletedTrade(playerIds, playerNames, teamNames, sides, meta) {
       try {
         // Create a hash of the trade to avoid tracking duplicates
         const sortedIds = [...playerIds].sort().join(',');
@@ -3794,7 +3823,12 @@
           fetch('/api/tracker', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tool: 'tm', action: 'trade', players: (playerNames || []), teams: (teamNames || []), playerIds: playerIds, sides: (sides || []) })
+            // The first six fields are unchanged and still feed the KV
+            // buckets behind the in-page percentages and /analytics. The rest
+            // are additive and only reach the D1 log.
+            body: JSON.stringify(Object.assign({ tool: 'tm', action: 'trade', players: (playerNames || []), teams: (teamNames || []), playerIds: playerIds, sides: (sides || []) }, {
+              sessionId: marketSession(),
+            }, meta || {}))
           }).catch(function(){});
         } catch (e) {}
         
@@ -6253,14 +6287,38 @@
                 playerNames.push(nm);
                 const di = p.destination;
                 const to = (typeof di === 'number' && tradeTeams[di]) ? tradeTeams[di].teamName : '';
-                outList.push({ name: nm, salary: (typeof p.salary === 'number' ? p.salary : null), to: to });
+                // playerId carried for the market: names are not stable, and
+                // a draft pick arrives in this same list looking like a person
+                // by name alone. The id is the thing picks do not have.
+                outList.push({ name: nm, playerId: (p.playerId || null), salary: (typeof p.salary === 'number' ? p.salary : null), to: to });
               }
             });
             if (t.teamName && outList.length) sides.push({ team: t.teamName, out: outList });
           }
         });
         if (playerIds.length > 0) {
-          trackCompletedTrade(playerIds, playerNames, [...teamSet], sides);
+          /*
+           * ONE event per trade, the strongest that applies.
+           *
+           * A trade the Loop generated is 'loop' and is weighted out of every
+           * market figure -- recording it as a person's opinion would turn our
+           * own suggestions into evidence. A trade that passes the CBA checker
+           * is 'validated'; one a person assembled that does not is still
+           * 'manual', because an illegal trade is a statement about who they
+           * want moved.
+           */
+          let meta = {};
+          try {
+            const isLoop = new URLSearchParams(location.search).get('loop') === '1';
+            const valid = !!validation.valid;
+            meta = {
+              eventType: isLoop ? 'loop' : (valid ? 'validated' : 'manual'),
+              isValid: valid,
+              season: (typeof IS_OFFSEASON !== 'undefined' && IS_OFFSEASON) ? '2026-27' : '2025-26',
+              urlState: location.search ? location.search.slice(0, 4000) : null,
+            };
+          } catch (e) { /* never let analytics break a trade */ }
+          trackCompletedTrade(playerIds, playerNames, [...teamSet], sides, meta);
         }
       }
       
