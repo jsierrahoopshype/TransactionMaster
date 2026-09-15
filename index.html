@@ -6419,6 +6419,20 @@
            */
           let meta = {};
           try {
+            /*
+             * BUILD the URL before reading it.
+             *
+             * render() calls renderTradeStatus() -- this code -- and only then
+             * updateUrlAndTitle(), so location.search still describes the
+             * PREVIOUS trade at this point. Every url_state recorded before this
+             * was one trade behind, which matters because Phase 11 replays this
+             * string to load a trade back into the builder.
+             *
+             * updateUrlAndTitle() recomputes from tradeTeams and is idempotent,
+             * so calling it here is safe; render() calls it again a few lines
+             * later to no further effect.
+             */
+            try { updateUrlAndTitle(); } catch (e) {}
             const isLoop = new URLSearchParams(location.search).get('loop') === '1';
             const valid = !!validation.valid;
             // Read by showPublish(), which runs later when the tracker response
