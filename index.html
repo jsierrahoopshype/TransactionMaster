@@ -6362,11 +6362,6 @@
       
       // Track completed/valid trade
       if (validation.valid || validation.type?.startsWith('pending')) {
-        // A fresh evaluation means the previous id is stale: publishing must
-        // never point at the trade that was on screen two edits ago.
-        lastTradeId = null;
-        const pubHost = document.getElementById('tmPublish');
-        if (pubHost && lastPublishedId === null) pubHost.style.display = 'none';
         const playerIds = [], playerNames = [], teamSet = new Set(), sides = [], pickList = [];
         tradeTeams.forEach(t => {
           if (t.playersOut && t.playersOut.length) {
@@ -6406,6 +6401,22 @@
             });
           });
         });
+        /*
+         * CLEAR THE PUBLISHABLE ID ONLY WHEN THE TRADE ITSELF CHANGES.
+         *
+         * renderTradeStatus() runs on every render, but trackCompletedTrade()
+         * deduplicates on the same player set and returns without posting. So
+         * clearing on every render hid the button after the first re-render and
+         * nothing ever brought it back: no post, no id, no button.
+         *
+         * Comparing against the same key the dedupe uses keeps the two in step.
+         */
+        const tradeKey = [...playerIds].sort().join(',');
+        if (tradeKey !== lastTrackedTradeHash) {
+          lastTradeId = null;
+          const pubHost = document.getElementById('tmPublish');
+          if (pubHost) pubHost.style.display = 'none';
+        }
         if (playerIds.length > 0) {
           /*
            * ONE event per trade, the strongest that applies.
