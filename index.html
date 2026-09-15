@@ -66,6 +66,18 @@
       overflow-x: clip;
     }
 
+    /* The community on this trade. A full-width line BELOW the status row, so
+       it can never push the validation result around -- the brief is explicit
+       that community features must not interfere with what people came for. */
+    .tm-community {
+      flex-basis: 100%; margin-top: .5rem; font-size: .8125rem;
+      color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;
+      align-items: baseline;
+    }
+    .tm-community b { color: var(--text); font-weight: 700; }
+    .tm-community .cm-lab { font-weight: 700; color: var(--text); }
+    .tm-community .cm-n { font-variant-numeric: tabular-nums; }
+
     /* Publish control. Sits beside Check Rumors in the status row and is
        weighted to match it: the validation result stays the loudest thing in
        this block. */
@@ -2623,6 +2635,7 @@
         </div>
         <a href="#tradeRumorsContainer" class="check-rumors-link" id="checkRumorsLink" style="display: none;">📰 Check Rumors</a>
         <span class="tm-publish" id="tmPublish" style="display: none;"></span>
+        <div class="tm-community" id="tmCommunity" style="display: none;"></div>
       </div>
       
       <!-- Realistic Meter -->
@@ -3805,6 +3818,49 @@
     }
     
     /*
+     * WHAT THE COMMUNITY MADE OF THIS TRADE (Phase 7)
+     *
+     * Votes belong to published trades, and a trade in the builder has never
+     * been published. So this asks by fingerprint: has anyone published THIS
+     * trade, and what did people say? Usually nobody has, and the honest answer
+     * is an invitation to publish rather than an empty percentage.
+     */
+    async function showCommunity(hash) {
+      const host = document.getElementById('tmCommunity');
+      if (!host) return;
+      host.style.display = 'none';
+      host.innerHTML = '';
+      try {
+        const res = await fetch('/api/verdict?hash=' + encodeURIComponent(hash));
+        if (!res.ok) return;
+        const j = await res.json();
+        const teams = (j && Array.isArray(j.teams)) ? j.teams.filter(t => t.votes > 0) : [];
+        if (!teams.length) return;   // nothing to say; say nothing
+        const lab = document.createElement('span');
+        lab.className = 'cm-lab';
+        lab.textContent = 'Community';
+        host.appendChild(lab);
+        teams.forEach(function (t) {
+          const s = document.createElement('span');
+          s.innerHTML = '';
+          s.appendChild(document.createTextNode(t.team + ' accepts '));
+          const b = document.createElement('b');
+          b.className = 'cm-n';
+          b.textContent = t.accept + '%';
+          s.appendChild(b);
+          // The sample size travels with the number. A bare percentage off
+          // three votes reads exactly like one off three hundred.
+          const n = document.createElement('span');
+          n.className = 'cm-n';
+          n.textContent = ' (' + t.votes + ')';
+          s.appendChild(n);
+          host.appendChild(s);
+        });
+        host.style.display = 'flex';
+      } catch (e) { /* the builder does not depend on this */ }
+    }
+
+    /*
      * TRADE MARKET CONTEXT (Phase 7)
      *
      * One request for the whole board, not one per player: /api/market returns
@@ -3963,6 +4019,7 @@
           }).then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
               if (j && j.tradeId) { lastTradeId = j.tradeId; showPublish(); }
+              if (j && j.tradeHash) showCommunity(j.tradeHash);
             }).catch(function(){});
         } catch (e) {}
         
