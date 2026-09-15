@@ -79,6 +79,17 @@
     .tm-publish a { color: var(--accent); }
     .tm-publish .done { color: var(--text-secondary); }
 
+    /* Rank badge. Deliberately quiet: it marks a player without competing with
+       the name it sits beside. */
+    .tm-rank {
+      display: inline-block; margin-left: .375rem; padding: 0 .3125rem;
+      font-size: .6875rem; font-weight: 700; line-height: 1.5;
+      border-radius: 4px; background: var(--accent-dim); color: var(--accent);
+      vertical-align: middle;
+    }
+    .tm-link { color: var(--accent); text-decoration: none; }
+    .tm-link:hover { text-decoration: underline; }
+
     .container {
       max-width: 1400px;
       margin: 0 auto;
@@ -3794,6 +3805,42 @@
     }
     
     /*
+     * TRADE MARKET CONTEXT (Phase 7)
+     *
+     * One request for the whole board, not one per player: /api/market returns
+     * the top fifty with rank, share, change and destination already computed,
+     * and the worker caches it for five minutes. A lookup by player id costs
+     * nothing after that.
+     *
+     * Fetched once at load so the data is present before anybody has finished
+     * choosing a player. A failure is silent by design -- the builder must work
+     * with the market down, and an error banner about a context module would be
+     * exactly the clutter the brief warns against.
+     */
+    let MARKET_BY_ID = null;
+
+    async function loadMarketContext() {
+      try {
+        const res = await fetch('/api/market?window=7d', { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!j || !Array.isArray(j.players)) return;
+        const m = {};
+        j.players.forEach(function (p) {
+          // D1 returns the id as text; the builder holds it as a number.
+          if (p && p.player_id) m[String(p.player_id)] = p;
+        });
+        MARKET_BY_ID = m;
+      } catch (e) { /* the builder does not depend on this */ }
+    }
+    loadMarketContext();
+
+    function marketOf(pid) {
+      if (!MARKET_BY_ID || pid == null) return null;
+      return MARKET_BY_ID[String(pid)] || null;
+    }
+
+    /*
      * PUBLISHING (Phase 5)
      *
      * A trade becomes a permanent, shareable page. The id comes back from the
@@ -5551,7 +5598,14 @@
                       ${p.headshot ? `<img src="${p.headshot}" class="player-headshot" alt="" onerror="this.style.display='none'">` : ''}
                       <div class="player-chip-info">
                         <div class="player-chip-name">
-                          ${p.player}
+                          ${p.player}${(() => {
+                            // A rank badge only for the top ten. Below that the
+                            // number says nothing a reader can act on.
+                            const mk = marketOf(p.playerId);
+                            return (mk && mk.rank <= 10)
+                              ? `<span class="tm-rank" title="${mk.rank === 1 ? 'Most traded player this week' : 'No. ' + mk.rank + ' most traded this week'}">#${mk.rank}</span>`
+                              : '';
+                          })()}
                           <span class="player-info-wrapper">
                             <span class="player-info-icon">ℹ</span>
                             <div class="player-info-tooltip">
@@ -5573,6 +5627,26 @@
                                 <span class="player-info-label">Total Guaranteed</span>
                                 <span class="player-info-value">${formatSalary(p.guaranteedMoney || 0)}</span>
                               </div>
+                              ${(() => {
+                                // Market context: a different measure from the
+                                // Trade Activity row below, and labelled so, since
+                                // one counts submissions and the other counts people.
+                                const mk = marketOf(p.playerId);
+                                if (!mk) return '';
+                                let out = `<div class="player-info-row">
+                                <span class="player-info-label">Trade Market</span>
+                                <span class="player-info-value">#${mk.rank} this week &middot; ${mk.share}% of trades</span>
+                              </div>`;
+                                if (mk.top_dest) out += `<div class="player-info-row">
+                                <span class="player-info-label">Most sent to</span>
+                                <span class="player-info-value">${mk.top_dest} &middot; ${mk.top_dest_share}%</span>
+                              </div>`;
+                                out += `<div class="player-info-row">
+                                <span class="player-info-label"></span>
+                                <span class="player-info-value"><a href="/trade-market" class="tm-link">View Trade Market &rarr;</a></span>
+                              </div>`;
+                                return out;
+                              })()}
                               ${tradePct > 0 ? `<div class="player-info-row">
                                 <span class="player-info-label">Trade Activity</span>
                                 <span class="player-info-value" style="color: ${tradePct >= 3 ? '#ef4444' : '#6366f1'}">${tradePct}% of trades</span>
