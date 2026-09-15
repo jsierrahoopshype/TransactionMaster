@@ -6367,7 +6367,7 @@
         lastTradeId = null;
         const pubHost = document.getElementById('tmPublish');
         if (pubHost && lastPublishedId === null) pubHost.style.display = 'none';
-        const playerIds = [], playerNames = [], teamSet = new Set(), sides = [];
+        const playerIds = [], playerNames = [], teamSet = new Set(), sides = [], pickList = [];
         tradeTeams.forEach(t => {
           if (t.playersOut && t.playersOut.length) {
             if (t.teamName) teamSet.add(t.teamName);
@@ -6387,6 +6387,24 @@
             });
             if (t.teamName && outList.length) sides.push({ team: t.teamName, out: outList });
           }
+          // Picks are in their own array, OUTSIDE the playersOut branch above:
+          // a team sending only picks has no playersOut and would be skipped.
+          (t.picksOut || []).forEach(function (pk) {
+            if (!pk || !pk.year) return;
+            const di = pk.destination;
+            const to = (typeof di === 'number' && tradeTeams[di]) ? tradeTeams[di].teamName : '';
+            if (t.teamName) teamSet.add(t.teamName);
+            pickList.push({
+              // Whose pick it is, which is not always who is trading it: a team
+              // can send on a pick it acquired from somebody else.
+              fromTeam: pk.team || t.teamName || '',
+              toTeam: to,
+              year: pk.year,
+              round: pk.round,
+              protection: pk.notes || '',
+              isSwap: !!pk.isSwap,
+            });
+          });
         });
         if (playerIds.length > 0) {
           /*
@@ -6413,6 +6431,7 @@
               urlState: location.search ? location.search.slice(0, 4000) : null,
             };
           } catch (e) { /* never let analytics break a trade */ }
+          meta.picks = pickList;
           trackCompletedTrade(playerIds, playerNames, [...teamSet], sides, meta);
         }
       }
