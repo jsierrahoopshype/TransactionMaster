@@ -66,6 +66,19 @@
       overflow-x: clip;
     }
 
+    /* Publish control. Sits beside Check Rumors in the status row and is
+       weighted to match it: the validation result stays the loudest thing in
+       this block. */
+    .tm-publish { margin-left: .75rem; font-size: .8125rem; white-space: nowrap; }
+    .tm-publish button {
+      font: inherit; font-size: .8125rem; cursor: pointer;
+      background: none; border: none; padding: 0;
+      color: var(--accent); text-decoration: underline;
+    }
+    .tm-publish button[disabled] { color: var(--text-secondary); cursor: default; text-decoration: none; }
+    .tm-publish a { color: var(--accent); }
+    .tm-publish .done { color: var(--text-secondary); }
+
     .container {
       max-width: 1400px;
       margin: 0 auto;
@@ -2598,6 +2611,7 @@
           <div class="trade-status-message" id="tradeStatusMessage"></div>
         </div>
         <a href="#tradeRumorsContainer" class="check-rumors-link" id="checkRumorsLink" style="display: none;">📰 Check Rumors</a>
+        <span class="tm-publish" id="tmPublish" style="display: none;"></span>
       </div>
       
       <!-- Realistic Meter -->
@@ -3780,6 +3794,73 @@
     }
     
     /*
+     * PUBLISHING (Phase 5)
+     *
+     * A trade becomes a permanent, shareable page. The id comes back from the
+     * tracker POST; publishing promotes that existing trade rather than
+     * logging a second copy of it, so a published trade is not counted twice.
+     */
+    let lastTradeId = null;
+    let lastPublishedId = null;
+
+    function showPublish() {
+      const host = document.getElementById('tmPublish');
+      if (!host) return;
+      // Only a legal trade is publishable, and the worker enforces that too.
+      // A pending trade is legal later, not now.
+      const legal = (typeof window.__tmLastValid !== 'undefined') ? window.__tmLastValid : false;
+      if (!lastTradeId || !legal) { host.style.display = 'none'; return; }
+      host.style.display = '';
+      if (lastPublishedId === lastTradeId) return;
+      host.innerHTML = '';
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Publish this trade';
+      b.addEventListener('click', function () { doPublish(b); });
+      host.appendChild(b);
+    }
+
+    async function doPublish(btn) {
+      if (!lastTradeId) return;
+      btn.disabled = true;
+      btn.textContent = 'Publishing\u2026';
+      try {
+        const res = await fetch('/api/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tradeId: lastTradeId, sessionId: marketSession() }),
+        });
+        const j = await res.json();
+        if (!res.ok || !j || !j.url) throw new Error((j && j.error) || 'could not publish');
+        lastPublishedId = lastTradeId;
+        const host = document.getElementById('tmPublish');
+        host.innerHTML = '';
+        const a = document.createElement('a');
+        a.href = j.url;
+        a.textContent = 'View published trade';
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.textContent = 'Copy link';
+        copy.style.marginLeft = '.5rem';
+        copy.addEventListener('click', function () {
+          const full = location.origin + j.url;
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(full).then(function () {
+              copy.textContent = 'Copied';
+              setTimeout(function () { copy.textContent = 'Copy link'; }, 1500);
+            });
+          }
+        });
+        host.appendChild(a);
+        host.appendChild(copy);
+      } catch (e) {
+        // Say what happened, in the interface's voice, and let them retry.
+        btn.disabled = false;
+        btn.textContent = 'Publishing did not work \u2014 try again';
+      }
+    }
+
+    /*
      * A session is a random id in this browser, rotated after ninety days.
      *
      * It is what lets the Trade Market say "forty different people built this"
@@ -3819,6 +3900,9 @@
         lastTrackedTradeHash = sortedIds;
 
         // Single POST -> feeds both the analytics dashboard (/analytics) and the in-page trade %
+        // The response now carries the trade_id, which is the only way the page
+        // can name the trade it just built in order to publish it. Still
+        // non-blocking and still swallowed on failure.
         try {
           fetch('/api/tracker', {
             method: 'POST',
@@ -3829,7 +3913,10 @@
             body: JSON.stringify(Object.assign({ tool: 'tm', action: 'trade', players: (playerNames || []), teams: (teamNames || []), playerIds: playerIds, sides: (sides || []) }, {
               sessionId: marketSession(),
             }, meta || {}))
-          }).catch(function(){});
+          }).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+              if (j && j.tradeId) { lastTradeId = j.tradeId; showPublish(); }
+            }).catch(function(){});
         } catch (e) {}
         
         
@@ -6275,6 +6362,11 @@
       
       // Track completed/valid trade
       if (validation.valid || validation.type?.startsWith('pending')) {
+        // A fresh evaluation means the previous id is stale: publishing must
+        // never point at the trade that was on screen two edits ago.
+        lastTradeId = null;
+        const pubHost = document.getElementById('tmPublish');
+        if (pubHost && lastPublishedId === null) pubHost.style.display = 'none';
         const playerIds = [], playerNames = [], teamSet = new Set(), sides = [];
         tradeTeams.forEach(t => {
           if (t.playersOut && t.playersOut.length) {
@@ -6311,6 +6403,9 @@
           try {
             const isLoop = new URLSearchParams(location.search).get('loop') === '1';
             const valid = !!validation.valid;
+            // Read by showPublish(), which runs later when the tracker response
+            // arrives and no longer has `validation` in scope.
+            window.__tmLastValid = valid;
             meta = {
               eventType: isLoop ? 'loop' : (valid ? 'validated' : 'manual'),
               isValid: valid,
