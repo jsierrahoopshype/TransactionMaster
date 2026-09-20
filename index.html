@@ -78,6 +78,17 @@
     .tm-community .cm-lab { font-weight: 700; color: var(--text); }
     .tm-community .cm-n { font-variant-numeric: tabular-nums; }
 
+    /* The two views, under the title. Understated on purpose: the builder is
+       what people came for, and a loud tab bar would argue otherwise. */
+    .tm-tabs { display: flex; gap: .25rem; margin: .375rem 0 .25rem; }
+    .tm-tabs a {
+      font-size: .8125rem; font-weight: 600; padding: .25rem .75rem;
+      border-radius: 999px; text-decoration: none;
+      color: var(--text-secondary);
+    }
+    .tm-tabs a:hover { background: var(--bg-hover, rgba(127,127,127,.12)); }
+    .tm-tabs a.on { background: var(--accent-dim); color: var(--accent); }
+
     /* Publish control. Sits beside Check Rumors in the status row and is
        weighted to match it: the validation result stays the loudest thing in
        this block. */
@@ -2534,6 +2545,14 @@
   <div class="container">
     <header>
       <h1><a href="https://hoopsmatic.com" target="_blank" style="text-decoration: none; color: inherit;">🏀 NBA Trade Machine</a></h1>
+      <!-- Two views of one thing: build a trade, or see what everyone else is
+           building. The Market is not a separate product and should not be
+           reached from the site nav as though it were -- it only means
+           anything next to the builder that produced it. -->
+      <nav class="tm-tabs" aria-label="Trade Machine views">
+        <a class="on" href="/" aria-current="page">Build a trade</a>
+        <a href="/trade-market">Trade Market</a>
+      </nav>
       <div id="seasonToggle" style="display:none"><span style="color:var(--text-secondary)">Season:</span><button id="seasonBtn2526" onclick="setTMSeason(false)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2025-26</button><button id="seasonBtn2627" onclick="setTMSeason(true)" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:0.7rem;font-family:inherit">2026-27</button></div>
       <div class="header-actions">
         <div class="header-row">
