@@ -89,6 +89,40 @@
     .tm-tabs a:hover { background: var(--bg-hover, rgba(127,127,127,.12)); }
     .tm-tabs a.on { background: var(--accent-dim); color: var(--accent); }
 
+    /* Trade Market column. margin-left:auto pushes it to the far right of the
+       row, after the add-team card, into space that was otherwise empty. */
+    .mkt-panel {
+      flex: 0 0 300px; margin-left: auto; align-self: flex-start;
+      display: flex; flex-direction: column; gap: .625rem;
+    }
+    .mkt-panel .mp-title {
+      font-size: .6875rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-secondary);
+    }
+    .mp-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: .75rem .875rem;
+    }
+    .mp-name { font-weight: 700; font-size: .9375rem; color: var(--text); text-decoration: none; }
+    .mp-name:hover { color: var(--accent); }
+    .mp-heat { display: flex; align-items: baseline; gap: .375rem; margin: .25rem 0 .125rem; }
+    .mp-heat b { font-size: 1.75rem; font-weight: 700; color: var(--accent); line-height: 1;
+      font-variant-numeric: tabular-nums; }
+    .mp-heat span { font-size: .75rem; color: var(--text-secondary); }
+    .mp-dim { font-size: .75rem; color: var(--text-secondary); }
+    .mp-h { font-size: .6875rem; font-weight: 700; color: var(--text-secondary);
+      margin: .625rem 0 .25rem; text-transform: uppercase; letter-spacing: .04em; }
+    .mp-row { display: flex; justify-content: space-between; font-size: .8125rem; }
+    .mp-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .mp-bar { height: 3px; background: var(--border); border-radius: 2px;
+      margin: .125rem 0 .375rem; overflow: hidden; }
+    .mp-bar i { display: block; height: 100%; background: var(--accent); }
+    .mp-more { display: inline-block; margin-top: .375rem; font-size: .75rem;
+      color: var(--accent); text-decoration: none; }
+    .mp-more:hover { text-decoration: underline; }
+    /* No spare column on a narrow screen; the chip tooltip covers it there. */
+    @media (max-width: 1199px) { .mkt-panel { display: none; } }
+
     /* Publish control. Sits beside Check Rumors in the status row and is
        weighted to match it: the validation result stays the loudest thing in
        this block. */
@@ -3910,6 +3944,107 @@
     }
     loadMarketContext();
 
+    /*
+     * THE TRADE MARKET, BESIDE THE TRADE (desktop).
+     *
+     * For each player in the trade being built: how hot he is, how many
+     * people have been moving him, where they send him and what they take
+     * back. The builder shows what a trade DOES; this shows what everyone
+     * else has been trying -- which is the question a person building a
+     * Doncic deal is asking next.
+     *
+     * One /api/player request per player, cached for the session, so adding
+     * a third player does not refetch the first two. The panel renders at
+     * once with whatever is cached and fills the rest as it arrives; a
+     * slow or failed lookup never holds up the builder.
+     *
+     * Hidden below 1200px. On a narrow screen there is no spare column, and
+     * the chip tooltip already carries the headline figures.
+     */
+    // var, not const: render() is called from several places, and a const
+    // read before this line runs is a TDZ ReferenceError that blanks the page.
+    var MKT_PANEL_CACHE = new Map();     // playerId -> data | 'none' | Promise
+
+    // Its own escaper. It borrowed one that turned out not to exist, and a
+    // ReferenceError here stopped render() before a single team card drew.
+    function mpEsc(t) {
+      return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function panelSlug(n) {
+      return String(n || '').toLowerCase().replace(/[.']/g, '').replace(/\s+/g, '-');
+    }
+
+    function panelPlayers() {
+      const out = [];
+      const seen = new Set();
+      tradeTeams.forEach(t => (t.playersOut || []).forEach(p => {
+        if (p && p.playerId != null && !seen.has(String(p.playerId))) {
+          seen.add(String(p.playerId));
+          out.push({ id: String(p.playerId), name: p.player });
+        }
+      }));
+      return out;
+    }
+
+    function panelCard(pl) {
+      const d = MKT_PANEL_CACHE.get(pl.id);
+      const href = '/trade-market/' + encodeURIComponent(panelSlug(pl.name)) + '/';
+      const head = '<a class="mp-name" href="' + href + '" target="_blank" rel="noopener">'
+        + mpEsc(pl.name) + '</a>';
+      if (!d || d instanceof Promise) {
+        return '<div class="mp-card" data-mp="' + pl.id + '">' + head
+          + '<div class="mp-dim">Loading\u2026</div></div>';
+      }
+      if (d === 'none') {
+        return '<div class="mp-card" data-mp="' + pl.id + '">' + head
+          + '<div class="mp-dim">No Trade Market activity in the last 60 days.</div></div>';
+      }
+      const w = d.activity && d.activity.d7 ? d.activity.d7 : { people: 0, trades: 0 };
+      const ch = (w.change == null) ? 'new'
+        : (w.prev_people != null && w.prev_people < 5) ? (w.change > 0 ? '\u2191 up' : '\u2193 down')
+        : (w.change > 0 ? '\u2191' : w.change < 0 ? '\u2193' : '') + Math.min(Math.abs(w.change), 500) + (Math.abs(w.change) > 500 ? '+%' : '%');
+      const bars = (rows, cap) => (rows || []).slice(0, cap).map(r =>
+        '<div class="mp-row"><span>' + mpEsc(r.name) + '</span><b>' + r.share + '%</b></div>'
+        + '<div class="mp-bar"><i style="width:' + Math.max(2, Math.min(100, r.share)) + '%"></i></div>'
+      ).join('');
+      return '<div class="mp-card" data-mp="' + pl.id + '">' + head
+        + '<div class="mp-heat"><b>' + (d.heat == null ? '\u2014' : d.heat) + '</b><span>Trade Heat</span></div>'
+        + '<div class="mp-dim">' + (w.people || 0) + ' people this week \u00b7 ' + ch + '</div>'
+        + ((d.destinations && d.destinations.length) ? '<div class="mp-h">Most sent to</div>' + bars(d.destinations, 3) : '')
+        + ((d.assets_back && d.assets_back.length) ? '<div class="mp-h">Most received back</div>' + bars(d.assets_back, 2) : '')
+        + '<a class="mp-more" href="' + href + '" target="_blank" rel="noopener">Full market \u2192</a>'
+        + '</div>';
+    }
+
+    function renderMarketPanel() {
+      const players = panelPlayers();
+      if (!players.length) return '';
+      return '<aside class="mkt-panel" aria-label="Trade Market for these players">'
+        + '<div class="mp-title">Trade Market</div>'
+        + players.map(panelCard).join('')
+        + '</aside>';
+    }
+
+    function fillMarketPanel() {
+      panelPlayers().forEach(pl => {
+        if (MKT_PANEL_CACHE.has(pl.id)) return;
+        const job = fetch('/api/player?id=' + encodeURIComponent(pl.id))
+          .then(r => r.json())
+          .then(j => { MKT_PANEL_CACHE.set(pl.id, (j && !j.error) ? j : 'none'); })
+          .catch(() => { MKT_PANEL_CACHE.set(pl.id, 'none'); })
+          .then(() => {
+            // Patch just this card rather than calling render(): a full
+            // render would refetch nothing but would rebuild every team card
+            // and fight whatever the reader is in the middle of doing.
+            const el = document.querySelector('.mp-card[data-mp="' + pl.id + '"]');
+            if (el) el.outerHTML = panelCard(pl);
+          });
+        MKT_PANEL_CACHE.set(pl.id, job);
+      });
+    }
+
     function marketOf(pid) {
       if (!MARKET_BY_ID || pid == null) return null;
       return MARKET_BY_ID[String(pid)] || null;
@@ -7086,7 +7221,13 @@
 
     // Main render function
     function render() {
-      tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard();
+      // The market panel is an addition, not part of the builder: whatever
+      // goes wrong in it must cost only the panel. It is built separately and
+      // a failure leaves the team cards exactly as they would have been.
+      let mktPanel = '';
+      try { mktPanel = renderMarketPanel(); } catch (e) { console.warn('market panel skipped', e); }
+      tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard() + mktPanel;
+      try { fillMarketPanel(); } catch (e) { console.warn('market panel fill skipped', e); }
       renderTradeStatus();
       attachEventListeners();
       equalizeTradeContentHeights();
