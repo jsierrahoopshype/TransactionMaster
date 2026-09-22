@@ -3961,7 +3961,16 @@
      * Hidden below 1200px. On a narrow screen there is no spare column, and
      * the chip tooltip already carries the headline figures.
      */
-    const MKT_PANEL_CACHE = new Map();     // playerId -> data | 'none' | Promise
+    // var, not const: render() is called from several places, and a const
+    // read before this line runs is a TDZ ReferenceError that blanks the page.
+    var MKT_PANEL_CACHE = new Map();     // playerId -> data | 'none' | Promise
+
+    // Its own escaper. It borrowed one that turned out not to exist, and a
+    // ReferenceError here stopped render() before a single team card drew.
+    function mpEsc(t) {
+      return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
 
     function panelSlug(n) {
       return String(n || '').toLowerCase().replace(/[.']/g, '').replace(/\s+/g, '-');
@@ -3983,7 +3992,7 @@
       const d = MKT_PANEL_CACHE.get(pl.id);
       const href = '/trade-market/' + encodeURIComponent(panelSlug(pl.name)) + '/';
       const head = '<a class="mp-name" href="' + href + '" target="_blank" rel="noopener">'
-        + escapeHtml(pl.name) + '</a>';
+        + mpEsc(pl.name) + '</a>';
       if (!d || d instanceof Promise) {
         return '<div class="mp-card" data-mp="' + pl.id + '">' + head
           + '<div class="mp-dim">Loading\u2026</div></div>';
@@ -3997,7 +4006,7 @@
         : (w.prev_people != null && w.prev_people < 5) ? (w.change > 0 ? '\u2191 up' : '\u2193 down')
         : (w.change > 0 ? '\u2191' : w.change < 0 ? '\u2193' : '') + Math.min(Math.abs(w.change), 500) + (Math.abs(w.change) > 500 ? '+%' : '%');
       const bars = (rows, cap) => (rows || []).slice(0, cap).map(r =>
-        '<div class="mp-row"><span>' + escapeHtml(r.name) + '</span><b>' + r.share + '%</b></div>'
+        '<div class="mp-row"><span>' + mpEsc(r.name) + '</span><b>' + r.share + '%</b></div>'
         + '<div class="mp-bar"><i style="width:' + Math.max(2, Math.min(100, r.share)) + '%"></i></div>'
       ).join('');
       return '<div class="mp-card" data-mp="' + pl.id + '">' + head
@@ -7212,8 +7221,13 @@
 
     // Main render function
     function render() {
-      tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard() + renderMarketPanel();
-      fillMarketPanel();
+      // The market panel is an addition, not part of the builder: whatever
+      // goes wrong in it must cost only the panel. It is built separately and
+      // a failure leaves the team cards exactly as they would have been.
+      let mktPanel = '';
+      try { mktPanel = renderMarketPanel(); } catch (e) { console.warn('market panel skipped', e); }
+      tradeContainer.innerHTML = tradeTeams.map((t, i) => renderTeamCard(t, i)).join('') + renderAddTeamCard() + mktPanel;
+      try { fillMarketPanel(); } catch (e) { console.warn('market panel fill skipped', e); }
       renderTradeStatus();
       attachEventListeners();
       equalizeTradeContentHeights();
