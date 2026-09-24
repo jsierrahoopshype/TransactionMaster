@@ -107,6 +107,19 @@
     .mp-head {
       padding: 0.75rem 1rem;
       border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .mp-face {
+      width: 32px; height: 32px; border-radius: 50%;
+      object-fit: cover; background: var(--bg-hover, rgba(127,127,127,.12));
+      flex-shrink: 0;
+    }
+    .mp-with-pic { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
+    .mp-with-pic > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mp-crest { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
+    .mp-mini {
+      width: 20px; height: 20px; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0;
     }
     .mp-name {
       font-size: 0.9375rem; font-weight: 600;
@@ -3990,10 +4003,28 @@
       tradeTeams.forEach(t => (t.playersOut || []).forEach(p => {
         if (p && p.playerId != null && !seen.has(String(p.playerId))) {
           seen.add(String(p.playerId));
-          out.push({ id: String(p.playerId), name: p.player });
+          out.push({ id: String(p.playerId), name: p.player, face: p.headshot || '' });
         }
       }));
       return out;
+    }
+
+    /* Faces and crests come from the roster data the builder already loaded --
+       the same getTeamLogo() the team cards use, and the same p.headshot on the
+       chips. Nothing new is fetched. Each is guarded: a player the roster does
+       not know, or a logo that 404s, leaves a gap rather than a broken image. */
+    function mpFace(name) {
+      try {
+        const p = players.find(x => x.player === name);
+        return (p && p.headshot) || '';
+      } catch (e) { return ''; }
+    }
+    function mpLogo(team) {
+      try { return getTeamLogo(team) || ''; } catch (e) { return ''; }
+    }
+    function mpImg(src, cls) {
+      return src ? '<img src="' + src + '" class="' + cls
+        + '" alt="" onerror="this.style.display=\'none\'">' : '';
     }
 
     function panelCard(pl) {
@@ -4003,8 +4034,10 @@
          new class is the card itself, and that mirrors .team-card. */
       const d = MKT_PANEL_CACHE.get(pl.id);
       const href = '/trade-market/' + encodeURIComponent(panelSlug(pl.name)) + '/';
-      const head = '<div class="mp-head"><a class="mp-name" href="' + href
-        + '" target="_blank" rel="noopener">' + mpEsc(pl.name) + '</a></div>';
+      const head = '<div class="mp-head">'
+        + mpImg(pl.face || mpFace(pl.name), 'mp-face')
+        + '<a class="mp-name" href="' + href + '" target="_blank" rel="noopener">'
+        + mpEsc(pl.name) + '</a></div>';
       if (!d || d instanceof Promise) {
         return '<div class="mp-card" data-mp="' + pl.id + '">' + head
           + '<div class="mp-body"><div class="salary-row"><span class="salary-label">'
@@ -4024,17 +4057,24 @@
         '<div class="salary-row"><span class="salary-label">' + mpEsc(label)
         + '</span><span class="salary-value' + (cls ? ' ' + cls : '') + '">'
         + mpEsc(value) + '</span></div>';
-      const group = (title, rows, cap) => (rows && rows.length)
+      const picRow = (label, value, src, cls) =>
+        '<div class="salary-row"><span class="salary-label mp-with-pic">'
+        + mpImg(src, cls) + '<span>' + mpEsc(label) + '</span></span>'
+        + '<span class="salary-value">' + mpEsc(value) + '</span></div>';
+      const group = (title, rows, cap, kind) => (rows && rows.length)
         ? '<div class="mp-group"><div class="section-label">' + title + '</div>'
-          + rows.slice(0, cap).map(r => row(r.name, r.share + '%')).join('') + '</div>'
+          + rows.slice(0, cap).map(r => picRow(r.name, r.share + '%',
+              kind === 'team' ? mpLogo(r.name) : mpFace(r.name),
+              kind === 'team' ? 'mp-crest' : 'mp-mini')).join('')
+        + '</div>'
         : '';
       return '<div class="mp-card" data-mp="' + pl.id + '">' + head
         + '<div class="mp-body">'
         + '<div class="salary-row mp-heat"><span class="salary-label">Trade Heat</span>'
         + '<span class="salary-value mp-heat-n">' + (d.heat == null ? '\u2014' : d.heat) + '</span></div>'
         + row('People this week', (w.people || 0) + (ch ? '  ' + ch : ''))
-        + group('Most sent to', d.destinations, 3)
-        + group('Most received back', d.assets_back, 2)
+        + group('Most sent to', d.destinations, 3, 'team')
+        + group('Most received back', d.assets_back, 2, 'player')
         + '<a class="mp-more" href="' + href + '" target="_blank" rel="noopener">'
         + 'Full market \u2192</a>'
         + '</div></div>';
