@@ -89,36 +89,44 @@
     .tm-tabs a:hover { background: var(--bg-hover, rgba(127,127,127,.12)); }
     .tm-tabs a.on { background: var(--accent-dim); color: var(--accent); }
 
-    /* Trade Market column. margin-left:auto pushes it to the far right of the
-       row, after the add-team card, into space that was otherwise empty. */
+    /* Trade Market column. Mirrors .team-card -- same surface, border and
+       radius -- and pushes to the far right of the row with margin-left:auto,
+       into space that was otherwise empty. Everything inside reuses the
+       builder's own classes. */
     .mkt-panel {
       flex: 0 0 300px; margin-left: auto; align-self: flex-start;
-      display: flex; flex-direction: column; gap: .625rem;
     }
-    .mkt-panel .mp-title {
-      font-size: .6875rem; font-weight: 700; letter-spacing: .06em;
-      text-transform: uppercase; color: var(--text-secondary);
-    }
+    .mkt-panel .section-header { margin-bottom: 0.75rem; }
     .mp-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: .75rem .875rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
     }
-    .mp-name { font-weight: 700; font-size: .9375rem; color: var(--text); text-decoration: none; }
+    .mp-head {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .mp-name {
+      font-size: 0.9375rem; font-weight: 600;
+      color: var(--text); text-decoration: none;
+    }
     .mp-name:hover { color: var(--accent); }
-    .mp-heat { display: flex; align-items: baseline; gap: .375rem; margin: .25rem 0 .125rem; }
-    .mp-heat b { font-size: 1.75rem; font-weight: 700; color: var(--accent); line-height: 1;
-      font-variant-numeric: tabular-nums; }
-    .mp-heat span { font-size: .75rem; color: var(--text-secondary); }
-    .mp-dim { font-size: .75rem; color: var(--text-secondary); }
-    .mp-h { font-size: .6875rem; font-weight: 700; color: var(--text-secondary);
-      margin: .625rem 0 .25rem; text-transform: uppercase; letter-spacing: .04em; }
-    .mp-row { display: flex; justify-content: space-between; font-size: .8125rem; }
-    .mp-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
-    .mp-bar { height: 3px; background: var(--border); border-radius: 2px;
-      margin: .125rem 0 .375rem; overflow: hidden; }
-    .mp-bar i { display: block; height: 100%; background: var(--accent); }
-    .mp-more { display: inline-block; margin-top: .375rem; font-size: .75rem;
-      color: var(--accent); text-decoration: none; }
+    .mp-body {
+      padding: 0.75rem 1rem;
+      display: flex; flex-direction: column; gap: 0.375rem;
+      font-size: 0.8125rem;
+    }
+    .mp-heat-n {
+      font-size: 1.125rem; color: var(--accent); font-weight: 600;
+    }
+    .mp-group { margin-top: 0.375rem; }
+    .mp-group .section-label { margin-bottom: 0.25rem; display: block; }
+    .mp-more {
+      margin-top: 0.5rem; font-size: 0.75rem;
+      color: var(--accent); text-decoration: none;
+    }
     .mp-more:hover { text-decoration: underline; }
     /* No spare column on a narrow screen; the chip tooltip covers it there. */
     @media (max-width: 1199px) { .mkt-panel { display: none; } }
@@ -3989,40 +3997,54 @@
     }
 
     function panelCard(pl) {
+      /* Built from the page's own classes -- section-label, salary-row,
+         salary-label, salary-value -- so the column reads as part of the
+         builder rather than as something bolted to the side of it. The only
+         new class is the card itself, and that mirrors .team-card. */
       const d = MKT_PANEL_CACHE.get(pl.id);
       const href = '/trade-market/' + encodeURIComponent(panelSlug(pl.name)) + '/';
-      const head = '<a class="mp-name" href="' + href + '" target="_blank" rel="noopener">'
-        + mpEsc(pl.name) + '</a>';
+      const head = '<div class="mp-head"><a class="mp-name" href="' + href
+        + '" target="_blank" rel="noopener">' + mpEsc(pl.name) + '</a></div>';
       if (!d || d instanceof Promise) {
         return '<div class="mp-card" data-mp="' + pl.id + '">' + head
-          + '<div class="mp-dim">Loading\u2026</div></div>';
+          + '<div class="mp-body"><div class="salary-row"><span class="salary-label">'
+          + 'Loading\u2026</span></div></div></div>';
       }
       if (d === 'none') {
         return '<div class="mp-card" data-mp="' + pl.id + '">' + head
-          + '<div class="mp-dim">No Trade Market activity in the last 60 days.</div></div>';
+          + '<div class="mp-body"><div class="salary-row"><span class="salary-label">'
+          + 'No market activity</span></div></div></div>';
       }
-      const w = d.activity && d.activity.d7 ? d.activity.d7 : { people: 0, trades: 0 };
+      const w = (d.activity && d.activity.d7) ? d.activity.d7 : { people: 0, trades: 0 };
       const ch = (w.change == null) ? 'new'
-        : (w.prev_people != null && w.prev_people < 5) ? (w.change > 0 ? '\u2191 up' : '\u2193 down')
-        : (w.change > 0 ? '\u2191' : w.change < 0 ? '\u2193' : '') + Math.min(Math.abs(w.change), 500) + (Math.abs(w.change) > 500 ? '+%' : '%');
-      const bars = (rows, cap) => (rows || []).slice(0, cap).map(r =>
-        '<div class="mp-row"><span>' + mpEsc(r.name) + '</span><b>' + r.share + '%</b></div>'
-        + '<div class="mp-bar"><i style="width:' + Math.max(2, Math.min(100, r.share)) + '%"></i></div>'
-      ).join('');
+        : (w.prev_people != null && w.prev_people < 5) ? (w.change > 0 ? '\u2191' : '\u2193')
+        : (w.change > 0 ? '\u2191' : w.change < 0 ? '\u2193' : '')
+          + Math.min(Math.abs(w.change), 500) + (Math.abs(w.change) > 500 ? '+%' : '%');
+      const row = (label, value, cls) =>
+        '<div class="salary-row"><span class="salary-label">' + mpEsc(label)
+        + '</span><span class="salary-value' + (cls ? ' ' + cls : '') + '">'
+        + mpEsc(value) + '</span></div>';
+      const group = (title, rows, cap) => (rows && rows.length)
+        ? '<div class="mp-group"><div class="section-label">' + title + '</div>'
+          + rows.slice(0, cap).map(r => row(r.name, r.share + '%')).join('') + '</div>'
+        : '';
       return '<div class="mp-card" data-mp="' + pl.id + '">' + head
-        + '<div class="mp-heat"><b>' + (d.heat == null ? '\u2014' : d.heat) + '</b><span>Trade Heat</span></div>'
-        + '<div class="mp-dim">' + (w.people || 0) + ' people this week \u00b7 ' + ch + '</div>'
-        + ((d.destinations && d.destinations.length) ? '<div class="mp-h">Most sent to</div>' + bars(d.destinations, 3) : '')
-        + ((d.assets_back && d.assets_back.length) ? '<div class="mp-h">Most received back</div>' + bars(d.assets_back, 2) : '')
-        + '<a class="mp-more" href="' + href + '" target="_blank" rel="noopener">Full market \u2192</a>'
-        + '</div>';
+        + '<div class="mp-body">'
+        + '<div class="salary-row mp-heat"><span class="salary-label">Trade Heat</span>'
+        + '<span class="salary-value mp-heat-n">' + (d.heat == null ? '\u2014' : d.heat) + '</span></div>'
+        + row('People this week', (w.people || 0) + (ch ? '  ' + ch : ''))
+        + group('Most sent to', d.destinations, 3)
+        + group('Most received back', d.assets_back, 2)
+        + '<a class="mp-more" href="' + href + '" target="_blank" rel="noopener">'
+        + 'Full market \u2192</a>'
+        + '</div></div>';
     }
 
     function renderMarketPanel() {
       const players = panelPlayers();
       if (!players.length) return '';
       return '<aside class="mkt-panel" aria-label="Trade Market for these players">'
-        + '<div class="mp-title">Trade Market</div>'
+        + '<div class="section-header"><span class="section-label">Trade Market</span></div>'
         + players.map(panelCard).join('')
         + '</aside>';
     }
