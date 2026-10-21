@@ -144,9 +144,9 @@
     /* No spare column on a narrow screen; the chip tooltip covers it there. */
     @media (max-width: 1199px) { .mkt-panel { display: none; } }
 
-    /* Publish control. Sits beside Check Rumors in the status row and is
-       weighted to match it: the validation result stays the loudest thing in
-       this block. */
+    /* Publish control. Sits at the right end of the status row, after the
+       validation text, and stays small: the validation result stays the
+       loudest thing in this block. */
     .tm-publish { margin-left: .75rem; font-size: .8125rem; white-space: nowrap; }
     .tm-publish button {
       font: inherit; font-size: .8125rem; cursor: pointer;
@@ -1007,10 +1007,11 @@
       margin-top: 0.125rem;
     }
 
-    .check-rumors-link {
-      margin-left: auto;
-      padding: 0.5rem 1rem;
-      font-size: 0.8125rem;
+    /* Inert wrapper. Since it was added, the Roster Manager CSS below has sat
+       inside an unclosed rule, so browsers scope it under that rule's selector
+       and none of it applies. Nothing on the page has this class, which keeps it off.
+       Delete the wrapper (this rule and its closing brace) to turn it on. */
+    .rm-css-inert {
 
     /* Roster Manager integration */
     .rm-actions {
@@ -1039,10 +1040,8 @@
     body.rm-mode #resetBtn { display: none !important; }
     body.rm-mode .action-buttons { display: none !important; }
     body.rm-mode .glossary-section { display: none !important; }
-    body.rm-mode #tradeRumorsContainer { display: none !important; }
     body.rm-mode .contact-footer { display: none !important; }
     body.rm-mode #imageModal { display: none !important; }
-    body.rm-mode .check-rumors-link { display: none !important; }
     body.rm-mode header h1 { font-size: 1.25rem; }
     body.rm-mode header { padding: 0.75rem 1rem; }
     body.rm-mode .rm-team-locked .team-select { pointer-events: none; opacity: 0.7; }
@@ -1050,18 +1049,6 @@
     @media (max-width: 600px) {
       .rm-actions .btn { flex: 1; min-width: 0; }
     }
-      font-weight: 500;
-      color: var(--accent);
-      text-decoration: none;
-      border: 1px solid var(--accent);
-      border-radius: 6px;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-
-    .check-rumors-link:hover {
-      background: var(--accent);
-      color: white;
     }
 
     /* Realistic Meter */
@@ -2240,11 +2227,6 @@
         font-size: 0.7rem;
       }
 
-      .check-rumors-link {
-        font-size: 0.7rem;
-        padding: 0.25rem 0.5rem;
-      }
-
       /* Glossary - more compact */
       .glossary-section {
         margin-top: 1rem;
@@ -2273,24 +2255,6 @@
         margin-top: 1rem;
         padding: 0.75rem;
         font-size: 0.7rem;
-      }
-
-      /* Rumors section */
-      .rumors-section {
-        margin-top: 1rem;
-        padding: 1rem;
-      }
-
-      .rumors-section-header h3 {
-        font-size: 0.9rem;
-      }
-
-      .rumor-item {
-        padding: 0.625rem 0.75rem;
-      }
-
-      .rumor-text {
-        font-size: 0.8rem;
       }
 
       /* Multi-player chips */
@@ -2418,152 +2382,6 @@
     .glossary-description strong {
       color: var(--text);
       font-weight: 600;
-    }
-
-    /* Trade Rumors Section Styles */
-    .rumors-section {
-      margin-top: 2rem;
-      padding: 1.5rem;
-      background: var(--surface);
-      border-radius: 12px;
-      border: 1px solid var(--border);
-    }
-
-    .rumors-section-header {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .rumors-section-header h3 {
-      font-size: 1.125rem;
-      font-weight: 600;
-      color: var(--text);
-      margin: 0;
-    }
-
-    .rumors-section-header .icon {
-      font-size: 1.25rem;
-    }
-
-    .player-rumors {
-      margin-bottom: 1.5rem;
-    }
-
-    .player-rumors:last-child {
-      margin-bottom: 0;
-    }
-
-    .player-rumors-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.75rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .player-rumors-header h4 {
-      font-size: 0.9375rem;
-      font-weight: 600;
-      color: var(--accent);
-      margin: 0;
-    }
-
-    .player-rumors-header .fallback-note {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-    }
-
-    .rumors-count-badge {
-      background: var(--accent-dim);
-      color: var(--accent);
-      font-size: 0.6875rem;
-      font-weight: 600;
-      padding: 0.125rem 0.5rem;
-      border-radius: 10px;
-      margin-left: auto;
-    }
-
-    .rumor-item {
-      background: var(--bg);
-      border-radius: 8px;
-      padding: 0.875rem 1rem;
-      margin-bottom: 0.625rem;
-      border-left: 3px solid var(--accent);
-    }
-
-    .rumor-item:last-child {
-      margin-bottom: 0;
-    }
-
-    .rumor-meta {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 0.5rem;
-      font-size: 0.75rem;
-    }
-
-    .rumor-date {
-      color: var(--text-secondary);
-    }
-
-    .rumor-outlet {
-      color: var(--accent);
-    }
-
-    .rumor-text {
-      font-size: 0.875rem;
-      line-height: 1.5;
-      color: var(--text);
-    }
-
-    .rumor-text a {
-      color: var(--text);
-      text-decoration: none;
-      border-bottom: 1px dotted var(--border);
-    }
-
-    .rumor-text a:hover {
-      border-bottom-color: var(--accent);
-    }
-
-    .rumors-footer {
-      text-align: center;
-      margin-top: 1rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .rumors-footer a {
-      color: var(--text-secondary);
-      font-size: 0.75rem;
-      text-decoration: none;
-    }
-
-    .rumors-footer a:hover {
-      color: var(--accent);
-    }
-
-    .rumors-loading {
-      text-align: center;
-      padding: 2rem;
-      color: var(--text-secondary);
-    }
-
-    .rumors-loading .spinner {
-      font-size: 1.5rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .no-rumors {
-      text-align: center;
-      padding: 1.5rem;
-      color: var(--text-secondary);
-      font-size: 0.875rem;
     }
 
     .contact-footer {
@@ -2707,7 +2525,6 @@
           <div class="trade-status-title" id="tradeStatusTitle">Trade is valid</div>
           <div class="trade-status-message" id="tradeStatusMessage"></div>
         </div>
-        <a href="#tradeRumorsContainer" class="check-rumors-link" id="checkRumorsLink" style="display: none;">📰 Check Rumors</a>
         <span class="tm-publish" id="tmPublish" style="display: none;"></span>
         <div class="tm-community" id="tmCommunity" style="display: none;"></div>
       </div>
@@ -2816,9 +2633,6 @@
         </div>
       </div>
       
-      <!-- Trade Rumors Section -->
-      <div id="tradeRumorsContainer"></div>
-      
       <!-- Contact Footer -->
       <div class="contact-footer">
         Anything wrong? Contact us at <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1c6f696c6c736e685c7473736c6f74656c79327f7371">[email&#160;protected]</a>
@@ -2885,14 +2699,6 @@
       // Fallback - this will fail on GitHub Pages (redirects to Cloudflare anyway)
       csvFetchPromise = Promise.reject('No data');
     }
-    
-    // Start fetching rumors in parallel (for initial trade display)
-    const INITIAL_RUMORS_URL = 'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/latest';
-    let initialRumorsData = null;
-    const rumorsFetchPromise = fetch(INITIAL_RUMORS_URL)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { initialRumorsData = data; return data; })
-      .catch(() => []);
     
     // Start fetching trade stats in parallel
     const tradeStatsFetchPromise = fetch('/api/trade-stats?period=24h')
@@ -6616,8 +6422,6 @@
       
       if (!hasAnyAssets) {
         tradeStatus.style.display = 'none';
-        const checkRumorsLink = document.getElementById('checkRumorsLink');
-        if (checkRumorsLink) checkRumorsLink.style.display = 'none';
         const meter = document.getElementById('realisticMeter');
         if (meter) meter.style.display = 'none';
         return;
@@ -6806,13 +6610,6 @@
           meta.picks = pickList;
           trackCompletedTrade(playerIds, playerNames, [...teamSet], sides, meta);
         }
-      }
-      
-      // Show/hide Check Rumors link based on whether there are players in the trade
-      const checkRumorsLink = document.getElementById('checkRumorsLink');
-      const hasPlayersInTrade = tradeTeams.some(t => t.playersOut && t.playersOut.length > 0);
-      if (checkRumorsLink) {
-        checkRumorsLink.style.display = hasPlayersInTrade ? 'block' : 'none';
       }
       
       // Update the realistic meter (only for legal trades)
@@ -7297,13 +7094,6 @@
       
       // Lock RM team dropdown if in RM mode
       if (IS_RM_MODE) lockRmTeam();
-      
-      // Defer rumors loading to not block initial render
-      if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(() => displayTradeRumors(), { timeout: 500 });
-      } else {
-        setTimeout(() => displayTradeRumors(), 100);
-      }
     }
     
     // Update URL and page title based on current trade
@@ -10736,348 +10526,6 @@
       };
     }
 
-    // ===========================================
-    // HOOPSHYPE TRADE RUMORS INTEGRATION
-    // ===========================================
-    
-    // Load latest + part7 + part6 for comprehensive coverage (via protected Cloudflare API)
-    const RUMORS_URLS = [
-      'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/latest',
-      'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/part/7',
-      'https://hoopshype-rumors-api.thejorgesierra.workers.dev/api/rumors/part/6'
-    ];
-    const MAX_RUMORS_PER_PLAYER = 10;
-    let rumorsCache = null;
-
-    async function fetchRumors() {
-      if (rumorsCache) return rumorsCache;
-      try {
-        // Fetch all files in parallel with cache-busting for latest
-        const cacheBuster = Date.now();
-        const urls = RUMORS_URLS.map((url, i) => 
-          i === 0 ? `${url}?cb=${cacheBuster}` : url
-        );
-        
-        const responses = await Promise.all(urls.map(url => 
-          fetch(url, { cache: 'no-store' }).catch(() => null)
-        ));
-        
-        const dataArrays = await Promise.all(
-          responses.map(r => r && r.ok ? r.json().catch(() => []) : [])
-        );
-        
-        // Combine all rumors into one array
-        const allRumors = dataArrays.flat();
-        
-        // Deduplicate based on source_url (same rumor shouldn't appear twice)
-        const seen = new Set();
-        rumorsCache = allRumors.filter(rumor => {
-          const key = rumor.source_url || (rumor.text + rumor.archive_date);
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        
-        return rumorsCache;
-      } catch (error) {
-        console.error('Error fetching rumors:', error);
-        return [];
-      }
-    }
-
-    function getTradeRumorsForEntity(rumors, entityName) {
-      const entityLower = entityName.toLowerCase();
-      
-      const tradeRumors = rumors.filter(rumor => {
-        const tags = rumor.tags || [];
-        
-        // Check if this is a trade rumor (tag includes Trade/Trades)
-        const hasTradeTag = tags.some(tag => 
-          tag.toLowerCase() === 'trade' || tag.toLowerCase() === 'trades'
-        );
-        
-        // Check if entity is in tags
-        const hasEntityTag = tags.some(tag => 
-          tag.toLowerCase() === entityLower
-        );
-        
-        return hasTradeTag && hasEntityTag;
-      });
-      
-      tradeRumors.sort((a, b) => {
-        const dateA = new Date(a.archive_date || a.date);
-        const dateB = new Date(b.archive_date || b.date);
-        return dateB - dateA;
-      });
-      
-      return tradeRumors.slice(0, MAX_RUMORS_PER_PLAYER);
-    }
-
-    async function getRumorsForTrade(playersInTrade) {
-      const rumors = await fetchRumors();
-      if (!rumors.length) return {};
-      
-      const result = {};
-      
-      for (const player of playersInTrade) {
-        let playerRumors = getTradeRumorsForEntity(rumors, player.name);
-        
-        if (playerRumors.length === 0 && player.team) {
-          playerRumors = getTradeRumorsForEntity(rumors, player.team);
-          result[player.name] = {
-            rumors: playerRumors,
-            fallbackToTeam: true,
-            teamName: player.team
-          };
-        } else {
-          result[player.name] = {
-            rumors: playerRumors,
-            fallbackToTeam: false
-          };
-        }
-      }
-      
-      return result;
-    }
-
-    function formatRumorDate(rumor) {
-      // Use archive_date for consistent formatting
-      if (rumor.archive_date) {
-        const date = new Date(rumor.archive_date + 'T12:00:00'); // Add time to avoid timezone issues
-        return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      }
-      // Fallback to display date if no archive_date
-      if (rumor.date && rumor.date.trim()) {
-        return rumor.date;
-      }
-      return '';
-    }
-
-    function removeOutletFromText(text, outlet) {
-      if (!text || !outlet) return text;
-      
-      // Clean outlet name variations
-      const outletClean = outlet
-        .replace(/^https?:\/\//, '')
-        .replace(/^www\./, '')
-        .replace(/\.com$|\.org$|\.net$|\.co$/, '')
-        .trim();
-      
-      let result = text;
-      
-      // Remove outlet from end (various formats)
-      const patterns = [
-        // Exact outlet at end
-        new RegExp('\\s*[-–—]?\\s*' + outletClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i'),
-        // With domain extension
-        new RegExp('\\s*[-–—]?\\s*' + outletClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(com|org|net)\\s*$', 'i'),
-        // Full outlet name
-        new RegExp('\\s*[-–—]?\\s*' + outlet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i'),
-      ];
-      
-      for (const pattern of patterns) {
-        result = result.replace(pattern, '');
-      }
-      
-      return result.trim();
-    }
-    
-    function cleanupPunctuation(text) {
-      if (!text) return text;
-      
-      let result = text;
-      
-      // Add space after colon if missing (but not in URLs)
-      result = result.replace(/:([A-Za-z])/g, ': $1');
-      
-      // Add space after period if missing (but not in URLs or decimals)
-      result = result.replace(/\.([A-Z])/g, '. $1');
-      
-      // Add space after comma if missing
-      result = result.replace(/,([A-Za-z])/g, ', $1');
-      
-      // Remove double spaces
-      result = result.replace(/\s+/g, ' ');
-      
-      return result.trim();
-    }
-
-    function formatOutlet(outlet) {
-      if (!outlet) return '';
-      return outlet
-        .replace(/^https?:\/\//, '')
-        .replace(/^www\./, '')
-        .replace(/\.com$/, '')
-        .replace(/\.org$/, '')
-        .replace(/\.net$/, '');
-    }
-
-    function escapeHtmlRumors(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    function renderRumorsSection(rumorsData) {
-      const playersWithRumors = Object.entries(rumorsData).filter(
-        ([_, data]) => data.rumors.length > 0
-      );
-      
-      if (playersWithRumors.length === 0) {
-        return '<div class="no-rumors">No recent trade rumors found for these players.</div>';
-      }
-      
-      let html = `
-        <div class="rumors-section">
-          <div class="rumors-section-header">
-            <span class="icon">📰</span>
-            <h3>Recent Trade Rumors</h3>
-          </div>
-      `;
-      
-      for (const [playerName, data] of playersWithRumors) {
-        const { rumors, fallbackToTeam, teamName } = data;
-        
-        html += `
-          <div class="player-rumors">
-            <div class="player-rumors-header">
-              <h4>${fallbackToTeam ? teamName : playerName}</h4>
-              ${fallbackToTeam ? `<span class="fallback-note">(no rumors for ${playerName})</span>` : ''}
-              <span class="rumors-count-badge">${rumors.length} rumor${rumors.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div class="rumors-list">
-        `;
-        
-        for (const rumor of rumors) {
-          const date = formatRumorDate(rumor);
-          const outlet = formatOutlet(rumor.outlet);
-          const sourceUrl = rumor.source_url || '#';
-          const fullTextRaw = rumor.text || '';
-          const fullTextCleaned = removeOutletFromText(fullTextRaw, rumor.outlet);
-          const fullText = cleanupPunctuation(fullTextCleaned);
-          const quote = rumor.quote || '';
-          
-          // Try to find quote in full text - check both cleaned and uncleaned versions
-          let displayHtml = '';
-          let quoteIndex = fullText.indexOf(quote);
-          
-          // If exact match not found, try the uncleaned version
-          if (quoteIndex === -1 && quote) {
-            quoteIndex = fullTextCleaned.indexOf(quote);
-          }
-          
-          // If still not found, try finding in original text
-          if (quoteIndex === -1 && quote) {
-            quoteIndex = fullTextRaw.indexOf(quote);
-          }
-          
-          if (fullText && quote && quoteIndex !== -1) {
-            // Replace the quote portion with a bold, linked version
-            const beforeQuote = escapeHtmlRumors(fullText.substring(0, quoteIndex));
-            const afterQuote = escapeHtmlRumors(fullText.substring(quoteIndex + quote.length));
-            const quotePart = sourceUrl && sourceUrl !== '#'
-              ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
-              : `<strong>${escapeHtmlRumors(quote)}</strong>`;
-            displayHtml = beforeQuote + quotePart + afterQuote;
-          } else if (fullText && quote) {
-            // Quote exists but couldn't find it in text - bold the quote and append context
-            const quotePart = sourceUrl && sourceUrl !== '#'
-              ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
-              : `<strong>${escapeHtmlRumors(quote)}</strong>`;
-            // Just show the quote bolded since we can't reliably place it
-            displayHtml = quotePart;
-          } else if (fullText) {
-            // No quote, just show full text with link on first sentence
-            const firstSentenceEnd = fullText.search(/[.!?]/) + 1;
-            if (firstSentenceEnd > 0 && sourceUrl && sourceUrl !== '#') {
-              const firstPart = fullText.substring(0, firstSentenceEnd);
-              const rest = fullText.substring(firstSentenceEnd);
-              displayHtml = `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(firstPart)}</strong></a>${escapeHtmlRumors(rest)}`;
-            } else {
-              displayHtml = sourceUrl && sourceUrl !== '#'
-                ? `<a href="${sourceUrl}" target="_blank" rel="noopener">${escapeHtmlRumors(fullText)}</a>`
-                : escapeHtmlRumors(fullText);
-            }
-          } else if (quote) {
-            // Only quote available
-            displayHtml = sourceUrl && sourceUrl !== '#'
-              ? `<a href="${sourceUrl}" target="_blank" rel="noopener"><strong>${escapeHtmlRumors(quote)}</strong></a>`
-              : `<strong>${escapeHtmlRumors(quote)}</strong>`;
-          }
-          
-          html += `
-            <div class="rumor-item">
-              <div class="rumor-meta">
-                ${date ? `<span class="rumor-date">${date}</span>` : ''}
-                ${outlet ? `<span class="rumor-outlet">via ${outlet}</span>` : ''}
-              </div>
-              <div class="rumor-text">
-                ${displayHtml}
-              </div>
-            </div>
-          `;
-        }
-        
-        html += `
-            </div>
-          </div>
-        `;
-      }
-      
-      html += `
-        </div>
-      `;
-      
-      return html;
-    }
-
-    async function displayTradeRumors() {
-      const container = document.getElementById('tradeRumorsContainer');
-      if (!container) return;
-      
-      // Collect all players in the trade
-      const playersInTrade = [];
-      tradeTeams.forEach(team => {
-        if (team.playersOut && team.playersOut.length > 0) {
-          team.playersOut.forEach(p => {
-            // Get full player info including team name
-            const playerInfo = players.find(pl => pl.player === p.player);
-            if (playerInfo) {
-              playersInTrade.push({
-                name: playerInfo.player,
-                team: playerInfo.team
-              });
-            }
-          });
-        }
-      });
-      
-      // If no players in trade, clear container
-      if (playersInTrade.length === 0) {
-        container.innerHTML = '';
-        return;
-      }
-      
-      // Show loading state
-      container.innerHTML = `
-        <div class="rumors-section">
-          <div class="rumors-loading">
-            <div class="spinner">⏳</div>
-            <div>Loading trade rumors…</div>
-          </div>
-        </div>
-      `;
-      
-      try {
-        const rumorsData = await getRumorsForTrade(playersInTrade);
-        container.innerHTML = renderRumorsSection(rumorsData);
-      } catch (error) {
-        console.error('Error displaying rumors:', error);
-        container.innerHTML = '';
-      }
-    }
-
     // Cache configuration
     const CACHE_KEY = 'nba_trade_calculator_data';
     const CACHE_VERSION_KEY = 'nba_trade_calculator_version';
@@ -11518,93 +10966,6 @@
       }
     }
 
-    // Build initial trade from rumors data
-    function buildTradeFromRumors() {
-      if (!initialRumorsData || !initialRumorsData.length || !players.length) {
-        return null;
-      }
-      
-      // Get trade rumors from last 7 days
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const tradeRumors = initialRumorsData.filter(rumor => {
-        const tags = rumor.tags || [];
-        const hasTradeTag = tags.some(t => t.toLowerCase() === 'trade' || t.toLowerCase() === 'trades');
-        if (!hasTradeTag) return false;
-        
-        // Check date
-        const rumorDate = new Date(rumor.archive_date || rumor.date);
-        return rumorDate >= sevenDaysAgo;
-      });
-      
-      if (!tradeRumors.length) return null;
-      
-      // Count player mentions in trade rumors
-      const rumoredPlayers = new Map();
-      
-      tradeRumors.forEach(rumor => {
-        const tags = rumor.tags || [];
-        tags.forEach(tag => {
-          // Check if tag matches a player name
-          const matchedPlayer = players.find(p => 
-            p.player.toLowerCase() === tag.toLowerCase() ||
-            p.player.toLowerCase().includes(tag.toLowerCase()) ||
-            tag.toLowerCase().includes(p.player.split(' ').pop().toLowerCase())
-          );
-          // Only meaningful salary players who can be traded
-          if (matchedPlayer && matchedPlayer.salary > 5000000 && !matchedPlayer.is10Day) {
-            const count = rumoredPlayers.get(matchedPlayer.player) || 0;
-            rumoredPlayers.set(matchedPlayer.player, count + 1);
-          }
-        });
-      });
-      
-      if (rumoredPlayers.size === 0) return null;
-      
-      // Get the most mentioned player (with some randomization among top 15)
-      const sortedPlayers = [...rumoredPlayers.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 15)
-        .map(([name]) => players.find(p => p.player === name))
-        .filter(Boolean);
-      
-      if (sortedPlayers.length === 0) return null;
-      
-      // Pick randomly from top rumored players
-      const rumoredPlayer = sortedPlayers[Math.floor(Math.random() * sortedPlayers.length)];
-      
-      // Pick a random different team
-      const otherTeams = teams.filter(t => t !== rumoredPlayer.team);
-      const randomTeam = otherTeams[Math.floor(Math.random() * otherTeams.length)];
-      
-      if (!randomTeam) return null;
-      
-      // Create trade: rumored player on their team, random opposing team empty
-      const playerOut = { ...rumoredPlayer, destination: 1 };
-      
-      return [
-        { 
-          teamName: rumoredPlayer.team, 
-          playersOut: [playerOut], 
-          playersIn: [], 
-          tpeUsed: null, 
-          picksOut: [], 
-          rightsOut: [], 
-          cashOut: [] 
-        },
-        { 
-          teamName: randomTeam, 
-          playersOut: [], 
-          playersIn: [], 
-          tpeUsed: null, 
-          picksOut: [], 
-          rightsOut: [], 
-          cashOut: [] 
-        }
-      ];
-    }
-
     function processCSVData(results) {
       // DIAGNOSTIC: does the RESTRICTIONS / NOT AGGREGATED data reach the engine?
       try {
@@ -11909,17 +11270,12 @@
         if (urlTrade) {
           tradeTeams = urlTrade;
         } else {
-          // Try to build initial trade from rumors, fall back to weighted random teams
-          const rumorsBasedTrade = buildTradeFromRumors();
-          if (rumorsBasedTrade) {
-            tradeTeams = rumorsBasedTrade;
-          } else {
-            const [team1, team2] = selectTwoWeightedTeams(teams);
-            tradeTeams = [
-              { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
-              { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
-            ];
-          }
+          // No trade in the URL: start on two weighted random teams
+          const [team1, team2] = selectTwoWeightedTeams(teams);
+          tradeTeams = [
+            { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
+            { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
+          ];
         }
       } else {
         // For loop URLs, start with default teams - setupTradeLoopFromUrl will handle the rest
