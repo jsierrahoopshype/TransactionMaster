@@ -3958,6 +3958,7 @@
         const j = await res.json();
         if (!res.ok || !j || !j.url) throw new Error((j && j.error) || 'could not publish');
         lastPublishedId = lastTradeId;
+        sendMachineOpinion(lastTradeId);
         const host = document.getElementById('tmPublish');
         host.innerHTML = '';
         const a = document.createElement('a');
@@ -3983,6 +3984,44 @@
         btn.disabled = false;
         btn.textContent = 'Publishing did not work \u2014 try again';
       }
+    }
+
+    /*
+     * "WHO WINS THE TRADE?" (hoopsmatic-accounts, game build step 6).
+     *
+     * After a successful publish, the meter's score (0 to 100) and the team it
+     * says gains more value go to the game at /who-wins-the-trade/, with the
+     * trade id and this browser's session id, which the game checks ("is this
+     * trade yours?") and drops. The game shows them on its cards as the
+     * Trade Machine's opinion, after a fan picks.
+     *
+     * ADDITIVE ONLY: fire and forget, nothing on this page waits for it or
+     * shows its answer, and any failure is ignored. Sent only for a legal
+     * trade once the trade values have loaded, as the meter itself is shown.
+     */
+    function machineOpinion() {
+      if (!window.__tmLastValid || tradeValueMapLower.size === 0) return null;
+      const b = calculateTradeBalance(tradeTeams);
+      if (!b || !Array.isArray(b.details) || typeof b.percentage !== 'number') return null;
+      // The team that gains the most: the highest value in for value out.
+      let lean = null, best = -1;
+      b.details.forEach(function (t) {
+        const r = t.out > 0 ? t.in / t.out : (t.in > 0 ? Infinity : 0);
+        if (r > best) { best = r; lean = t.teamName; }
+      });
+      return { score: Math.max(0, Math.min(100, Math.round(b.percentage))), lean: lean };
+    }
+
+    function sendMachineOpinion(tradeId) {
+      try {
+        const m = tradeId ? machineOpinion() : null;
+        if (!m) return;
+        fetch('/who-wins-the-trade/api/machine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trade: tradeId, tm: marketSession(), score: m.score, lean: m.lean }),
+        }).catch(function () {});
+      } catch (e) { /* never let the game break publishing */ }
     }
 
     /*
