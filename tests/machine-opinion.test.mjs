@@ -56,7 +56,8 @@ function page({ valid = true, values = 1, balance = { percentage: 71, details: [
     },
   };
   vm.createContext(ctx);
-  vm.runInContext('var lastTradeId = "t1"; var lastPublishedId = null;\n' + cut('machineOpinion') + cut('sendMachineOpinion') + cut('doPublish'), ctx);
+  // showGameVerdict (step 10) has its own test; here it's a no-op.
+  vm.runInContext('var lastTradeId = "t1"; var lastPublishedId = null; function showGameVerdict() {}\n' + cut('machineOpinion') + cut('sendMachineOpinion') + cut('doPublish'), ctx);
   return { ctx, calls, host };
 }
 
@@ -107,7 +108,7 @@ const tick = () => new Promise((r) => setTimeout(r, 10));
 // Additive only: against main, the page gains lines and loses none.
 try {
   const base = execFileSync('git', ['show', 'origin/main:index.html'], { maxBuffer: 1 << 26 }).toString();
-  if (!base.includes('sendMachineOpinion')) {
+  if (base !== html) {
     const before = base.split('\n'), after = html.split('\n');
     let i = 0;
     for (const line of after) if (i < before.length && line === before[i]) i++;

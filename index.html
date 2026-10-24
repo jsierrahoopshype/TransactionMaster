@@ -3979,6 +3979,7 @@
         });
         host.appendChild(a);
         host.appendChild(copy);
+        showGameVerdict(lastPublishedId, host);
       } catch (e) {
         // Say what happened, in the interface's voice, and let them retry.
         btn.disabled = false;
@@ -4021,6 +4022,41 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ trade: tradeId, tm: marketSession(), score: m.score, lean: m.lean }),
         }).catch(function () {});
+      } catch (e) { /* never let the game break publishing */ }
+    }
+
+    /*
+     * "WHO WINS THE TRADE?" (hoopsmatic-accounts, game build step 10).
+     *
+     * After a successful publish, ask the game about this trade and show its
+     * one-line answer under the publish link: the fans' verdict on it (or on
+     * a near-identical trade), or that it's now in the game. The call has no
+     * personal data in it, and it also puts the trade in the game's deck.
+     *
+     * ADDITIVE ONLY: when the game has nothing to say (a trade it can't deal,
+     * or before the game launches) or doesn't answer, nothing is added and
+     * the page looks exactly as before. Text goes in with textContent.
+     */
+    function showGameVerdict(tradeId, host) {
+      try {
+        if (!tradeId || !host) return;
+        fetch('/who-wins-the-trade/api/builder?trade=' + encodeURIComponent(tradeId))
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (!j || typeof j.message !== 'string' || !j.message) return;
+            const p = document.createElement('p');
+            p.className = 'tm-game-verdict';
+            p.style.margin = '.5rem 0 0';
+            p.style.fontSize = '.9rem';
+            p.appendChild(document.createTextNode(j.message + ' '));
+            if (j.link === 'https://hoopsmatic.com/who-wins-the-trade/') {
+              const a = document.createElement('a');
+              a.href = j.link;
+              a.textContent = 'Who wins the trade?';
+              p.appendChild(a);
+            }
+            host.appendChild(p);
+          }).catch(function () {});
       } catch (e) { /* never let the game break publishing */ }
     }
 
