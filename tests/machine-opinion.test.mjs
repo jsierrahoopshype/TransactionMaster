@@ -57,7 +57,7 @@ function page({ valid = true, values = 1, balance = { percentage: 71, details: [
   };
   vm.createContext(ctx);
   // showGameVerdict (step 10) has its own test; here it's a no-op.
-  vm.runInContext('var lastTradeId = "t1"; var lastPublishedId = null; function showGameVerdict() {}\n' + cut('machineOpinion') + cut('sendMachineOpinion') + cut('doPublish'), ctx);
+  vm.runInContext('var lastTradeId = "t1"; var lastPublishedId = null; function showGameVerdict() {} function showAddToProfile() {}\n' + cut('machineOpinion') + cut('sendMachineOpinion') + cut('doPublish'), ctx);
   return { ctx, calls, host };
 }
 

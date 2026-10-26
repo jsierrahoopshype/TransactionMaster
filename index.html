@@ -3980,6 +3980,7 @@
         host.appendChild(a);
         host.appendChild(copy);
         showGameVerdict(lastPublishedId, host);
+        showAddToProfile(lastPublishedId, host);
       } catch (e) {
         // Say what happened, in the interface's voice, and let them retry.
         btn.disabled = false;
@@ -4058,6 +4059,78 @@
             host.appendChild(p);
           }).catch(function () {});
       } catch (e) { /* never let the game break publishing */ }
+    }
+
+    /*
+     * HOOPSMATIC PROFILES (hoopsmatic-accounts, profiles build step 14).
+     *
+     * After a successful publish, ask /profile/api/me whether this browser
+     * has a HoopsMatic profile. Only if it does, show "Add to my profile":
+     * it sends the trade id and this browser's session id to
+     * /profile/api/trades, where the profiles Worker asks this Worker "did
+     * this session build the trade?", links it to the profile and drops the
+     * session id. The answer from /profile/api/me stays on this page; nothing
+     * about the profile is sent anywhere else.
+     *
+     * ADDITIVE ONLY: without a profile, or when the profiles Worker doesn't
+     * answer, nothing is added and the page looks exactly as before.
+     * Messages go in with textContent.
+     */
+    function showAddToProfile(tradeId, host) {
+      try {
+        if (!tradeId || !host) return;
+        fetch('/profile/api/me')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (me) {
+            if (!me || me.profile !== true) return;
+            const p = document.createElement('p');
+            p.className = 'tm-add-profile';
+            p.style.margin = '.5rem 0 0';
+            p.style.fontSize = '.9rem';
+            p.style.whiteSpace = 'normal';
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = 'Add to my profile';
+            const note = document.createElement('span');
+            note.style.marginLeft = '.5rem';
+            b.addEventListener('click', function () {
+              b.disabled = true;
+              note.textContent = '';
+              fetch('/profile/api/trades', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trade: tradeId, tm: marketSession() }),
+              })
+                .then(function (r) {
+                  return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: r.ok, status: r.status, j: null }; });
+                })
+                .then(function (x) {
+                  const msg = x.j && typeof x.j.message === 'string' ? x.j.message : '';
+                  if (x.ok || x.status === 409) {
+                    // Added, or already there: either way it's on the profile.
+                    b.style.display = 'none';
+                    note.style.marginLeft = '0';
+                    note.textContent = (msg || 'Added to your profile.') + ' ';
+                    const a = document.createElement('a');
+                    a.href = '/profile/';
+                    a.textContent = 'View your profile';
+                    note.appendChild(a);
+                  } else {
+                    // Refused (not this browser's trade, not published): say why.
+                    b.disabled = x.status >= 500 || x.status === 429 ? false : true;
+                    note.textContent = msg || 'Adding did not work. Try again.';
+                  }
+                })
+                .catch(function () {
+                  b.disabled = false;
+                  note.textContent = 'Adding did not work. Try again.';
+                });
+            });
+            p.appendChild(b);
+            p.appendChild(note);
+            host.appendChild(p);
+          }).catch(function () {});
+      } catch (e) { /* never let profiles break publishing */ }
     }
 
     /*

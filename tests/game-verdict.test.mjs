@@ -42,7 +42,7 @@ function page(answer) {
     },
   };
   vm.createContext(ctx);
-  vm.runInContext('var lastTradeId = "t1"; var lastPublishedId = null; function sendMachineOpinion() {}\n' + cut('showGameVerdict') + cut('doPublish'), ctx);
+  vm.runInContext('var lastTradeId = "t1"; var lastPublishedId = null; function sendMachineOpinion() {} function showAddToProfile() {}\n' + cut('showGameVerdict') + cut('doPublish'), ctx);
   return { ctx, calls, host };
 }
 const btn = () => ({ disabled: false, textContent: 'Publish this trade' });
