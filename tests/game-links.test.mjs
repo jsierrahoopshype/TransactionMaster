@@ -140,6 +140,14 @@ try {
   ok('no counts, percentages only', !/\b(20|14|6)\b/.test(await page.js(q('#tmFansVerdict'))));
   ok('no sideways scroll at 375px', await page.js('document.documentElement.scrollWidth <= innerWidth'));
 
+  // Several renders before the answer (the live page does this): one box only.
+  await page.js('document.getElementById("tmFansVerdict").remove(), true');
+  const quick = JSON.parse(json(TRADE)); quick[1].playersOut[0].playerId = '9700050';
+  await page.js('window.__set(' + json(quick) + '), showFansVerdict(true), showFansVerdict(true), showFansVerdict(true), true');
+  await page.waitFor(q('#tmFansVerdict .fv-line') + ' !== undefined', 'the verdict');
+  await settle();
+  ok('three renders before the answer: still exactly one verdict box', await page.js('document.querySelectorAll("#tmFansVerdict, .tm-fans-verdict").length') === 1);
+
   // Too close to call.
   state.exact = { ...VERDICT, verdict: { winner: null, teams: [{ team: 'BOS', pct: 48, href: '/trade-market/team/boston/' }, { team: 'LAL', pct: 52, href: '/trade-market/team/la-lakers/' }] } };
   const close = JSON.parse(json(TRADE)); close[1].playersOut[0].playerId = '9700099';

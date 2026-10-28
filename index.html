@@ -2416,6 +2416,7 @@
     .tm-fans-verdict { margin: .5rem 0 .75rem; padding: .625rem 1rem; border: 1px solid var(--border); border-radius: 6px;
       background: var(--surface); font-size: .875rem; display: flex; flex-wrap: wrap; gap: .25rem 1rem; align-items: baseline; }
     .tm-fans-verdict[hidden] { display: none; }
+    #tmPublish .tm-game-verdict { white-space: normal; }
     .tm-fans-verdict .fv-line { font-weight: 600; color: var(--text); }
     .tm-fans-verdict .fv-team { color: var(--accent); }
     .tm-fans-verdict .fv-game { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
@@ -4266,9 +4267,13 @@
         const draw = function (j) {
           if (fansVerdictKey !== key) return;
           if (!j || !j.verdict || !Array.isArray(j.verdict.teams) || j.verdict.teams.length !== 2) {
+            box = document.getElementById('tmFansVerdict') || box;
             if (box) box.hidden = true;
             return;
           }
+          // Several renders can be waiting on answers at once: always reuse
+          // the one box, never add a second.
+          box = document.getElementById('tmFansVerdict') || box;
           if (!box) {
             box = document.createElement('div');
             box.id = 'tmFansVerdict';
