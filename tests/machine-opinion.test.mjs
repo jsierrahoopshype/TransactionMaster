@@ -106,13 +106,34 @@ const tick = () => new Promise((r) => setTimeout(r, 10));
 }
 
 // Additive only: against main, the page gains lines and loses none.
+// One named exception (Jorge, October 28, 2026): showAddToProfile, whose
+// one-off "Add to my profile" button he asked to replace with the opt-in
+// "Always add my published trades to my profile". Lines inside that one
+// function (and its comment) on main may change; anything else may not.
+const REPLACEABLE = ['showAddToProfile'];
+function replaceableLines(lines) {
+  const out = new Set();
+  for (const name of REPLACEABLE) {
+    const start = lines.findIndex((l) => l === '    function ' + name + '(tradeId, host) {');
+    if (start < 0) continue;
+    let from = start;
+    while (from > 0 && lines[from - 1].trim() !== '' && /^\s*(\/\*|\*)/.test(lines[from - 1])) from--;
+    let to = start;
+    while (to < lines.length && lines[to] !== '    }') to++;
+    for (let k = from; k <= to; k++) out.add(k);
+  }
+  return out;
+}
 try {
   const base = execFileSync('git', ['show', 'origin/main:index.html'], { maxBuffer: 1 << 26 }).toString();
   if (base !== html) {
     const before = base.split('\n'), after = html.split('\n');
-    let i = 0;
-    for (const line of after) if (i < before.length && line === before[i]) i++;
-    ok('index.html only gains lines compared with main (nothing removed or changed)', i === before.length, { matched: i, of: before.length });
+    const skip = replaceableLines(before);
+    // Every line of main outside the named function must still be there, in order.
+    const kept = before.filter((l, k) => !skip.has(k));
+    let j = 0;
+    for (const line of after) if (j < kept.length && line === kept[j]) j++;
+    ok('index.html only gains lines compared with main (nothing removed or changed outside showAddToProfile)', j === kept.length, { matched: j, of: kept.length });
   } else {
     console.log('SKIP  additive check: main already has this change');
   }
