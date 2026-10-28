@@ -2412,6 +2412,53 @@
     .cap-hold-advisory { margin-top: 0.5rem; padding: 0.5rem 0.6rem; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 6px; font-size: 0.72rem; color: #8b5cf6; }
     .cap-hold-advisory strong { font-weight: 700; }
 
+    /* "Who wins the trade?" and profiles in the Trade Machine (additive). */
+    .tm-fans-verdict { margin: .5rem 0 .75rem; padding: .625rem 1rem; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface); font-size: .875rem; display: flex; flex-wrap: wrap; gap: .25rem 1rem; align-items: baseline; }
+    .tm-fans-verdict[hidden] { display: none; }
+    .tm-fans-verdict .fv-line { font-weight: 600; color: var(--text); }
+    .tm-fans-verdict .fv-team { color: var(--accent); }
+    .tm-fans-verdict .fv-game { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .tm-fans-verdict .fv-game:hover { text-decoration: underline; }
+    .tm-tabs:has(.tm-profile-chip) { flex-wrap: wrap; align-items: center; }
+    .tm-tabs a.tm-profile-chip { display: inline-flex; flex-direction: column; justify-content: center; min-height: 36px; padding: .25rem .875rem;
+      border-radius: 999px; background: var(--surface); border: 1px solid var(--border); text-decoration: none; color: var(--text);
+      font-size: .8125rem; line-height: 1.25; max-width: 100%; }
+    .tm-tabs a.tm-profile-chip:hover { border-color: var(--accent); background: var(--surface); }
+    .tm-profile-chip .pc-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tm-profile-chip .pc-news { color: var(--accent); font-weight: 600; }
+    .tm-game-line { margin: -.25rem 0 0; font-size: .8125rem; color: var(--text-secondary); }
+    .tm-game-open { background: none; border: 0; padding: .25rem 0; font: inherit; font-weight: 600; color: var(--accent); cursor: pointer; }
+    .tm-game-open:hover { text-decoration: underline; }
+    .tm-picker { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+    .tm-picker-sheet { background: var(--surface); width: 100%; max-height: 85vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 1rem 1rem 1.5rem; }
+    @media (min-width: 700px) {
+      .tm-picker { align-items: center; padding: 2rem; }
+      .tm-picker-sheet { max-width: 640px; border-radius: 16px; }
+    }
+    .tp-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
+    .tp-head h2 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -.01em; }
+    .tp-close { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
+      font-size: 1.375rem; line-height: 1; cursor: pointer; color: var(--text); }
+    .tp-list { list-style: none; display: flex; flex-direction: column; gap: .75rem; }
+    .tp-trade { border: 1px solid var(--border); border-radius: 12px; padding: .75rem; display: flex; flex-direction: column; gap: .625rem; }
+    .tp-sides { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .tp-side { min-width: 0; display: flex; flex-direction: column; gap: .375rem; }
+    .tp-side + .tp-side { border-left: 1px solid var(--border); padding-left: .75rem; }
+    .tp-team { display: flex; align-items: center; gap: .375rem; font-size: .8125rem; color: var(--text-secondary); }
+    .tp-logo { width: 24px; height: 24px; object-fit: contain; }
+    .tp-abbr { font-weight: 700; color: var(--text); text-decoration: none; }
+    .tp-player { display: flex; align-items: center; gap: .5rem; min-width: 0; font-size: .8125rem; }
+    .tp-face { position: relative; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--bg);
+      display: inline-flex; align-items: center; justify-content: center; font-size: .6875rem; font-weight: 700; color: var(--text-secondary); }
+    .tp-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .tp-name { color: var(--text); font-weight: 600; text-decoration: none; line-height: 1.25; }
+    .tp-abbr:hover, .tp-name:hover { color: var(--accent); }
+    .tp-more { font-size: .75rem; color: var(--text-secondary); }
+    .tp-load { align-self: stretch; min-height: 44px; border-radius: 10px; border: 0; background: var(--accent); color: #fff;
+      font: inherit; font-weight: 600; cursor: pointer; }
+    .tp-load:hover { filter: brightness(1.08); }
+    body.rm-mode .tm-profile-chip, body.rm-mode .tm-game-line, body.rm-mode .tm-fans-verdict { display: none !important; }
 </style>
 </head>
 <body>
@@ -4131,6 +4178,310 @@
             host.appendChild(p);
           }).catch(function () {});
       } catch (e) { /* never let profiles break publishing */ }
+    }
+
+    /*
+     * "WHO WINS THE TRADE?" AND PROFILES IN THE TRADE MACHINE (Jorge,
+     * October 28, 2026; hoopsmatic-accounts serves every address used here).
+     *
+     *  - Fans' verdict: when the trade on screen is EXACTLY a trade fans
+     *    already judged in the game (same two teams, the same players and
+     *    picks going each way, nothing more or less) and 20 or more fans have
+     *    picked, one line under the Trade Balance meter: "Fans' verdict: BOS
+     *    wins, 71% to 29%", with a link to that trade in the game. Asked by
+     *    the trade's exact key (exactTradeKey), never near matches.
+     *  - Profile chip in the header, only for a browser with a HoopsMatic
+     *    profile: its display name, plus "2 of your trades got verdicts"
+     *    when fans judged more of its published trades since this browser
+     *    last looked (a single count kept in local storage,
+     *    hm_tm_verdicts_seen). Tapping it opens the profile.
+     *  - "Fans are judging 10 trades today: load one" under the Trade Loop /
+     *    Generate Image / Reset Trade buttons: a picker with today's game
+     *    deck; choosing one opens that exact trade here, from its own Trade
+     *    Machine address.
+     *
+     * ADDITIVE ONLY: nothing that was on the page changes. Every call is
+     * fire and forget; when the game or profiles don't answer, nothing new
+     * appears. Not in Roster Manager mode. Text goes in with textContent,
+     * links only to hoopsmatic.com's own pages.
+     */
+    const GAME_IMG = /^\/who-wins-the-trade\/img\/(face|logo)\/[a-z0-9-]+\.(webp|svg)$/;
+    const SAME_SITE_PAGE = /^\/(trade-market|who-wins-the-trade)\/[A-Za-z0-9\/?=%._-]*$/;
+
+    // The trade on screen as the game writes it (hoopsmatic-accounts,
+    // src/wwtt/exact.js): "<team>-<team>|<player id>><team getting him>,...|
+    // <pick owner>:<year>:<round>[s]><team getting it>,...", teams sorted,
+    // lists sorted. null when it can't be matched exactly: not two teams, a
+    // player without an id, draft rights, cash or a sign-and-trade.
+    function exactTradeKey() {
+      if (!Array.isArray(tradeTeams) || tradeTeams.length !== 2) return null;
+      const ab = tradeTeams.map(function (t) { return teamAbbreviations[t.teamName] || null; });
+      if (!ab[0] || !ab[1] || ab[0] === ab[1]) return null;
+      const pk = [], kk = [];
+      for (let i = 0; i < 2; i++) {
+        const t = tradeTeams[i];
+        if ((t.rightsOut || []).length || (t.cashOut || []).length) return null;
+        for (const p of (t.playersOut || [])) {
+          if (p.isSignAndTrade || !/^\d+$/.test(String(p.playerId || ''))) return null;
+          const d = typeof p.destination === 'number' ? p.destination : 1 - i;
+          if (d !== 1 - i) return null;
+          pk.push(p.playerId + '>' + ab[d]);
+        }
+        for (const k of (t.picksOut || [])) {
+          const owner = teamAbbreviations[k.team];
+          const round = k.round === '1st' ? 1 : (k.round === '2nd' ? 2 : null);
+          if (!owner || !round || !/^\d{4}$/.test(String(k.year))) return null;
+          const d = typeof k.destination === 'number' ? k.destination : 1 - i;
+          if (d !== 1 - i) return null;
+          kk.push(owner + ':' + k.year + ':' + round + (k.isSwap ? 's' : '') + '>' + ab[d]);
+        }
+      }
+      if (!pk.length && !kk.length) return null;
+      return ab.slice().sort().join('-') + '|' + pk.sort().join(',') + '|' + kk.sort().join(',');
+    }
+
+    // A link to one of hoopsmatic.com's own pages, or plain text.
+    function siteLink(href, text, cls) {
+      const ok = typeof href === 'string' && SAME_SITE_PAGE.test(href);
+      const n = document.createElement(ok ? 'a' : 'span');
+      if (ok) n.href = href;
+      if (cls) n.className = cls;
+      n.textContent = text;
+      return n;
+    }
+
+    const FANS_VERDICT_CACHE = new Map();
+    let fansVerdictKey = null;
+
+    // Called after every render, with whether the trade on screen is legal.
+    function showFansVerdict(isLegal) {
+      try {
+        if (IS_RM_MODE) return;
+        const meter = document.getElementById('realisticMeter');
+        if (!meter) return;
+        let box = document.getElementById('tmFansVerdict');
+        const key = isLegal ? exactTradeKey() : null;
+        fansVerdictKey = key;
+        if (!key) { if (box) box.hidden = true; return; }
+        const draw = function (j) {
+          if (fansVerdictKey !== key) return;
+          if (!j || !j.verdict || !Array.isArray(j.verdict.teams) || j.verdict.teams.length !== 2) {
+            if (box) box.hidden = true;
+            return;
+          }
+          if (!box) {
+            box = document.createElement('div');
+            box.id = 'tmFansVerdict';
+            box.className = 'tm-fans-verdict';
+            meter.parentNode.insertBefore(box, meter.nextSibling);
+          }
+          box.textContent = '';
+          const v = j.verdict;
+          const top = v.teams[0].pct >= v.teams[1].pct ? v.teams[0] : v.teams[1];
+          const low = top === v.teams[0] ? v.teams[1] : v.teams[0];
+          const line = document.createElement('span');
+          line.className = 'fv-line';
+          line.appendChild(document.createTextNode("Fans' verdict: "));
+          if (v.winner) {
+            const w = top.team === v.winner ? top : low;
+            line.appendChild(siteLink(w.href, w.team, 'fv-team'));
+            line.appendChild(document.createTextNode(' wins, ' + top.pct + '% to ' + low.pct + '%'));
+          } else {
+            line.appendChild(document.createTextNode('too close to call, ' + top.pct + '% to ' + low.pct + '%'));
+          }
+          box.appendChild(line);
+          if (typeof j.link === 'string' && /^\/who-wins-the-trade\/\?t=[A-Za-z0-9%._:-]+$/.test(j.link)) {
+            const a = document.createElement('a');
+            a.className = 'fv-game';
+            a.href = j.link;
+            a.textContent = 'See it in Who wins the trade? →';
+            box.appendChild(a);
+          }
+          box.hidden = false;
+        };
+        if (FANS_VERDICT_CACHE.has(key)) { draw(FANS_VERDICT_CACHE.get(key)); return; }
+        if (box) box.hidden = true;
+        fetch('/who-wins-the-trade/api/exact?key=' + encodeURIComponent(key))
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { FANS_VERDICT_CACHE.set(key, j); draw(j); })
+          .catch(function () {});
+      } catch (e) { /* never let the game break the builder */ }
+    }
+
+    // The profile chip (header) and "Fans are judging N trades today".
+    function initGameLinks() {
+      if (IS_RM_MODE) return;
+      try { showProfileChip(); } catch (e) {}
+      try { showTodaysTrades(); } catch (e) {}
+    }
+
+    function showProfileChip() {
+      fetch('/profile/api/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (me) {
+          if (!me || me.profile !== true) return null;
+          const nav = document.querySelector('header .tm-tabs');
+          if (!nav) return null;
+          const chip = document.createElement('a');
+          chip.className = 'tm-profile-chip';
+          chip.id = 'tmProfileChip';
+          chip.href = '/profile/';
+          const nm = document.createElement('span');
+          nm.className = 'pc-name';
+          nm.textContent = typeof me.name === 'string' && me.name ? me.name : 'Your profile';
+          chip.appendChild(nm);
+          // At the end of the two tabs, so they stay where they are.
+          nav.appendChild(chip);
+          // News since this browser last looked: fans judged more of this
+          // profile's published trades than the count it saw then.
+          return fetch('/profile/api/trades', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (t) {
+              if (!t || t.profile !== true || !Number.isInteger(t.judged)) return;
+              let seen = null;
+              try { const s = localStorage.getItem('hm_tm_verdicts_seen'); seen = s === null ? null : Number(s); } catch (e) {}
+              const news = Number.isInteger(seen) ? t.judged - seen : t.judged;
+              if (news > 0) {
+                const n = document.createElement('span');
+                n.className = 'pc-news';
+                n.textContent = news === 1 ? '1 of your trades got a verdict' : news + ' of your trades got verdicts';
+                chip.appendChild(n);
+              }
+              try { localStorage.setItem('hm_tm_verdicts_seen', String(t.judged)); } catch (e) {}
+            });
+        }).catch(function () {});
+    }
+
+    function gameImg(src, cls, alt) {
+      if (typeof src !== 'string' || !GAME_IMG.test(src)) return null;
+      const i = document.createElement('img');
+      i.src = src;
+      i.alt = alt || '';
+      i.className = cls;
+      i.loading = 'lazy';
+      i.addEventListener('error', function () { i.remove(); });
+      return i;
+    }
+
+    function showTodaysTrades() {
+      const loop = document.getElementById('loopTradeBtn');
+      const row = loop && loop.parentNode;
+      if (!row) return;
+      fetch('/who-wins-the-trade/api/stack', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          const trades = (j && Array.isArray(j.trades) ? j.trades : []).filter(function (t) {
+            return t && t.a && t.b && typeof t.fix === 'string' && t.fix.length > 1;
+          });
+          if (!trades.length) return;
+          const p = document.createElement('p');
+          p.className = 'tm-game-line';
+          p.id = 'tmGameLine';
+          p.appendChild(document.createTextNode('Fans are judging ' + trades.length + (trades.length === 1 ? ' trade' : ' trades') + ' today: '));
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'tm-game-open';
+          b.textContent = 'load one →';
+          b.setAttribute('aria-haspopup', 'dialog');
+          b.addEventListener('click', function () { openTradePicker(trades, b); });
+          p.appendChild(b);
+          row.parentNode.insertBefore(p, row.nextSibling);
+        }).catch(function () {});
+    }
+
+    // One side of a trade in the picker: logo and team, then its two biggest
+    // names with faces, then how many more things it gets.
+    function pickerSide(side) {
+      const d = document.createElement('div');
+      d.className = 'tp-side';
+      const head = document.createElement('p');
+      head.className = 'tp-team';
+      const logo = gameImg(side.logo, 'tp-logo', '');
+      if (logo) head.appendChild(logo);
+      head.appendChild(siteLink(side.href, side.team, 'tp-abbr'));
+      head.appendChild(document.createTextNode(' gets'));
+      d.appendChild(head);
+      const gets = (side.gets || []).slice().sort(function (x, y) { return (y.salary || 0) - (x.salary || 0); });
+      gets.slice(0, 2).forEach(function (pl) {
+        const r = document.createElement('p');
+        r.className = 'tp-player';
+        const face = document.createElement('span');
+        face.className = 'tp-face';
+        face.textContent = String(pl.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('');
+        const img = gameImg(pl.img, '', '');
+        if (img) face.appendChild(img);
+        r.appendChild(face);
+        r.appendChild(siteLink(pl.href, String(pl.name || ''), 'tp-name'));
+        d.appendChild(r);
+      });
+      const more = Math.max(0, gets.length - 2) + (side.picks || []).length;
+      if (more) {
+        const m = document.createElement('p');
+        m.className = 'tp-more';
+        m.textContent = '+ ' + more + ' more';
+        d.appendChild(m);
+      }
+      return d;
+    }
+
+    function openTradePicker(trades, opener) {
+      const old = document.getElementById('tmTradePicker');
+      if (old) old.remove();
+      const wrap = document.createElement('div');
+      wrap.className = 'tm-picker';
+      wrap.id = 'tmTradePicker';
+      const sheet = document.createElement('div');
+      sheet.className = 'tm-picker-sheet';
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+      sheet.setAttribute('aria-labelledby', 'tmPickerTitle');
+      const head = document.createElement('div');
+      head.className = 'tp-head';
+      const h = document.createElement('h2');
+      h.id = 'tmPickerTitle';
+      h.textContent = "Today's trades in Who wins the trade?";
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'tp-close';
+      x.setAttribute('aria-label', 'Close');
+      x.textContent = '×';
+      head.appendChild(h);
+      head.appendChild(x);
+      sheet.appendChild(head);
+      const list = document.createElement('ul');
+      list.className = 'tp-list';
+      trades.forEach(function (t) {
+        const li = document.createElement('li');
+        li.className = 'tp-trade';
+        const sides = document.createElement('div');
+        sides.className = 'tp-sides';
+        sides.appendChild(pickerSide(t.a));
+        sides.appendChild(pickerSide(t.b));
+        li.appendChild(sides);
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'tp-load';
+        go.textContent = 'Load this trade';
+        go.setAttribute('data-trade', String(t.id || ''));
+        // The trade's own Trade Machine address replaces the teams on
+        // screen, players and picks included.
+        go.addEventListener('click', function () { location.assign('/?' + t.fix.replace(/^\?/, '')); });
+        li.appendChild(go);
+        list.appendChild(li);
+      });
+      sheet.appendChild(list);
+      wrap.appendChild(sheet);
+      const close = function () {
+        wrap.remove();
+        document.removeEventListener('keydown', onKey);
+        if (opener) opener.focus();
+      };
+      const onKey = function (e) { if (e.key === 'Escape') close(); };
+      x.addEventListener('click', close);
+      wrap.addEventListener('click', function (e) { if (e.target === wrap) close(); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(wrap);
+      x.focus();
     }
 
     /*
@@ -6763,6 +7114,7 @@
       // Update the realistic meter (only for legal trades)
       const isLegalTrade = validation.valid || validation.type?.startsWith('pending');
       updateRealisticMeter(isLegalTrade);
+      showFansVerdict(!!validation.valid);
       
       // Update Roster Manager send button if in RM mode
       if (IS_RM_MODE) {
@@ -11437,6 +11789,7 @@
       redistributePlayers();
       loadingState.style.display = 'none';
       render();
+      initGameLinks();
       
       // Signal to RM that TM is ready to receive picks
       if (IS_RM_MODE && window.parent && window.parent !== window) {
