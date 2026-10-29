@@ -2459,6 +2459,9 @@
     .tm-side #tmPublish > p > span { white-space: normal; }
     .tm-side #tmPublish > button:not([disabled]) { cursor: pointer; }
     .tm-challenge { margin: .5rem 0 0; font-size: .9rem; white-space: normal; }
+    /* With "Challenge" there are four pills: words stay whole and a pill that doesn't fit goes to a second row. */
+    header .tm-tabs:has(#tmChallengePill) { flex-wrap: wrap; row-gap: .25rem; }
+    header .tm-tabs:has(#tmChallengePill) a { white-space: nowrap; }
     .tm-trade-fans { margin: .375rem 0 0; font-size: .75rem; line-height: 1.35; color: var(--text-secondary); white-space: normal; }
     .tm-trade-fans b { color: var(--text); }
     .tm-challenge button { font: inherit; font-weight: 600; color: var(--accent, #0a84ff); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
