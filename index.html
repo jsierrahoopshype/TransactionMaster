@@ -2442,6 +2442,8 @@
     .tm-side-top { display: flex; flex-direction: column; gap: .5rem; }
     .tm-side .realistic-meter { margin-top: 0; }
     .tm-side .mkt-panel { flex: none; margin: 0; width: 100%; }
+    /* In the column the Trade Market cards show at every width: on a phone the column stacks below the builder. */
+    @media (max-width: 1199px) { .tm-side .mkt-panel { display: block; } }
     /* The fans' verdict: one line under the meter. */
     .tm-fans-verdict { margin: 0; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 6px;
       background: var(--surface); font-size: .875rem; font-weight: 600; color: var(--text); }
@@ -2462,12 +2464,12 @@
     /* With "Challenge" there are four pills: words stay whole and a pill that doesn't fit goes to a second row. */
     header .tm-tabs:has(#tmChallengePill) { flex-wrap: wrap; row-gap: .25rem; }
     header .tm-tabs:has(#tmChallengePill) a { white-space: nowrap; }
-    .tm-trade-fans { margin: .375rem 0 0; font-size: .75rem; line-height: 1.35; color: var(--text-secondary); white-space: normal; }
-    .tm-trade-fans b { color: var(--text); }
     .tm-challenge button { font: inherit; font-weight: 600; color: var(--accent, #0a84ff); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
     .tm-challenge button[disabled] { opacity: .6; cursor: default; }
     /* "Fans are judging today": today's game deck, vertical. */
-    .tm-fans-today { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem; scroll-margin-top: 1rem; }
+    .tm-fans-today { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem; scroll-margin-top: var(--tm-side-top, 1rem); margin: 1rem 0; max-width: 760px; }
+    /* The header is pinned only on wide screens; on a phone the list goes to the top. */
+    @media (max-width: 1199px) { .tm-fans-today { scroll-margin-top: 1rem; } }
     .tm-fans-today h2 { font-size: .9375rem; font-weight: 700; margin: 0 0 .5rem; }
     .ft-list { list-style: none; display: flex; flex-direction: column; margin: 0; padding: 0; }
     .ft-trade { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; border-top: 1px solid var(--border); }
@@ -4320,7 +4322,7 @@
         side = document.createElement('aside');
         side.className = 'tm-side';
         side.id = 'tmSide';
-        side.setAttribute('aria-label', 'Trade Balance, publishing and fans’ trades');
+        side.setAttribute('aria-label', 'Trade Balance, publishing and the Trade Market');
         const top = document.createElement('div');
         top.className = 'tm-side-top';
         top.id = 'tmSideTop';
@@ -4365,6 +4367,8 @@
         if (cs && cs.position === 'sticky') top = Math.round((parseFloat(cs.top) || 0) + h.getBoundingClientRect().height) + 12;
       } catch (e) { /* the default */ }
       side.style.setProperty('--tm-side-top', top + 'px');
+      // The same offset for "Fans’ trades" jumping to the list below the builder.
+      document.documentElement.style.setProperty('--tm-side-top', top + 'px');
     }
 
     // --- The fans' verdict, under the meter --------------------------------
@@ -4459,37 +4463,8 @@
           if (!j || !j.players || typeof j.players !== 'object') return;
           FANS_VALUES = j.players;
           addFansValues();
-          addTradeFansValues();
           watchFansValues();
         }).catch(function () {});
-    }
-    // The same line under each player the trade sends (Jorge, October 29,
-    // 2026: the panel is hidden below 1200px, so it shows in the trade
-    // itself at every width). Each outgoing chip's remove button names its
-    // team and player; one line per chip, put back when a redraw drops it.
-    function addTradeFansValues() {
-      if (!FANS_VALUES || !Array.isArray(tradeTeams)) return;
-      const seen = {};
-      document.querySelectorAll('#tradeContainer button.player-chip-remove[data-team][data-player]:not(.cash-remove)').forEach(function (btn) {
-        const chip = btn.closest('.player-chip');
-        const team = tradeTeams[Number(btn.getAttribute('data-team'))];
-        const pl = team && team.playersOut && team.playersOut[Number(btn.getAttribute('data-player'))];
-        if (!chip || !pl) return;
-        const id = String(pl.playerId || '');
-        const old = chip.querySelector('.tm-trade-fans');
-        if (old && old.getAttribute('data-pid') === id && !seen[id]) { seen[id] = 1; return; }
-        if (old) old.remove();
-        const html = id && !seen[id] ? fansValueHtml(id) : '';
-        if (!html) return;
-        seen[id] = 1;
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        const line = tmp.firstChild;
-        line.className = 'tm-trade-fans';
-        line.setAttribute('data-pid', id);
-        const row = chip.querySelector('.player-chip-row');
-        chip.insertBefore(line, row ? row.nextSibling : chip.firstChild);
-      });
     }
     // Every card in the panel without the line gets it, once. On the live
     // site hoopsmatic-worker swaps in its own panelCard and redraws each card
@@ -4520,7 +4495,7 @@
       fansWatch = new MutationObserver(function () {
         if (queued) return;
         queued = true;
-        setTimeout(function () { queued = false; try { addFansValues(); } catch (e) {} try { addTradeFansValues(); } catch (e) {} }, 0);
+        setTimeout(function () { queued = false; try { addFansValues(); } catch (e) {} }, 0);
       });
       fansWatch.observe(document.getElementById('tmWork') || document.body, { childList: true, subtree: true });
     }
@@ -4688,7 +4663,13 @@
             list.appendChild(li);
           });
           sec.appendChild(list);
-          side.insertBefore(sec, document.getElementById('tmSideMarket'));
+          // Below the builder, above the Badge Glossary (Jorge, October 29,
+          // 2026); the column keeps the meter, publishing and the market.
+          const gloss = document.querySelector('.glossary-section');
+          const work = document.getElementById('tmWork');
+          if (gloss && gloss.parentNode) gloss.parentNode.insertBefore(sec, gloss);
+          else if (work && work.parentNode) work.parentNode.insertBefore(sec, work.nextSibling);
+          else side.appendChild(sec);
         }).catch(function () {});
     }
 
