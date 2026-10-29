@@ -2458,6 +2458,9 @@
     .tm-side #tmPublish:has(> a[href^="/trade/"]) > *::before { content: "\00b7"; margin: 0 .375rem; color: var(--text-secondary); text-decoration: none; display: inline-block; }
     .tm-side #tmPublish > p > span { white-space: normal; }
     .tm-side #tmPublish > button:not([disabled]) { cursor: pointer; }
+    .tm-challenge { margin: .5rem 0 0; font-size: .9rem; white-space: normal; }
+    .tm-challenge button { font: inherit; font-weight: 600; color: var(--accent, #0a84ff); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .tm-challenge button[disabled] { opacity: .6; cursor: default; }
     /* "Fans are judging today": today's game deck, vertical. */
     .tm-fans-today { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem; scroll-margin-top: 1rem; }
     .tm-fans-today h2 { font-size: .9375rem; font-weight: 700; margin: 0 0 .5rem; }
@@ -4050,6 +4053,7 @@
         host.appendChild(copy);
         showGameVerdict(lastPublishedId, host);
         showAddToProfile(lastPublishedId, host);
+        showChallengeEntry(lastPublishedId, host);
       } catch (e) {
         // Say what happened, in the interface's voice, and let them retry.
         btn.disabled = false;
@@ -4448,18 +4452,42 @@
         .then(function (j) {
           if (!j || !j.players || typeof j.players !== 'object') return;
           FANS_VALUES = j.players;
-          // Cards already on the page get their line now; later ones are drawn with it.
-          document.querySelectorAll('.mp-card[data-mp]').forEach(function (card) {
-            const body = card.querySelector('.mp-body');
-            const html = fansValueHtml(card.getAttribute('data-mp'));
-            if (!body || !html || card.querySelector('.mp-fans')) return;
-            const heat = body.querySelectorAll('.salary-row');
-            const after = heat.length ? heat[heat.length > 1 ? 1 : 0] : null;
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            body.insertBefore(tmp.firstChild, after ? after.nextSibling : body.firstChild);
-          });
+          addFansValues();
+          watchFansValues();
         }).catch(function () {});
+    }
+    // Every card in the panel without the line gets it, once. On the live
+    // site hoopsmatic-worker swaps in its own panelCard and redraws each card
+    // when its data arrives (without this line), so cards are checked again
+    // after every change to the builder, not only when they are first drawn.
+    function addFansValues() {
+      if (!FANS_VALUES) return;
+      document.querySelectorAll('.mp-card[data-mp]').forEach(function (card) {
+        if (card.querySelector('.mp-fans')) return;
+        const body = card.querySelector('.mp-body');
+        const html = fansValueHtml(card.getAttribute('data-mp'));
+        if (!body || !html) return;
+        // After the share line or the note (the Worker's card), else after
+        // Trade Heat and People this week (the page's own card).
+        const rows = body.querySelectorAll('.salary-row');
+        const after = body.querySelector(':scope > .mp-share') || body.querySelector(':scope > .mp-note')
+          || (rows.length ? rows[rows.length > 1 ? 1 : 0] : null);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        if (after && after.parentNode === body) body.insertBefore(tmp.firstChild, after.nextSibling);
+        else body.insertBefore(tmp.firstChild, body.firstChild);
+      });
+    }
+    let fansWatch = null;
+    function watchFansValues() {
+      if (fansWatch || typeof MutationObserver !== 'function') return;
+      let queued = false;
+      fansWatch = new MutationObserver(function () {
+        if (queued) return;
+        queued = true;
+        setTimeout(function () { queued = false; try { addFansValues(); } catch (e) {} }, 0);
+      });
+      fansWatch.observe(document.getElementById('tmWork') || document.body, { childList: true, subtree: true });
     }
 
     function showProfileChip() {
@@ -4607,6 +4635,52 @@
           sec.appendChild(list);
           side.insertBefore(sec, document.getElementById('tmSideMarket'));
         }).catch(function () {});
+    }
+
+    // "Build a balanced trade" (Jorge, October 29, 2026, phase 2 item 9):
+    // with a profile, one button in the publish row enters this trade in
+    // today's challenge on "Who wins the trade?". Only the trade id and this
+    // browser's session id are sent (the profiles Worker checks you built it
+    // and drops the session id). Drawn once per publish, whatever redraws.
+    function showChallengeEntry(tradeId, host) {
+      try {
+        if (!tradeId || !host) return;
+        fetch('/profile/api/me')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (me) {
+            if (!me || me.profile !== true) return;
+            if (host.querySelector('.tm-challenge')) return;
+            const p = document.createElement('p');
+            p.className = 'tm-challenge';
+            const go = document.createElement('button');
+            go.type = 'button';
+            go.textContent = 'Enter today\u2019s challenge';
+            p.appendChild(go);
+            host.appendChild(p);
+            const done = function (text, ok) {
+              p.textContent = '';
+              const out = document.createElement(ok ? 'a' : 'span');
+              if (ok) { out.href = '/who-wins-the-trade/#challenge'; out.textContent = 'In today\u2019s challenge \u2192'; out.title = text; }
+              else out.textContent = text;
+              p.appendChild(out);
+            };
+            go.addEventListener('click', function () {
+              go.disabled = true;
+              fetch('/profile/api/game/challenge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trade: tradeId, tm: marketSession() }),
+              })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: r.ok, j: null }; }); })
+                .then(function (x) {
+                  const msg = x.j && typeof x.j.message === 'string' ? x.j.message : '';
+                  if (x.ok) done(msg, true);
+                  else done(msg || 'Entering the challenge did not work.', false);
+                })
+                .catch(function () { done('Entering the challenge did not work.', false); });
+            });
+          }).catch(function () {});
+      } catch (e) { /* never let the challenge break publishing */ }
     }
 
     /*

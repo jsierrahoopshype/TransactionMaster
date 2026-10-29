@@ -38,7 +38,7 @@ if (!CHROME) {
 }
 
 const SCRIPT = 'var lastTradeId = "t-e2e"; var lastPublishedId = null;\n'
-  + 'function sendMachineOpinion() {} function showGameVerdict() {}\n'
+  + 'function sendMachineOpinion() {} function showGameVerdict() {} function showChallengeEntry() {}\n'
   + 'function marketSession() { return "tm-e2e-session"; }\n'
   + cut('showAddToProfile') + cut('doPublish')
   + '\ndocument.getElementById("go").addEventListener("click", function () { doPublish(this); });\n';
