@@ -65,7 +65,12 @@ window.__renders = 0; window.__stopped = 0;
 function render() {
   window.__renders++;
   const moving = tradeTeams.some((t) => (t.playersOut || []).length);
-  document.getElementById('tradeContainer').innerHTML = tradeTeams.map((t) => '<div class="team-card">' + t.teamName + '</div>').join('')
+  // Each outgoing player as the page draws it: a chip whose remove button
+  // names its team and player, then its "To:" row.
+  document.getElementById('tradeContainer').innerHTML = tradeTeams.map((t, i) => '<div class="team-card">' + t.teamName
+    + (t.playersOut || []).map((p, j) => '<div class="player-chip"><div class="player-chip-row"><div class="player-chip-info"><div class="player-chip-name">' + p.player + '</div></div><button class="player-chip-remove" data-team="' + i + '" data-player="' + j + '">x</button></div><div class="player-destination">To</div></div>').join('')
+    + (t.cashOut || []).map((c, j) => '<div class="player-chip"><div class="player-chip-row"><button class="player-chip-remove cash-remove" data-team="' + i + '" data-cash="' + j + '">x</button></div></div>').join('')
+    + '</div>').join('')
     + (moving ? '<aside class="mkt-panel" aria-label="Trade Market for these players">' + tradeTeams.map((t) => (t.playersOut || []).map((p) => '<div class="mp-card" data-mp="' + p.playerId + '"><div class="mp-body"><div class="salary-row">Trade Heat</div><div class="salary-row">People this week</div>' + fansValueHtml(p.playerId) + '</div></div>').join('')).join('') + '</aside>' : '');
   try { placeSide(); } catch (e) {}
 }
@@ -230,8 +235,10 @@ try {
     && await page.js('document.querySelectorAll(".ft-trade")[0].querySelectorAll(".ft-face img").length') === 2
     && await page.js('document.querySelector(".ft-trade .ft-more").textContent') === '+2');
   ok('every team and player named links to its page', await page.js('[...document.querySelectorAll("#tmFansToday .ft-team, #tmFansToday .ft-name")].every((a) => a.tagName === "A" && /^\\/trade-market\\//.test(a.getAttribute("href")))'));
+  ok('"Challenge" right after "Fans\' trades", straight to the board', await page.js(q('#tmFansPill', 'nextElementSibling.id')) === 'tmChallengePill'
+    && await page.js(q('#tmChallengePill')) === 'Challenge' && await page.js(q('#tmChallengePill', 'getAttribute("href")')) === '/who-wins-the-trade/#challenge');
   ok('"Fans\' trades (10)": a third pill, a plain link to the list', await page.js(q('.tm-tabs #tmFansPill')) === 'Fans\u2019 trades (10)' && await page.js(q('#tmFansPill', 'getAttribute("href")')) === '#tmFansToday'
-    && await page.js('document.querySelectorAll(".tm-tabs a").length') === 3);
+    && await page.js('document.querySelectorAll(".tm-tabs a").length') === 4);
   ok('no pop-ups: no "load one" line, no picker, no dialog', await page.js('!document.querySelector(".tm-game-line, .tm-picker, [role=dialog]")'));
   ok('the list fits a phone', await page.js('document.documentElement.scrollWidth <= innerWidth'));
   // "Load" fills the builder in place: no new page.
@@ -275,6 +282,19 @@ try {
   await settle();
   ok('and after more redraws, still one line per card', await page.js('[...document.querySelectorAll(".mp-card")].every((c) => c.querySelectorAll(".mp-fans").length <= 1)')
     && await page.js('document.querySelectorAll(".mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1);
+  // The same line under the player in the trade itself, at every width
+  // (the panel is hidden below 1200px), once, however often the page redraws.
+  const TRADE_LINE = '.player-chip:has(button[data-team="0"][data-player="0"]) .tm-trade-fans';
+  await page.waitFor('document.querySelector(' + json(TRADE_LINE) + ') !== null', 'the line in the trade');
+  for (let i = 0; i < 10; i++) await page.js('render(); true');
+  await settle();
+  ok('in the trade: the line under the player, between his row and "To:", exactly once after 10 redraws',
+    await page.js('document.querySelectorAll(".tm-trade-fans").length') === 1
+    && await page.js(q(TRADE_LINE)) === 'Fans side with the team getting him in 78% of judged trades.'
+    && await page.js(q(TRADE_LINE, 'previousElementSibling.className')) === 'player-chip-row'
+    && await page.js(q(TRADE_LINE, 'nextElementSibling.className')) === 'player-destination');
+  ok('no line under a player without 5 decided trades', !(await page.js('!!document.querySelector(\'.player-chip:has(button[data-team="1"][data-player="0"]) .tm-trade-fans\')')));
+  ok('shown on a phone too (the line is in the trade, not the hidden panel)', await page.js('getComputedStyle(document.querySelector(' + json(TRADE_LINE) + ')).display') !== 'none');
 
   // No trades today: no list, no pill.
   state.stack = { day: '2026-10-28', trades: [] };
@@ -326,8 +346,8 @@ try {
   await chipPage.js('window.__set(' + json(TRADE) + '); for (let i = 0; i < 12; i++) { render(); initGameLinks(); placeSide(); showProfileChip(); showTodaysTrades(); showFansVerdict(true); } true');
   await chipPage.js('for (let i = 0; i < 6; i++) { showGameVerdict("t-e2e", document.getElementById("tmPublish")); showAddToProfile("t-e2e", document.getElementById("tmPublish")); showChallengeEntry("t-e2e", document.getElementById("tmPublish")); } true');
   await new Promise((r) => setTimeout(r, 1200));
-  const counts = await chipPage.js('({ avatar: document.querySelectorAll(".tm-avatar").length, pill: document.querySelectorAll(".tm-fans-pill").length, side: document.querySelectorAll(".tm-side").length, list: document.querySelectorAll(".tm-fans-today").length, items: document.querySelectorAll(".ft-trade").length, verdict: document.querySelectorAll(".tm-fans-verdict").length, meter: document.querySelectorAll("#realisticMeter").length, publish: document.querySelectorAll("#tmPublish").length, game: document.querySelectorAll(".tm-game-verdict").length, added: document.querySelectorAll(".tm-add-profile").length, challenge: document.querySelectorAll(".tm-challenge button").length, market: document.querySelectorAll(".mkt-panel").length })');
-  ok('after many redraws: exactly one of every piece', json(counts) === json({ avatar: 1, pill: 1, side: 1, list: 1, items: 10, verdict: 1, meter: 1, publish: 1, game: 1, added: 1, challenge: 1, market: 1 }), counts);
+  const counts = await chipPage.js('({ avatar: document.querySelectorAll(".tm-avatar").length, pill: document.querySelectorAll("#tmFansPill").length, challengeLink: document.querySelectorAll("#tmChallengePill").length, side: document.querySelectorAll(".tm-side").length, list: document.querySelectorAll(".tm-fans-today").length, items: document.querySelectorAll(".ft-trade").length, verdict: document.querySelectorAll(".tm-fans-verdict").length, meter: document.querySelectorAll("#realisticMeter").length, publish: document.querySelectorAll("#tmPublish").length, game: document.querySelectorAll(".tm-game-verdict").length, added: document.querySelectorAll(".tm-add-profile").length, challenge: document.querySelectorAll(".tm-challenge button").length, market: document.querySelectorAll(".mkt-panel").length })');
+  ok('after many redraws: exactly one of every piece', json(counts) === json({ avatar: 1, pill: 1, challengeLink: 1, side: 1, list: 1, items: 10, verdict: 1, meter: 1, publish: 1, game: 1, added: 1, challenge: 1, market: 1 }), counts);
 
   // --- "Enter today's challenge" (phase 2 item 9) --------------------------
   ok('with a profile, the publish row offers the challenge, after the rest', await chipPage.js(q('#tmPublish > p:last-child button')) === 'Enter today\u2019s challenge');
@@ -354,7 +374,7 @@ try {
   await chipPage.js('window.__set(' + json(TRADE) + '), render(), showFansVerdict(true), true');
   await settle();
   ok('Roster Manager mode: no avatar, no pill, no column, no verdict; the meter stays where it was',
-    await chipPage.js('!document.getElementById("tmProfileChip") && !document.getElementById("tmFansPill") && !document.getElementById("tmSide") && !document.getElementById("tmFansVerdict") && document.getElementById("realisticMeter").parentNode.id === "mainContent"'));
+    await chipPage.js('!document.getElementById("tmProfileChip") && !document.getElementById("tmFansPill") && !document.getElementById("tmChallengePill") && !document.getElementById("tmSide") && !document.getElementById("tmFansVerdict") && document.getElementById("realisticMeter").parentNode.id === "mainContent"'));
 
   ok('no script errors, nothing blocked by the CSP', page.problems.length === 0 && chipPage.problems.length === 0, page.problems.concat(chipPage.problems));
 } finally {

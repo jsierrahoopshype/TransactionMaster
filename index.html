@@ -2459,6 +2459,8 @@
     .tm-side #tmPublish > p > span { white-space: normal; }
     .tm-side #tmPublish > button:not([disabled]) { cursor: pointer; }
     .tm-challenge { margin: .5rem 0 0; font-size: .9rem; white-space: normal; }
+    .tm-trade-fans { margin: .375rem 0 0; font-size: .75rem; line-height: 1.35; color: var(--text-secondary); white-space: normal; }
+    .tm-trade-fans b { color: var(--text); }
     .tm-challenge button { font: inherit; font-weight: 600; color: var(--accent, #0a84ff); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
     .tm-challenge button[disabled] { opacity: .6; cursor: default; }
     /* "Fans are judging today": today's game deck, vertical. */
@@ -4434,6 +4436,7 @@
       try { showProfileChip(); } catch (e) {}
       try { showTodaysTrades(); } catch (e) {}
       try { loadFansValues(); } catch (e) {}
+      try { showChallengeLink(); } catch (e) {}
     }
 
     // --- Fans' value per player, in the Trade Market panel -----------------
@@ -4453,8 +4456,37 @@
           if (!j || !j.players || typeof j.players !== 'object') return;
           FANS_VALUES = j.players;
           addFansValues();
+          addTradeFansValues();
           watchFansValues();
         }).catch(function () {});
+    }
+    // The same line under each player the trade sends (Jorge, October 29,
+    // 2026: the panel is hidden below 1200px, so it shows in the trade
+    // itself at every width). Each outgoing chip's remove button names its
+    // team and player; one line per chip, put back when a redraw drops it.
+    function addTradeFansValues() {
+      if (!FANS_VALUES || !Array.isArray(tradeTeams)) return;
+      const seen = {};
+      document.querySelectorAll('#tradeContainer button.player-chip-remove[data-team][data-player]:not(.cash-remove)').forEach(function (btn) {
+        const chip = btn.closest('.player-chip');
+        const team = tradeTeams[Number(btn.getAttribute('data-team'))];
+        const pl = team && team.playersOut && team.playersOut[Number(btn.getAttribute('data-player'))];
+        if (!chip || !pl) return;
+        const id = String(pl.playerId || '');
+        const old = chip.querySelector('.tm-trade-fans');
+        if (old && old.getAttribute('data-pid') === id && !seen[id]) { seen[id] = 1; return; }
+        if (old) old.remove();
+        const html = id && !seen[id] ? fansValueHtml(id) : '';
+        if (!html) return;
+        seen[id] = 1;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const line = tmp.firstChild;
+        line.className = 'tm-trade-fans';
+        line.setAttribute('data-pid', id);
+        const row = chip.querySelector('.player-chip-row');
+        chip.insertBefore(line, row ? row.nextSibling : chip.firstChild);
+      });
     }
     // Every card in the panel without the line gets it, once. On the live
     // site hoopsmatic-worker swaps in its own panelCard and redraws each card
@@ -4485,9 +4517,22 @@
       fansWatch = new MutationObserver(function () {
         if (queued) return;
         queued = true;
-        setTimeout(function () { queued = false; try { addFansValues(); } catch (e) {} }, 0);
+        setTimeout(function () { queued = false; try { addFansValues(); } catch (e) {} try { addTradeFansValues(); } catch (e) {} }, 0);
       });
       fansWatch.observe(document.getElementById('tmWork') || document.body, { childList: true, subtree: true });
+    }
+
+    // "Challenge" next to the "Fans' trades" pill (Jorge, October 29, 2026):
+    // a plain link straight to today's "Build a balanced trade" board.
+    function showChallengeLink() {
+      const nav = document.querySelector('header .tm-tabs');
+      if (!nav || document.getElementById('tmChallengePill')) return;
+      const a = document.createElement('a');
+      a.id = 'tmChallengePill';
+      a.className = 'tm-fans-pill tm-challenge-pill';
+      a.href = '/who-wins-the-trade/#challenge';
+      a.textContent = 'Challenge';
+      nav.appendChild(a);
     }
 
     function showProfileChip() {
@@ -4604,7 +4649,7 @@
             pill.className = 'tm-fans-pill';
             pill.href = '#tmFansToday';
             pill.textContent = 'Fans’ trades (' + trades.length + ')';
-            nav.appendChild(pill);
+            nav.insertBefore(pill, document.getElementById('tmChallengePill'));
           }
           const sec = document.createElement('section');
           sec.className = 'tm-fans-today';
