@@ -56,22 +56,29 @@ const LINK = 'https://hoopsmatic.com/who-wins-the-trade/';
   await p.ctx.doPublish(btn());
   await tick();
   ok('asks the game about the published trade', p.calls[1] === '/who-wins-the-trade/api/builder?trade=t1', p.calls);
-  ok('keeps the link and "Copy link" first, as before', p.host.children[0].textContent === 'View published trade' && p.host.children[1].textContent === 'Copy link');
+  ok('keeps the link and "Copy link" first, as before', p.host.children[0].textContent === 'View' && p.host.children[1].textContent === 'Copy link');
   const line = p.host.children[2];
-  ok('then one line with the message and "Who wins the trade?" as a link', line && line.tag === 'p' && line.children[0].textContent === "Fans' verdict on this trade: BOS 61% · LAL 39% "
-    && line.children[1].tag === 'a' && line.children[1].href === LINK && line.children[1].textContent === 'Who wins the trade?', line);
+  ok('then the verdict in a few words, linked to the game (the slim publish row, October 29, 2026)', line && line.tag === 'p' && line.children.length === 1
+    && line.children[0].tag === 'a' && line.children[0].href === LINK && line.children[0].textContent === 'Fans: BOS 61\u201339 \u2192', line);
+}
+{
+  const p = page({ message: 'Fans are judging this now. Check back for the verdict.', link: LINK });
+  await p.ctx.doPublish(btn());
+  await tick();
+  const line = p.host.children[2];
+  ok('a trade still waiting: "Fans are judging it \u2192", linked to the game', line && line.children[0].tag === 'a' && line.children[0].textContent === 'Fans are judging it \u2192' && line.children[0].href === LINK, line);
 }
 for (const [name, answer] of [['no message (a trade the game can\'t deal, or before launch)', { message: null }], ['the game is unreachable', 'down'], ['an answer that is not a message', { message: 42 }]]) {
   const p = page(answer);
   await p.ctx.doPublish(btn());
   await tick();
-  ok(name + ': nothing added, the page is as before', p.host.children.length === 2 && p.host.children[0].textContent === 'View published trade');
+  ok(name + ': nothing added, the page is as before', p.host.children.length === 2 && p.host.children[0].textContent === 'View');
 }
 {
   const p = page({ message: 'Something', link: 'https://example.com/' });
   await p.ctx.doPublish(btn());
   await tick();
-  ok('a link anywhere but the game is not made a link', p.host.children[2] && p.host.children[2].children.length === 1);
+  ok('a link anywhere but the game is not made a link', p.host.children[2] && p.host.children[2].children.length === 1 && p.host.children[2].children[0].tag === '#text');
 }
 
 console.log(failed ? `\n${failed} test(s) failed` : '\nall tests passed');

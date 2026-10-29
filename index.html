@@ -2413,53 +2413,71 @@
     .cap-hold-advisory strong { font-weight: 700; }
 
     /* "Who wins the trade?" and profiles in the Trade Machine (additive). */
-    .tm-fans-verdict { margin: .5rem 0 .75rem; padding: .625rem 1rem; border: 1px solid var(--border); border-radius: 6px;
-      background: var(--surface); font-size: .875rem; display: flex; flex-wrap: wrap; gap: .25rem 1rem; align-items: baseline; }
-    .tm-fans-verdict[hidden] { display: none; }
-    #tmPublish .tm-game-verdict { white-space: normal; }
-    .tm-fans-verdict .fv-line { font-weight: 600; color: var(--text); }
-    .tm-fans-verdict .fv-team { color: var(--accent); }
-    .tm-fans-verdict .fv-game { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
-    .tm-fans-verdict .fv-game:hover { text-decoration: underline; }
-    .tm-tabs:has(.tm-profile-chip) { flex-wrap: wrap; align-items: center; }
-    .tm-tabs a.tm-profile-chip { display: inline-flex; flex-direction: column; justify-content: center; min-height: 36px; padding: .25rem .875rem;
-      border-radius: 999px; background: var(--surface); border: 1px solid var(--border); text-decoration: none; color: var(--text);
-      font-size: .8125rem; line-height: 1.25; max-width: 100%; }
-    .tm-tabs a.tm-profile-chip:hover { border-color: var(--accent); background: var(--surface); }
-    .tm-profile-chip .pc-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tm-profile-chip .pc-news { color: var(--accent); font-weight: 600; }
-    .tm-game-line { margin: -.25rem 0 0; font-size: .8125rem; color: var(--text-secondary); }
-    .tm-game-open { background: none; border: 0; padding: .25rem 0; font: inherit; font-weight: 600; color: var(--accent); cursor: pointer; }
-    .tm-game-open:hover { text-decoration: underline; }
-    .tm-picker { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
-    .tm-picker-sheet { background: var(--surface); width: 100%; max-height: 85vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 1rem 1rem 1.5rem; }
-    @media (min-width: 700px) {
-      .tm-picker { align-items: center; padding: 2rem; }
-      .tm-picker-sheet { max-width: 640px; border-radius: 16px; }
+    /* Header: the third pill and the profile avatar at the far right. */
+    .tm-tabs a.tm-fans-pill { white-space: nowrap; }
+    header > .tm-avatar { position: relative; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1rem; text-decoration: none; }
+    header > .tm-avatar:hover { filter: brightness(1.08); }
+    header > .tm-avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    header > .tm-avatar .av-badge { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px;
+      border-radius: 999px; background: #ff453a; color: #fff; font-size: .6875rem; font-weight: 700; line-height: 20px;
+      text-align: center; border: 2px solid var(--bg); }
+    header:has(> .tm-avatar) > .tm-tabs { margin-left: auto; }
+    @media (max-width: 768px) {
+      /* Phone: the avatar on the title's row, at the right; the rest wraps below as before. */
+      header:has(> .tm-avatar) > :not(h1):not(.tm-avatar) { order: 1; }
+      header:has(> .tm-avatar) > .tm-avatar { margin-left: auto; }
+      header:has(> .tm-avatar) > .tm-tabs { margin-left: 0; }
     }
-    .tp-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
-    .tp-head h2 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -.01em; }
-    .tp-close { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
-      font-size: 1.375rem; line-height: 1; cursor: pointer; color: var(--text); }
-    .tp-list { list-style: none; display: flex; flex-direction: column; gap: .75rem; }
-    .tp-trade { border: 1px solid var(--border); border-radius: 12px; padding: .75rem; display: flex; flex-direction: column; gap: .625rem; }
-    .tp-sides { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-    .tp-side { min-width: 0; display: flex; flex-direction: column; gap: .375rem; }
-    .tp-side + .tp-side { border-left: 1px solid var(--border); padding-left: .75rem; }
-    .tp-team { display: flex; align-items: center; gap: .375rem; font-size: .8125rem; color: var(--text-secondary); }
-    .tp-logo { width: 24px; height: 24px; object-fit: contain; }
-    .tp-abbr { font-weight: 700; color: var(--text); text-decoration: none; }
-    .tp-player { display: flex; align-items: center; gap: .5rem; min-width: 0; font-size: .8125rem; }
-    .tp-face { position: relative; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--bg);
-      display: inline-flex; align-items: center; justify-content: center; font-size: .6875rem; font-weight: 700; color: var(--text-secondary); }
-    .tp-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
-    .tp-name { color: var(--text); font-weight: 600; text-decoration: none; line-height: 1.25; }
-    .tp-abbr:hover, .tp-name:hover { color: var(--accent); }
-    .tp-more { font-size: .75rem; color: var(--text-secondary); }
-    .tp-load { align-self: stretch; min-height: 44px; border-radius: 10px; border: 0; background: var(--accent); color: #fff;
-      font: inherit; font-weight: 600; cursor: pointer; }
-    .tp-load:hover { filter: brightness(1.08); }
-    body.rm-mode .tm-profile-chip, body.rm-mode .tm-game-line, body.rm-mode .tm-fans-verdict { display: none !important; }
+    /* The team area and the side column. */
+    .tm-work { display: block; }
+    .tm-side { display: flex; flex-direction: column; gap: .75rem; margin-top: .75rem; min-width: 0; }
+    @media (min-width: 1200px) {
+      .tm-work { display: flex; align-items: flex-start; gap: 1rem; }
+      .tm-work > .trade-container { flex: 1 1 auto; min-width: 0; }
+      .tm-side { flex: 0 0 320px; width: 320px; margin-top: 0; position: sticky; top: var(--tm-side-top, 1rem);
+        max-height: calc(100vh - var(--tm-side-top, 1rem) - 1rem); overflow-y: auto; overscroll-behavior: contain; padding-bottom: 1rem; }
+    }
+    .tm-side-top { display: flex; flex-direction: column; gap: .5rem; }
+    .tm-side .realistic-meter { margin-top: 0; }
+    .tm-side .mkt-panel { flex: none; margin: 0; width: 100%; }
+    /* The fans' verdict: one line under the meter. */
+    .tm-fans-verdict { margin: 0; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface); font-size: .875rem; font-weight: 600; color: var(--text); }
+    .tm-fans-verdict[hidden] { display: none; }
+    .tm-fans-verdict .fv-team { color: var(--accent); }
+    .tm-fans-verdict .fv-game { color: var(--accent); text-decoration: none; font-weight: 700; padding: .25rem .375rem; }
+    .tm-fans-verdict .fv-game:hover { text-decoration: underline; }
+    /* The publish area, one slim row. */
+    .tm-side #tmPublish { margin: 0; white-space: normal; font-size: .8125rem; line-height: 1.6; }
+    .tm-side #tmPublish.tm-side-off { display: none !important; }
+    .tm-side #tmPublish:has(> a[href^="/trade/"]) { padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+    .tm-side #tmPublish:has(> a[href^="/trade/"])::before { content: "\2713  Published"; font-weight: 600; color: var(--valid, #34c759); }
+    .tm-side #tmPublish:has(> a[href^="/trade/"]) > * { display: inline !important; margin: 0 !important; font-size: inherit !important; }
+    .tm-side #tmPublish:has(> a[href^="/trade/"]) > *::before { content: "\00b7"; margin: 0 .375rem; color: var(--text-secondary); text-decoration: none; display: inline-block; }
+    .tm-side #tmPublish > p > span { white-space: normal; }
+    .tm-side #tmPublish > button:not([disabled]) { cursor: pointer; }
+    /* "Fans are judging today": today's game deck, vertical. */
+    .tm-fans-today { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem; scroll-margin-top: 1rem; }
+    .tm-fans-today h2 { font-size: .9375rem; font-weight: 700; margin: 0 0 .5rem; }
+    .ft-list { list-style: none; display: flex; flex-direction: column; margin: 0; padding: 0; }
+    .ft-trade { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; border-top: 1px solid var(--border); }
+    .ft-trade:first-child { border-top: 0; padding-top: 0; }
+    .ft-sides { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: .25rem; }
+    .ft-side { display: flex; align-items: center; gap: .375rem; min-width: 0; font-size: .8125rem; margin: 0; }
+    .ft-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+    .ft-team { font-weight: 700; color: var(--text); text-decoration: none; flex-shrink: 0; width: 2.25rem; }
+    .ft-face { position: relative; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--bg);
+      display: inline-flex; align-items: center; justify-content: center; font-size: .625rem; font-weight: 700; color: var(--text-secondary); }
+    .ft-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .ft-name { color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .ft-team:hover, .ft-name:hover { color: var(--accent); }
+    .ft-more { color: var(--text-secondary); font-size: .75rem; flex-shrink: 0; }
+    .ft-load { flex: 0 0 auto; min-height: 36px; min-width: 64px; padding: 0 .875rem; border-radius: 8px; border: 1px solid var(--accent);
+      background: var(--surface); color: var(--accent); font: inherit; font-size: .8125rem; font-weight: 700; cursor: pointer; }
+    .ft-load:hover { background: var(--accent); color: #fff; }
+    body.rm-mode .tm-avatar, body.rm-mode .tm-fans-pill, body.rm-mode .tm-fans-verdict, body.rm-mode .tm-side { display: none !important; }
 </style>
 </head>
 <body>
@@ -4011,7 +4029,7 @@
         host.innerHTML = '';
         const a = document.createElement('a');
         a.href = j.url;
-        a.textContent = 'View published trade';
+        a.textContent = 'View';
         const copy = document.createElement('button');
         copy.type = 'button';
         copy.textContent = 'Copy link';
@@ -4099,12 +4117,24 @@
             p.className = 'tm-game-verdict';
             p.style.margin = '.5rem 0 0';
             p.style.fontSize = '.9rem';
-            p.appendChild(document.createTextNode(j.message + ' '));
+            // The publish status is one slim row (Jorge, October 29, 2026):
+            // the game's answer in a few words, linked to the game.
+            const m = j.message;
+            const v = /^Fans' verdict on this trade: ([A-Z]{3}) (\d+)% · ([A-Z]{3}) (\d+)%$/.exec(m);
+            let words = m;
+            if (/^Fans are judging this now/.test(m)) words = 'Fans are judging it \u2192';
+            else if (/^Fans are judging a near-identical trade/.test(m)) words = 'Fans are judging a near-identical trade \u2192';
+            else if (v) {
+              const hi = Number(v[2]) >= Number(v[4]) ? [v[1], v[2], v[3], v[4]] : [v[3], v[4], v[1], v[2]];
+              words = 'Fans: ' + hi[0] + ' ' + hi[1] + '\u2013' + hi[3] + ' \u2192';
+            }
             if (j.link === 'https://hoopsmatic.com/who-wins-the-trade/') {
               const a = document.createElement('a');
               a.href = j.link;
-              a.textContent = 'Who wins the trade?';
+              a.textContent = words;
               p.appendChild(a);
+            } else {
+              p.appendChild(document.createTextNode(words));
             }
             host.appendChild(p);
           }).catch(function () {});
@@ -4157,10 +4187,11 @@
                 const msg = x.j && typeof x.j.message === 'string' ? x.j.message : '';
                 if (x.ok || x.status === 409) {
                   // Added, or already there: either way it's on the profile.
-                  note.textContent = (msg || 'Added to your profile.') + ' ';
+                  // One link in the publish row (Jorge, October 29, 2026).
                   const a = document.createElement('a');
                   a.href = '/profile/';
-                  a.textContent = 'View your profile';
+                  a.textContent = 'Added to your profile';
+                  if (msg) a.title = msg;
                   note.appendChild(a);
                 } else {
                   // Refused (not this browser's trade, not published): say why.
@@ -4174,31 +4205,37 @@
 
     /*
      * "WHO WINS THE TRADE?" AND PROFILES IN THE TRADE MACHINE (Jorge,
-     * October 28, 2026; hoopsmatic-accounts serves every address used here).
+     * October 28 and 29, 2026; hoopsmatic-accounts serves every address used
+     * here). Everything sits in the page itself: no pop-ups or overlays.
      *
+     *  - Header: a third pill, "Fans' trades (10)", a plain link down to the
+     *    "Fans are judging today" list; and, only for a browser with a
+     *    HoopsMatic profile, one round avatar with the name's initial at the
+     *    far right, with a small number when fans judged more of its
+     *    published trades than this browser last saw (one count kept in
+     *    local storage, hm_tm_verdicts_seen). Tapping it opens the profile.
+     *  - A side column (placeSide): on a desktop (1200px and wider) right of
+     *    the team columns, staying in view while scrolling; narrower, below
+     *    the builder. In it, the Trade Balance meter and the publish area,
+     *    moved there as they are (the page still finds them by id, so they
+     *    work exactly as before), the fans' verdict under the meter, the
+     *    "Fans are judging today" list (today's game deck, each with "Load",
+     *    which fills the builder in place from the trade's own Trade Machine
+     *    address), and the Trade Market panel.
      *  - Fans' verdict: when the trade on screen is EXACTLY a trade fans
-     *    already judged in the game (same two teams, the same players and
-     *    picks going each way, nothing more or less) and 20 or more fans have
-     *    picked, one line under the Trade Balance meter: "Fans' verdict: BOS
-     *    wins, 71% to 29%", with a link to that trade in the game. Asked by
-     *    the trade's exact key (exactTradeKey), never near matches.
-     *  - Profile chip in the header, only for a browser with a HoopsMatic
-     *    profile: its display name, plus "2 of your trades got verdicts"
-     *    when fans judged more of its published trades since this browser
-     *    last looked (a single count kept in local storage,
-     *    hm_tm_verdicts_seen). Tapping it opens the profile.
-     *  - "Fans are judging 10 trades today: load one" under the Trade Loop /
-     *    Generate Image / Reset Trade buttons: a picker with today's game
-     *    deck; choosing one opens that exact trade here, from its own Trade
-     *    Machine address.
+     *    judged (same two teams, the same players and picks going each way)
+     *    and 20 or more fans picked: "Fans: GSW 85–15 →", the team linked to
+     *    its page and the arrow to the trade in the game. Asked by the
+     *    trade's exact key (exactTradeKey), never near matches.
      *
-     * ADDITIVE ONLY: nothing that was on the page changes. Every call is
-     * fire and forget; when the game or profiles don't answer, nothing new
-     * appears. Not in Roster Manager mode. Text goes in with textContent,
-     * links only to hoopsmatic.com's own pages.
+     * The page draws itself more than once (from cached data, then fresh),
+     * so every piece is made once and only ever moved or updated after
+     * that. Nothing here runs in Roster Manager mode. Text goes in with
+     * textContent; links only to hoopsmatic.com's own pages.
      */
     const GAME_IMG = /^\/who-wins-the-trade\/img\/(face|logo)\/[a-z0-9-]+\.(webp|svg)$/;
     const SAME_SITE_PAGE = /^\/(trade-market|who-wins-the-trade)\/[A-Za-z0-9\/?=%._-]*$/;
+    const SIDE_WIDE = '(min-width: 1200px)';
 
     // The trade on screen as the game writes it (hoopsmatic-accounts,
     // src/wwtt/exact.js): "<team>-<team>|<player id>><team getting him>,...|
@@ -4242,6 +4279,83 @@
       return n;
     }
 
+    function gameImg(src, cls, alt) {
+      if (typeof src !== 'string' || !GAME_IMG.test(src)) return null;
+      const i = document.createElement('img');
+      i.src = src;
+      i.alt = alt || '';
+      if (cls) i.className = cls;
+      i.loading = 'lazy';
+      i.addEventListener('error', function () { i.remove(); });
+      return i;
+    }
+
+    // --- The side column ----------------------------------------------------
+    // Made once: a row holding the team area (#tradeContainer, the same
+    // element, which render() keeps redrawing inside) and the column. Called
+    // at the end of every render(): it only moves things, never remakes them.
+    function placeSide() {
+      if (IS_RM_MODE) return;
+      const container = document.getElementById('tradeContainer');
+      if (!container) return;
+      let side = document.getElementById('tmSide');
+      if (!side) {
+        const work = document.createElement('div');
+        work.className = 'tm-work';
+        work.id = 'tmWork';
+        container.parentNode.insertBefore(work, container);
+        work.appendChild(container);
+        side = document.createElement('aside');
+        side.className = 'tm-side';
+        side.id = 'tmSide';
+        side.setAttribute('aria-label', 'Trade Balance, publishing and fans’ trades');
+        const top = document.createElement('div');
+        top.className = 'tm-side-top';
+        top.id = 'tmSideTop';
+        side.appendChild(top);
+        const meter = document.getElementById('realisticMeter');
+        if (meter) top.appendChild(meter);
+        const pub = document.getElementById('tmPublish');
+        if (pub) top.appendChild(pub);
+        const market = document.createElement('div');
+        market.id = 'tmSideMarket';
+        side.appendChild(market);
+        work.appendChild(side);
+        window.addEventListener('resize', sideTop);
+      }
+      sideTop();
+      // The publish area shows only while the trade status does, as when it
+      // sat inside it.
+      const status = document.getElementById('tradeStatus');
+      const pub = document.getElementById('tmPublish');
+      if (pub) pub.classList.toggle('tm-side-off', !!status && status.style.display === 'none');
+      // The Trade Market panel render() just drew goes into the column
+      // (only one: the previous one is dropped).
+      const market = document.getElementById('tmSideMarket');
+      const fresh = container.querySelector('.mkt-panel');
+      if (market && fresh) {
+        market.textContent = '';
+        market.appendChild(fresh);
+      } else if (market && !container.querySelector('.mkt-panel') && !tradeTeams.some(function (t) { return (t.playersOut || []).length; })) {
+        market.textContent = '';
+      }
+    }
+
+    // On hoopsmatic.com the header (search and buttons) can stay pinned to
+    // the top while scrolling; the column then stays in view just below it.
+    function sideTop() {
+      const side = document.getElementById('tmSide');
+      if (!side) return;
+      let top = 16;
+      const h = document.querySelector('header');
+      try {
+        const cs = h && getComputedStyle(h);
+        if (cs && cs.position === 'sticky') top = Math.round((parseFloat(cs.top) || 0) + h.getBoundingClientRect().height) + 12;
+      } catch (e) { /* the default */ }
+      side.style.setProperty('--tm-side-top', top + 'px');
+    }
+
+    // --- The fans' verdict, under the meter --------------------------------
     const FANS_VERDICT_CACHE = new Map();
     let fansVerdictKey = null;
 
@@ -4257,16 +4371,15 @@
         if (!key) { if (box) box.hidden = true; return; }
         const draw = function (j) {
           if (fansVerdictKey !== key) return;
-          if (!j || !j.verdict || !Array.isArray(j.verdict.teams) || j.verdict.teams.length !== 2) {
-            box = document.getElementById('tmFansVerdict') || box;
-            if (box) box.hidden = true;
-            return;
-          }
           // Several renders can be waiting on answers at once: always reuse
           // the one box, never add a second.
           box = document.getElementById('tmFansVerdict') || box;
+          if (!j || !j.verdict || !Array.isArray(j.verdict.teams) || j.verdict.teams.length !== 2) {
+            if (box) box.hidden = true;
+            return;
+          }
           if (!box) {
-            box = document.createElement('div');
+            box = document.createElement('p');
             box.id = 'tmFansVerdict';
             box.className = 'tm-fans-verdict';
             meter.parentNode.insertBefore(box, meter.nextSibling);
@@ -4275,22 +4388,22 @@
           const v = j.verdict;
           const top = v.teams[0].pct >= v.teams[1].pct ? v.teams[0] : v.teams[1];
           const low = top === v.teams[0] ? v.teams[1] : v.teams[0];
-          const line = document.createElement('span');
-          line.className = 'fv-line';
-          line.appendChild(document.createTextNode("Fans' verdict: "));
+          box.appendChild(document.createTextNode('Fans: '));
           if (v.winner) {
             const w = top.team === v.winner ? top : low;
-            line.appendChild(siteLink(w.href, w.team, 'fv-team'));
-            line.appendChild(document.createTextNode(' wins, ' + top.pct + '% to ' + low.pct + '%'));
+            box.appendChild(siteLink(w.href, w.team, 'fv-team'));
+            box.appendChild(document.createTextNode(' ' + top.pct + '–' + low.pct));
           } else {
-            line.appendChild(document.createTextNode('too close to call, ' + top.pct + '% to ' + low.pct + '%'));
+            box.appendChild(document.createTextNode('too close, ' + top.pct + '–' + low.pct));
           }
-          box.appendChild(line);
           if (typeof j.link === 'string' && /^\/who-wins-the-trade\/\?t=[A-Za-z0-9%._:-]+$/.test(j.link)) {
             const a = document.createElement('a');
             a.className = 'fv-game';
             a.href = j.link;
-            a.textContent = 'See it in Who wins the trade? →';
+            a.textContent = '→';
+            a.setAttribute('aria-label', 'See this trade in Who wins the trade?');
+            a.title = 'See this trade in Who wins the trade?';
+            box.appendChild(document.createTextNode(' '));
             box.appendChild(a);
           }
           box.hidden = false;
@@ -4304,15 +4417,13 @@
       } catch (e) { /* never let the game break the builder */ }
     }
 
-    // The profile chip (header) and "Fans are judging N trades today".
-    // The page draws itself more than once (from cached data, then again
-    // when fresh data arrives), so this runs once, and each piece also
-    // checks it isn't on the page already before adding itself.
+    // --- Header and the fans' list, once -----------------------------------
     let gameLinksStarted = false;
     function initGameLinks() {
       if (IS_RM_MODE) return;
       if (gameLinksStarted) return;
       gameLinksStarted = true;
+      try { placeSide(); } catch (e) {}
       try { showProfileChip(); } catch (e) {}
       try { showTodaysTrades(); } catch (e) {}
     }
@@ -4322,19 +4433,22 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (me) {
           if (!me || me.profile !== true) return null;
-          const nav = document.querySelector('header .tm-tabs');
+          const header = document.querySelector('header');
+          const nav = header && header.querySelector('.tm-tabs');
           if (!nav) return null;
           if (document.getElementById('tmProfileChip')) return null;
+          const name = typeof me.name === 'string' && me.name ? me.name : '';
           const chip = document.createElement('a');
-          chip.className = 'tm-profile-chip';
+          chip.className = 'tm-avatar';
           chip.id = 'tmProfileChip';
           chip.href = '/profile/';
-          const nm = document.createElement('span');
-          nm.className = 'pc-name';
-          nm.textContent = typeof me.name === 'string' && me.name ? me.name : 'Your profile';
-          chip.appendChild(nm);
-          // At the end of the two tabs, so they stay where they are.
-          nav.appendChild(chip);
+          chip.setAttribute('aria-label', name ? 'Your profile: ' + name : 'Your profile');
+          chip.title = name || 'Your profile';
+          const ini = document.createElement('span');
+          ini.className = 'av-ini';
+          ini.textContent = name ? Array.from(name.trim())[0].toUpperCase() : '?';
+          chip.appendChild(ini);
+          nav.parentNode.insertBefore(chip, nav.nextSibling);
           // News since this browser last looked: fans judged more of this
           // profile's published trades than the count it saw then.
           return fetch('/profile/api/trades', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -4344,32 +4458,71 @@
               let seen = null;
               try { const s = localStorage.getItem('hm_tm_verdicts_seen'); seen = s === null ? null : Number(s); } catch (e) {}
               const news = Number.isInteger(seen) ? t.judged - seen : t.judged;
-              if (news > 0) {
-                const n = document.createElement('span');
-                n.className = 'pc-news';
-                n.textContent = news === 1 ? '1 of your trades got a verdict' : news + ' of your trades got verdicts';
-                chip.appendChild(n);
+              if (news > 0 && !chip.querySelector('.av-badge')) {
+                const b = document.createElement('span');
+                b.className = 'av-badge';
+                b.textContent = news > 9 ? '9+' : String(news);
+                chip.appendChild(b);
+                const said = news === 1 ? '1 of your trades got a verdict' : news + ' of your trades got verdicts';
+                chip.setAttribute('aria-label', (name ? 'Your profile: ' + name + '. ' : 'Your profile. ') + said);
+                chip.title = (name ? name + ': ' : '') + said;
               }
               try { localStorage.setItem('hm_tm_verdicts_seen', String(t.judged)); } catch (e) {}
             });
         }).catch(function () {});
     }
 
-    function gameImg(src, cls, alt) {
-      if (typeof src !== 'string' || !GAME_IMG.test(src)) return null;
-      const i = document.createElement('img');
-      i.src = src;
-      i.alt = alt || '';
-      i.className = cls;
-      i.loading = 'lazy';
-      i.addEventListener('error', function () { i.remove(); });
-      return i;
+    // One side of a trade in the list: logo and team, then its biggest name
+    // with a face, and how many more things it gets.
+    function fansSide(side) {
+      const row = document.createElement('p');
+      row.className = 'ft-side';
+      const logo = gameImg(side.logo, 'ft-logo', '');
+      if (logo) row.appendChild(logo);
+      row.appendChild(siteLink(side.href, side.team, 'ft-team'));
+      const gets = (side.gets || []).slice().sort(function (x, y) { return (y.salary || 0) - (x.salary || 0); });
+      const star = gets[0];
+      if (star) {
+        const face = document.createElement('span');
+        face.className = 'ft-face';
+        face.textContent = String(star.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('');
+        const img = gameImg(star.img, '', '');
+        if (img) face.appendChild(img);
+        row.appendChild(face);
+        row.appendChild(siteLink(star.href, String(star.name || ''), 'ft-name'));
+      }
+      const more = Math.max(0, gets.length - 1) + (side.picks || []).length;
+      if (more) {
+        const m = document.createElement('span');
+        m.className = 'ft-more';
+        m.textContent = '+' + more;
+        row.appendChild(m);
+      }
+      return row;
+    }
+
+    // Fills the builder with a trade from its own Trade Machine address, in
+    // place: the same steps the page takes when it opens with that address.
+    function loadTradeInPlace(fix) {
+      const q = String(fix || '').replace(/^\?/, '');
+      if (!q) return;
+      try { if (typeof stopLoop === 'function') stopLoop(); } catch (e) {}
+      try {
+        history.replaceState({}, '', location.pathname + '?' + q);
+        const t = buildTradeFromUrl();
+        if (!t) throw new Error('no trade');
+        tradeTeams = t;
+        redistributePlayers();
+        render();
+        const top = document.getElementById('tradeStatus') || document.getElementById('tmWork');
+        if (top && top.scrollIntoView) top.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      } catch (e) {
+        // Anything unexpected: open the address the ordinary way.
+        location.assign('/?' + q);
+      }
     }
 
     function showTodaysTrades() {
-      const loop = document.getElementById('loopTradeBtn');
-      const row = loop && loop.parentNode;
-      if (!row) return;
       fetch('/who-wins-the-trade/api/stack', { headers: { Accept: 'application/json' } })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
@@ -4377,115 +4530,49 @@
             return t && t.a && t.b && typeof t.fix === 'string' && t.fix.length > 1;
           });
           if (!trades.length) return;
-          if (document.getElementById('tmGameLine')) return;
-          const p = document.createElement('p');
-          p.className = 'tm-game-line';
-          p.id = 'tmGameLine';
-          p.appendChild(document.createTextNode('Fans are judging ' + trades.length + (trades.length === 1 ? ' trade' : ' trades') + ' today: '));
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'tm-game-open';
-          b.textContent = 'load one →';
-          b.setAttribute('aria-haspopup', 'dialog');
-          b.addEventListener('click', function () { openTradePicker(trades, b); });
-          p.appendChild(b);
-          row.parentNode.insertBefore(p, row.nextSibling);
+          if (document.getElementById('tmFansToday')) return;
+          placeSide();
+          const side = document.getElementById('tmSide');
+          const nav = document.querySelector('header .tm-tabs');
+          if (!side) return;
+          // The third pill: a plain link down to the list.
+          if (nav && !document.getElementById('tmFansPill')) {
+            const pill = document.createElement('a');
+            pill.id = 'tmFansPill';
+            pill.className = 'tm-fans-pill';
+            pill.href = '#tmFansToday';
+            pill.textContent = 'Fans’ trades (' + trades.length + ')';
+            nav.appendChild(pill);
+          }
+          const sec = document.createElement('section');
+          sec.className = 'tm-fans-today';
+          sec.id = 'tmFansToday';
+          const h = document.createElement('h2');
+          h.textContent = 'Fans are judging today';
+          sec.appendChild(h);
+          const list = document.createElement('ol');
+          list.className = 'ft-list';
+          trades.forEach(function (t) {
+            const li = document.createElement('li');
+            li.className = 'ft-trade';
+            const sides = document.createElement('div');
+            sides.className = 'ft-sides';
+            sides.appendChild(fansSide(t.a));
+            sides.appendChild(fansSide(t.b));
+            li.appendChild(sides);
+            const go = document.createElement('button');
+            go.type = 'button';
+            go.className = 'ft-load';
+            go.textContent = 'Load';
+            go.setAttribute('aria-label', 'Load ' + t.a.team + '–' + t.b.team + ' into the builder');
+            go.setAttribute('data-trade', String(t.id || ''));
+            go.addEventListener('click', function () { loadTradeInPlace(t.fix); });
+            li.appendChild(go);
+            list.appendChild(li);
+          });
+          sec.appendChild(list);
+          side.insertBefore(sec, document.getElementById('tmSideMarket'));
         }).catch(function () {});
-    }
-
-    // One side of a trade in the picker: logo and team, then its two biggest
-    // names with faces, then how many more things it gets.
-    function pickerSide(side) {
-      const d = document.createElement('div');
-      d.className = 'tp-side';
-      const head = document.createElement('p');
-      head.className = 'tp-team';
-      const logo = gameImg(side.logo, 'tp-logo', '');
-      if (logo) head.appendChild(logo);
-      head.appendChild(siteLink(side.href, side.team, 'tp-abbr'));
-      head.appendChild(document.createTextNode(' gets'));
-      d.appendChild(head);
-      const gets = (side.gets || []).slice().sort(function (x, y) { return (y.salary || 0) - (x.salary || 0); });
-      gets.slice(0, 2).forEach(function (pl) {
-        const r = document.createElement('p');
-        r.className = 'tp-player';
-        const face = document.createElement('span');
-        face.className = 'tp-face';
-        face.textContent = String(pl.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('');
-        const img = gameImg(pl.img, '', '');
-        if (img) face.appendChild(img);
-        r.appendChild(face);
-        r.appendChild(siteLink(pl.href, String(pl.name || ''), 'tp-name'));
-        d.appendChild(r);
-      });
-      const more = Math.max(0, gets.length - 2) + (side.picks || []).length;
-      if (more) {
-        const m = document.createElement('p');
-        m.className = 'tp-more';
-        m.textContent = '+ ' + more + ' more';
-        d.appendChild(m);
-      }
-      return d;
-    }
-
-    function openTradePicker(trades, opener) {
-      const old = document.getElementById('tmTradePicker');
-      if (old) old.remove();
-      const wrap = document.createElement('div');
-      wrap.className = 'tm-picker';
-      wrap.id = 'tmTradePicker';
-      const sheet = document.createElement('div');
-      sheet.className = 'tm-picker-sheet';
-      sheet.setAttribute('role', 'dialog');
-      sheet.setAttribute('aria-modal', 'true');
-      sheet.setAttribute('aria-labelledby', 'tmPickerTitle');
-      const head = document.createElement('div');
-      head.className = 'tp-head';
-      const h = document.createElement('h2');
-      h.id = 'tmPickerTitle';
-      h.textContent = "Today's trades in Who wins the trade?";
-      const x = document.createElement('button');
-      x.type = 'button';
-      x.className = 'tp-close';
-      x.setAttribute('aria-label', 'Close');
-      x.textContent = '×';
-      head.appendChild(h);
-      head.appendChild(x);
-      sheet.appendChild(head);
-      const list = document.createElement('ul');
-      list.className = 'tp-list';
-      trades.forEach(function (t) {
-        const li = document.createElement('li');
-        li.className = 'tp-trade';
-        const sides = document.createElement('div');
-        sides.className = 'tp-sides';
-        sides.appendChild(pickerSide(t.a));
-        sides.appendChild(pickerSide(t.b));
-        li.appendChild(sides);
-        const go = document.createElement('button');
-        go.type = 'button';
-        go.className = 'tp-load';
-        go.textContent = 'Load this trade';
-        go.setAttribute('data-trade', String(t.id || ''));
-        // The trade's own Trade Machine address replaces the teams on
-        // screen, players and picks included.
-        go.addEventListener('click', function () { location.assign('/?' + t.fix.replace(/^\?/, '')); });
-        li.appendChild(go);
-        list.appendChild(li);
-      });
-      sheet.appendChild(list);
-      wrap.appendChild(sheet);
-      const close = function () {
-        wrap.remove();
-        document.removeEventListener('keydown', onKey);
-        if (opener) opener.focus();
-      };
-      const onKey = function (e) { if (e.key === 'Escape') close(); };
-      x.addEventListener('click', close);
-      wrap.addEventListener('click', function (e) { if (e.target === wrap) close(); });
-      document.addEventListener('keydown', onKey);
-      document.body.appendChild(wrap);
-      x.focus();
     }
 
     /*
@@ -7598,6 +7685,7 @@
       
       // Lock RM team dropdown if in RM mode
       if (IS_RM_MODE) lockRmTeam();
+      try { placeSide(); } catch (e) { /* the side column is extra */ }
     }
     
     // Update URL and page title based on current trade
