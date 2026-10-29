@@ -110,7 +110,7 @@ const TRADE = [
   { teamName: 'LA Lakers', playersOut: [{ player: 'Builder Wing', playerId: '9700002', destination: 0 }], picksOut: [], rightsOut: [], cashOut: [] },
 ];
 
-const state = { values: { players: { 9800003: { pct: 78 } } }, exact: VERDICT, stack: { day: '2026-10-28', trades: STACK }, me: { profile: false }, trades: { profile: true, trades: ['a', 'b'], judged: 2 }, calls: [] };
+const state = { values: { players: { 9800003: { pct: 78 } } }, exact: VERDICT, stack: { day: '2026-10-28', trades: STACK }, me: { profile: false }, trades: { profile: true, trades: ['a', 'b'], judged: 2 }, calls: [], challenge: [], challengeAnswer: { status: 200, body: { ok: true, message: "You're in today's challenge. Fans are judging it now." } } };
 const json = (v) => JSON.stringify(v);
 const server = createServer((req, res) => {
   state.calls.push(req.url);
@@ -124,6 +124,12 @@ const server = createServer((req, res) => {
   if (path === '/who-wins-the-trade/api/player-values') return send(200, 'application/json', json(state.values));
   if (path === '/who-wins-the-trade/api/stack') return state.stack === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.stack));
   if (path === '/profile/api/me') return send(200, 'application/json', json(state.me));
+  if (path === '/profile/api/game/challenge' && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => { state.challenge.push(Buffer.concat(chunks).toString()); send(state.challengeAnswer.status, 'application/json', json(state.challengeAnswer.body)); });
+    return;
+  }
   if (path === '/profile/api/trades') return send(200, 'application/json', json(req.method === 'POST' ? { ok: true, message: 'Added to your profile.' } : state.trades));
   if (path === '/who-wins-the-trade/api/builder') return send(200, 'application/json', json({ message: 'Fans are judging this now. Check back for the verdict.', link: 'https://hoopsmatic.com/who-wins-the-trade/' }));
   if (path.startsWith('/who-wins-the-trade/img/')) {
@@ -300,10 +306,28 @@ try {
   await chipPage.goto(origin + '/tm.html');
   await chipPage.waitFor(q('#tmProfileChip') + ' !== undefined && ' + q('#tmFansToday') + ' !== undefined', 'the avatar and the list');
   await chipPage.js('window.__set(' + json(TRADE) + '); for (let i = 0; i < 12; i++) { render(); initGameLinks(); placeSide(); showProfileChip(); showTodaysTrades(); showFansVerdict(true); } true');
-  await chipPage.js('for (let i = 0; i < 6; i++) { showGameVerdict("t-e2e", document.getElementById("tmPublish")); showAddToProfile("t-e2e", document.getElementById("tmPublish")); } true');
+  await chipPage.js('for (let i = 0; i < 6; i++) { showGameVerdict("t-e2e", document.getElementById("tmPublish")); showAddToProfile("t-e2e", document.getElementById("tmPublish")); showChallengeEntry("t-e2e", document.getElementById("tmPublish")); } true');
   await new Promise((r) => setTimeout(r, 1200));
-  const counts = await chipPage.js('({ avatar: document.querySelectorAll(".tm-avatar").length, pill: document.querySelectorAll(".tm-fans-pill").length, side: document.querySelectorAll(".tm-side").length, list: document.querySelectorAll(".tm-fans-today").length, items: document.querySelectorAll(".ft-trade").length, verdict: document.querySelectorAll(".tm-fans-verdict").length, meter: document.querySelectorAll("#realisticMeter").length, publish: document.querySelectorAll("#tmPublish").length, game: document.querySelectorAll(".tm-game-verdict").length, added: document.querySelectorAll(".tm-add-profile").length, market: document.querySelectorAll(".mkt-panel").length })');
-  ok('after many redraws: exactly one of every piece', json(counts) === json({ avatar: 1, pill: 1, side: 1, list: 1, items: 10, verdict: 1, meter: 1, publish: 1, game: 1, added: 1, market: 1 }), counts);
+  const counts = await chipPage.js('({ avatar: document.querySelectorAll(".tm-avatar").length, pill: document.querySelectorAll(".tm-fans-pill").length, side: document.querySelectorAll(".tm-side").length, list: document.querySelectorAll(".tm-fans-today").length, items: document.querySelectorAll(".ft-trade").length, verdict: document.querySelectorAll(".tm-fans-verdict").length, meter: document.querySelectorAll("#realisticMeter").length, publish: document.querySelectorAll("#tmPublish").length, game: document.querySelectorAll(".tm-game-verdict").length, added: document.querySelectorAll(".tm-add-profile").length, challenge: document.querySelectorAll(".tm-challenge button").length, market: document.querySelectorAll(".mkt-panel").length })');
+  ok('after many redraws: exactly one of every piece', json(counts) === json({ avatar: 1, pill: 1, side: 1, list: 1, items: 10, verdict: 1, meter: 1, publish: 1, game: 1, added: 1, challenge: 1, market: 1 }), counts);
+
+  // --- "Enter today's challenge" (phase 2 item 9) --------------------------
+  ok('with a profile, the publish row offers the challenge, after the rest', await chipPage.js(q('#tmPublish > p:last-child button')) === 'Enter today\u2019s challenge');
+  await chipPage.js(q('.tm-challenge button', 'click()'));
+  await chipPage.waitFor(q('.tm-challenge a') + ' !== undefined', 'the answer');
+  ok('entering sends only the trade id and the session id', state.challenge.length === 1 && state.challenge[0] === json({ trade: 't-e2e', tm: 'tm-e2e-session' }), state.challenge);
+  ok('then a link to the challenge on the game page, no button left', await chipPage.js(q('.tm-challenge a')) === 'In today\u2019s challenge \u2192'
+    && await chipPage.js(q('.tm-challenge a', 'getAttribute("href")')) === '/who-wins-the-trade/#challenge' && !(await chipPage.js('!!document.querySelector(".tm-challenge button")')));
+  state.challengeAnswer = { status: 409, body: { ok: false, message: "You've already entered today's challenge." } };
+  await chipPage.js('document.querySelector(".tm-challenge").remove(); showChallengeEntry("t-e2e", document.getElementById("tmPublish")); true');
+  await chipPage.waitFor(q('.tm-challenge button') + ' !== undefined', 'the button again');
+  await chipPage.js(q('.tm-challenge button', 'click()'));
+  await chipPage.waitFor(q('.tm-challenge span') + ' !== undefined', 'the refusal');
+  ok('refused (one a day): the profiles Worker\'s words, as text', await chipPage.js(q('.tm-challenge span')) === "You've already entered today's challenge.");
+  state.me = { profile: false };
+  await chipPage.js('document.querySelector(".tm-challenge").remove(); showChallengeEntry("t-e2e", document.getElementById("tmPublish")); true');
+  await settle();
+  ok('without a profile: no challenge button', !(await chipPage.js('!!document.querySelector(".tm-challenge")')));
 
   // --- Roster Manager mode: none of it --------------------------------------
   state.me = { profile: true, name: 'jajito' };
