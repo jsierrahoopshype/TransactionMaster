@@ -66,7 +66,7 @@ function render() {
   window.__renders++;
   const moving = tradeTeams.some((t) => (t.playersOut || []).length);
   document.getElementById('tradeContainer').innerHTML = tradeTeams.map((t) => '<div class="team-card">' + t.teamName + '</div>').join('')
-    + (moving ? '<aside class="mkt-panel" aria-label="Trade Market for these players">Trade Market</aside>' : '');
+    + (moving ? '<aside class="mkt-panel" aria-label="Trade Market for these players">' + tradeTeams.map((t) => (t.playersOut || []).map((p) => '<div class="mp-card" data-mp="' + p.playerId + '"><div class="mp-body"><div class="salary-row">Trade Heat</div><div class="salary-row">People this week</div>' + fansValueHtml(p.playerId) + '</div></div>').join('')).join('') + '</aside>' : '');
   try { placeSide(); } catch (e) {}
 }
 function redistributePlayers() {}
@@ -110,7 +110,7 @@ const TRADE = [
   { teamName: 'LA Lakers', playersOut: [{ player: 'Builder Wing', playerId: '9700002', destination: 0 }], picksOut: [], rightsOut: [], cashOut: [] },
 ];
 
-const state = { exact: VERDICT, stack: { day: '2026-10-28', trades: STACK }, me: { profile: false }, trades: { profile: true, trades: ['a', 'b'], judged: 2 }, calls: [] };
+const state = { values: { players: { 9800003: { pct: 78 } } }, exact: VERDICT, stack: { day: '2026-10-28', trades: STACK }, me: { profile: false }, trades: { profile: true, trades: ['a', 'b'], judged: 2 }, calls: [] };
 const json = (v) => JSON.stringify(v);
 const server = createServer((req, res) => {
   state.calls.push(req.url);
@@ -121,6 +121,7 @@ const server = createServer((req, res) => {
   if (path === '/tm.js') return send(200, 'text/javascript; charset=utf-8', SCRIPT(false));
   if (path === '/tm-rm.js') return send(200, 'text/javascript; charset=utf-8', SCRIPT(true));
   if (path === '/who-wins-the-trade/api/exact') return state.exact === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.exact));
+  if (path === '/who-wins-the-trade/api/player-values') return send(200, 'application/json', json(state.values));
   if (path === '/who-wins-the-trade/api/stack') return state.stack === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.stack));
   if (path === '/profile/api/me') return send(200, 'application/json', json(state.me));
   if (path === '/profile/api/trades') return send(200, 'application/json', json(req.method === 'POST' ? { ok: true, message: 'Added to your profile.' } : state.trades));
@@ -237,6 +238,19 @@ try {
   ok('after a load, the Trade Market panel is in the column (one only)', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
   await page.js('render(); render(); true');
   ok('redraws keep exactly one Trade Market panel, in the column', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
+
+  // --- Fans' value per player, in the Trade Market panel (phase 2) --------
+  await page.waitFor('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans") !== null', 'the fans\' value');
+  ok('fans\' value in the Trade Market panel: "Fans side with the team getting him in 78% of judged trades."',
+    await page.js(q('.mp-card[data-mp="9800003"] .mp-fans')) === 'Fans side with the team getting him in 78% of judged trades.'
+    && await page.js('!!document.querySelector("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-fans")'));
+  ok('no line for a player without 5 decided trades', await page.js('!document.querySelector(".mp-card[data-mp=\\"9830003\\"] .mp-fans")'));
+  // A card already on the page when the values arrive gets its line, once.
+  await page.js('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans").remove(); loadFansValues(); loadFansValues(); true');
+  await page.waitFor('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans") !== null', 'the patched line');
+  await settle();
+  ok('cards already drawn get the line once, under Trade Heat and People this week', await page.js('document.querySelectorAll(".mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1
+    && await page.js('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans").previousElementSibling.textContent') === 'People this week');
 
   // No trades today: no list, no pill.
   state.stack = { day: '2026-10-28', trades: [] };
