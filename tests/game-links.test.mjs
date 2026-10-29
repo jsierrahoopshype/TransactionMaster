@@ -104,7 +104,7 @@ const STACK = Array.from({ length: 10 }, (_, i) => ({
   id: '2026-10-28T10:00:0' + i + '.000Z-stk00' + i,
   a: side('BOS', 'boston', [['Made Up Wing ' + i, 30000000, 9800000 + i], ['Made Up Big ' + i, 12000000, 9810000 + i], ['Made Up Filler ' + i, 2000000, 9820000 + i]]),
   b: side('LAL', 'la-lakers', [['Made Up Guard ' + i, 29000000, 9830000 + i]]),
-  fix: '?p=' + (9800000 + i) + '%2C' + (9830000 + i) + '&t=BOS%2CLAL&pd=0-1%2C1-0&stk=' + i,
+  fix: '?p=' + (9800000 + i) + '%2C' + (9830000 + i) + '&t=BOS%2CLAL&pd=0-1%2C1-0&stk=' + i + (i === 3 ? '&rm=NYK' : ''),
 }));
 const VERDICT = { verdict: { winner: 'BOS', teams: [{ team: 'BOS', pct: 71, href: '/trade-market/team/boston/' }, { team: 'LAL', pct: 29, href: '/trade-market/team/la-lakers/' }] },
   trade: '2026-10-20T09:00:00.000Z-exa001', link: '/who-wins-the-trade/?t=2026-10-20T09%3A00%3A00.000Z-exa001' };
@@ -246,8 +246,10 @@ try {
   await page.js('window.__marker = 1, document.querySelectorAll("#tmFansToday .ft-load")[3].click(), true');
   await page.waitFor('location.search.indexOf("stk=3") >= 0 && tradeTeams[0].playersOut.length === 1', 'the trade');
   ok('"Load" fills the builder in place from the trade\'s own address (one "?", no new page)',
-    await page.js('window.__marker === 1 && location.search === ' + json(STACK[3].fix)) && !state.calls.some((u) => u.startsWith('/?') || u.startsWith('/tm.html'))
+    await page.js('window.__marker === 1 && location.search === ' + json(STACK[3].fix.replace('&rm=NYK', ''))) && !state.calls.some((u) => u.startsWith('/?') || u.startsWith('/tm.html'))
     && await page.js('tradeTeams.map((t) => t.playersOut[0].playerId).join(",")') === '9800003,9830003' && await page.js('window.__stopped') === 1, state.calls);
+  ok('a trade saved in the Roster Manager (rm=NYK) loads without its embed mode: no rm in the address, the page as it was',
+    await page.js('location.search.indexOf("rm=") < 0 && !document.body.classList.contains("rm-mode") && !!document.getElementById("tmFansPill")'));
   ok('after a load, the Trade Market panel is in the column (one only)', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
   await page.js('render(); render(); true');
   ok('redraws keep exactly one Trade Market panel, in the column', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
