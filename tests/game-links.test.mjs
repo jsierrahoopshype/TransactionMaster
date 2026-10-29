@@ -28,6 +28,11 @@ const ok = (name, cond, detail) => {
   console.log((cond ? 'PASS  ' : 'FAIL  ') + name);
   if (!cond) { failed++; if (detail !== undefined) console.log('        ' + JSON.stringify(detail).slice(0, 400)); }
 };
+function cut(name) {
+  const m = html.match(new RegExp('\\n( *)(async )?function ' + name + '\\([\\s\\S]*?\\n\\1\\}'));
+  if (!m) throw new Error('not found: ' + name);
+  return m[0];
+}
 // The whole block, from its comment to the next one (marketSession's).
 function cutBlock() {
   const start = html.indexOf('    /*\n     * "WHO WINS THE TRADE?" AND PROFILES IN THE TRADE MACHINE');
@@ -47,12 +52,13 @@ if (!CHROME) {
 const css = html.slice(html.indexOf('    /* "Who wins the trade?" and profiles in the Trade Machine (additive). */'), html.indexOf('</style>'));
 const TEAMS = "const teamAbbreviations = { 'Boston': 'BOS', 'LA Lakers': 'LAL', 'Miami': 'MIA' };\n";
 const SCRIPT = (rm) => 'var IS_RM_MODE = ' + (rm ? 'true' : 'false') + ';\nlet tradeTeams = [];\n' + TEAMS + cutBlock()
+  + cut('showGameVerdict') + cut('showAddToProfile') + '\nfunction marketSession() { return "tm-e2e-session"; }\n'
   + '\nwindow.__set = function (t) { tradeTeams = t; };\ninitGameLinks();\n';
 const PAGE = (rm) => '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
   + '<style>:root{--bg:#f5f5f7;--surface:#fff;--border:#d1d1d6;--text:#1d1d1f;--text-secondary:#6e6e73;--accent:#3b82f6}' + css + '</style></head><body>'
   + '<header><h1>NBA Trade Machine</h1><nav class="tm-tabs" aria-label="Trade Machine views"><a class="on" href="/">Build a trade</a><a href="/trade-market">Trade Market</a></nav>'
   + '<div class="header-actions"><div class="header-row"><button id="loopTradeBtn">Trade Loop</button><button id="generateImageBtn">Generate Image</button><button id="resetBtn">Reset Trade</button></div></div></header>'
-  + '<div class="realistic-meter" id="realisticMeter">Trade Balance</div><div id="tradeContainer"></div>'
+  + '<div class="realistic-meter" id="realisticMeter">Trade Balance</div><span class="tm-publish" id="tmPublish"></span><div id="tradeContainer"></div>'
   + '<script src="/tm' + (rm ? '-rm' : '') + '.js"></script></body></html>';
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'";
 
@@ -89,7 +95,8 @@ const server = createServer((req, res) => {
   if (path === '/who-wins-the-trade/api/exact') return state.exact === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.exact));
   if (path === '/who-wins-the-trade/api/stack') return state.stack === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.stack));
   if (path === '/profile/api/me') return send(200, 'application/json', json(state.me));
-  if (path === '/profile/api/trades') return send(200, 'application/json', json(state.trades));
+  if (path === '/profile/api/trades') return send(200, 'application/json', json(req.method === 'POST' ? { ok: true, message: 'Added to your profile.' } : state.trades));
+  if (path === '/who-wins-the-trade/api/builder') return send(200, 'application/json', json({ message: 'Fans are judging this now. Check back for the verdict.', link: 'https://hoopsmatic.com/who-wins-the-trade/' }));
   if (path.startsWith('/who-wins-the-trade/img/')) {
     return send(200, path.endsWith('.svg') ? 'image/svg+xml' : 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#888"/></svg>');
   }
@@ -236,6 +243,20 @@ try {
   await chipPage.waitFor(q('#tmProfileChip') + ' !== undefined', 'the chip');
   ok('no display name yet: "Your profile"', await chipPage.js(q('#tmProfileChip .pc-name')) === 'Your profile');
   ok('no sideways scroll with the chip at 375px', await chipPage.js('document.documentElement.scrollWidth <= innerWidth'));
+
+  // --- The page redraws many times: every piece is on it exactly once ------
+  // (October 29, 2026: the live page drew from cached data and again from
+  // fresh data, and the chip and the "load one" line showed twice.)
+  state.me = { profile: true, name: 'Made Up Fan', leaderboard: false, is_public: false, autolink: true };
+  state.trades = { profile: true, trades: ['a'], judged: 1 };
+  state.exact = VERDICT;
+  await chipPage.goto(origin + '/tm.html');
+  await chipPage.waitFor(q('#tmProfileChip') + ' !== undefined && ' + q('#tmGameLine') + ' !== undefined', 'the chip and the line');
+  await chipPage.js('window.__set(' + json(TRADE) + '); for (let i = 0; i < 12; i++) { initGameLinks(); showProfileChip(); showTodaysTrades(); showFansVerdict(true); } true');
+  await chipPage.js('for (let i = 0; i < 6; i++) { showGameVerdict("t-e2e", document.getElementById("tmPublish")); showAddToProfile("t-e2e", document.getElementById("tmPublish")); } true');
+  await new Promise((r) => setTimeout(r, 1200));
+  const counts = await chipPage.js('({ chip: document.querySelectorAll(".tm-profile-chip").length, line: document.querySelectorAll(".tm-game-line").length, verdict: document.querySelectorAll(".tm-fans-verdict").length, game: document.querySelectorAll(".tm-game-verdict").length, added: document.querySelectorAll(".tm-add-profile").length })');
+  ok('after many redraws: exactly one chip, one line, one verdict, one game message, one "Added to your profile"', json(counts) === json({ chip: 1, line: 1, verdict: 1, game: 1, added: 1 }), counts);
 
   // --- Roster Manager mode: none of it --------------------------------------
   state.me = { profile: true, name: 'Made Up Fan' };
