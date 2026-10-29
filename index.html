@@ -2477,6 +2477,8 @@
     .ft-load { flex: 0 0 auto; min-height: 36px; min-width: 64px; padding: 0 .875rem; border-radius: 8px; border: 1px solid var(--accent);
       background: var(--surface); color: var(--accent); font: inherit; font-size: .8125rem; font-weight: 700; cursor: pointer; }
     .ft-load:hover { background: var(--accent); color: #fff; }
+    .mkt-panel .mp-fans { margin: .5rem 0 .25rem; font-size: .8125rem; line-height: 1.4; color: var(--text-secondary); }
+    .mkt-panel .mp-fans b { color: var(--text); font-weight: 700; }
     body.rm-mode .tm-avatar, body.rm-mode .tm-fans-pill, body.rm-mode .tm-fans-verdict, body.rm-mode .tm-side { display: none !important; }
 </style>
 </head>
@@ -3945,6 +3947,7 @@
         + '<div class="salary-row mp-heat"><span class="salary-label">Trade Heat</span>'
         + '<span class="salary-value mp-heat-n">' + (d.heat == null ? '\u2014' : d.heat) + '</span></div>'
         + row('People this week', (w.people || 0) + (ch ? '  ' + ch : ''))
+        + fansValueHtml(pl.id)
         + group('Most sent to', d.destinations, 3, 'team')
         + group('Most received back', d.assets_back, 2, 'player')
         + '<a class="mp-more" href="' + href + '" target="_blank" rel="noopener">'
@@ -4426,6 +4429,37 @@
       try { placeSide(); } catch (e) {}
       try { showProfileChip(); } catch (e) {}
       try { showTodaysTrades(); } catch (e) {}
+      try { loadFansValues(); } catch (e) {}
+    }
+
+    // --- Fans' value per player, in the Trade Market panel -----------------
+    // (Jorge, October 29, 2026, phase 2.) From the game's decided trades:
+    // for players earning $5M or more with 5 or more of them, how often the
+    // team getting him won. Asked once per page; percentages only.
+    let FANS_VALUES = null;
+    function fansValueHtml(id) {
+      const v = FANS_VALUES && FANS_VALUES[String(id)];
+      if (!v || !Number.isInteger(v.pct) || v.pct < 0 || v.pct > 100) return '';
+      return '<p class="mp-fans">Fans side with the team getting him in <b>' + v.pct + '%</b> of judged trades.</p>';
+    }
+    function loadFansValues() {
+      fetch('/who-wins-the-trade/api/player-values', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!j || !j.players || typeof j.players !== 'object') return;
+          FANS_VALUES = j.players;
+          // Cards already on the page get their line now; later ones are drawn with it.
+          document.querySelectorAll('.mp-card[data-mp]').forEach(function (card) {
+            const body = card.querySelector('.mp-body');
+            const html = fansValueHtml(card.getAttribute('data-mp'));
+            if (!body || !html || card.querySelector('.mp-fans')) return;
+            const heat = body.querySelectorAll('.salary-row');
+            const after = heat.length ? heat[heat.length > 1 ? 1 : 0] : null;
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            body.insertBefore(tmp.firstChild, after ? after.nextSibling : body.firstChild);
+          });
+        }).catch(function () {});
     }
 
     function showProfileChip() {
