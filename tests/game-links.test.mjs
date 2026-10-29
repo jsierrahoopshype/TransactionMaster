@@ -12,11 +12,11 @@
 //     says fans judged, "Fans: BOS 71–29 →", the team linked to its page and
 //     the arrow to the trade in the game; nothing otherwise;
 //   - the side column, top to bottom: the meter (with the fans' verdict) and
-//     the publish area moved into it as they are, then the Trade Market cards
-//     for the players in the trade, shown on a phone too (October 29, 2026);
-//   - the "Fans are judging today" list (logos, faces, linked names, "Load")
-//     below the builder, above the Badge Glossary; "Load" fills the builder
-//     in place; no fans' value line under the players in the builder;
+//     the publish area moved into it as they are, the Trade Market cards for
+//     the players in the trade, then the "Fans are judging today" list
+//     (logos, faces, linked names, "Load"), the cards shown on a phone too
+//     (October 29, 2026); nothing of it below the builder; "Load" fills the
+//     builder in place; no fans' value line under the players in the builder;
 //   - the header: "Fans' trades (10)" as a third pill linking to the list;
 //     with a profile, one round avatar with the initial at the far right and
 //     a number when trades got verdicts; nothing without a profile;
@@ -234,9 +234,10 @@ try {
   ok('the meter and the publish area moved into the side column, as they are (same ids)',
     await page.js('!!document.querySelector("#tmSide #realisticMeter") && !!document.querySelector("#tmSide #tmPublish") && document.querySelectorAll("#realisticMeter, #tmPublish").length === 2'));
   ok('the team area is the same element, now beside (or above) the column', await page.js('document.getElementById("tradeContainer").parentNode.id === "tmWork" && document.getElementById("tmSide").parentNode.id === "tmWork"'));
-  ok('"Fans are judging today" sits below the builder, right above the Badge Glossary, outside the column',
-    await page.js('document.getElementById("tmFansToday").nextElementSibling.className === "glossary-section" && !document.querySelector("#tmSide #tmFansToday")'
-      + ' && !!(document.getElementById("tmWork").compareDocumentPosition(document.getElementById("tmFansToday")) & Node.DOCUMENT_POSITION_FOLLOWING)'));
+  ok('"Fans are judging today" is the column\'s last part, under the Trade Market; nothing of it below the builder',
+    await page.js('document.getElementById("tmFansToday").parentNode.id === "tmSide" && document.getElementById("tmSide").lastElementChild.id === "tmFansToday"'
+      + ' && document.getElementById("tmSideMarket").compareDocumentPosition(document.getElementById("tmFansToday")) & Node.DOCUMENT_POSITION_FOLLOWING'
+      + ' && document.querySelector(".glossary-section").previousElementSibling.id !== "tmFansToday" && document.querySelectorAll(".tm-fans-today").length === 1'));
   ok('"Fans are judging today" lists today\'s 10', await page.js(q('#tmFansToday h2')) === 'Fans are judging today' && await page.js('document.querySelectorAll("#tmFansToday .ft-trade").length') === 10);
   ok('each with both logos, the biggest name a side with a face, and the rest as "+N"',
     await page.js('document.querySelectorAll(".ft-trade")[0].querySelectorAll(".ft-logo").length') === 2
@@ -262,8 +263,8 @@ try {
   ok('after a load, the Trade Market panel is in the column (one only)', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
   await page.js('render(); render(); true');
   ok('redraws keep exactly one Trade Market panel, in the column', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
-  ok('the column, top to bottom: the meter with the fans\' verdict, the publish row, then the Trade Market cards',
-    await page.js('(() => { const t = document.getElementById("tmSideTop"), m = document.getElementById("tmSideMarket"); return t.nextElementSibling === m && t.firstElementChild.id === "realisticMeter" && [...t.children].map((c) => c.id).indexOf("tmPublish") > [...t.children].map((c) => c.id).indexOf("realisticMeter") && !!m.querySelector(".mkt-panel .mp-card"); })()'));
+  ok('the column, top to bottom: the meter with the fans\' verdict, the publish row, the Trade Market cards, then "Fans are judging today"',
+    await page.js('(() => { const t = document.getElementById("tmSideTop"), m = document.getElementById("tmSideMarket"); return t.nextElementSibling === m && m.nextElementSibling && m.nextElementSibling.id === "tmFansToday" && t.firstElementChild.id === "realisticMeter" && [...t.children].map((c) => c.id).indexOf("tmPublish") > [...t.children].map((c) => c.id).indexOf("realisticMeter") && !!m.querySelector(".mkt-panel .mp-card"); })()'));
   ok('on a phone (375px) the Trade Market cards show in the column, below the builder', await page.js('getComputedStyle(document.querySelector("#tmSide .mkt-panel")).display !== "none" && document.querySelector("#tmSide .mkt-panel").getBoundingClientRect().height > 0'));
   // Players added or removed: the cards follow.
   await page.js('window.__set([{ teamName: "Boston", playersOut: [{ player: "A", playerId: "9800003", destination: 1 }, { player: "B", playerId: "9800004", destination: 1 }], picksOut: [], rightsOut: [], cashOut: [] }, { teamName: "LA Lakers", playersOut: [], picksOut: [], rightsOut: [], cashOut: [] }]); render(); true');

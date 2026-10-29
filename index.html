@@ -2467,9 +2467,7 @@
     .tm-challenge button { font: inherit; font-weight: 600; color: var(--accent, #0a84ff); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
     .tm-challenge button[disabled] { opacity: .6; cursor: default; }
     /* "Fans are judging today": today's game deck, vertical. */
-    .tm-fans-today { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem; scroll-margin-top: var(--tm-side-top, 1rem); margin: 1rem 0; max-width: 760px; }
-    /* The header is pinned only on wide screens; on a phone the list goes to the top. */
-    @media (max-width: 1199px) { .tm-fans-today { scroll-margin-top: 1rem; } }
+    .tm-fans-today { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem; scroll-margin-top: 1rem; }
     .tm-fans-today h2 { font-size: .9375rem; font-weight: 700; margin: 0 0 .5rem; }
     .ft-list { list-style: none; display: flex; flex-direction: column; margin: 0; padding: 0; }
     .ft-trade { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; border-top: 1px solid var(--border); }
@@ -4322,7 +4320,7 @@
         side = document.createElement('aside');
         side.className = 'tm-side';
         side.id = 'tmSide';
-        side.setAttribute('aria-label', 'Trade Balance, publishing and the Trade Market');
+        side.setAttribute('aria-label', 'Trade Balance, publishing, the Trade Market and fans’ trades');
         const top = document.createElement('div');
         top.className = 'tm-side-top';
         top.id = 'tmSideTop';
@@ -4367,8 +4365,6 @@
         if (cs && cs.position === 'sticky') top = Math.round((parseFloat(cs.top) || 0) + h.getBoundingClientRect().height) + 12;
       } catch (e) { /* the default */ }
       side.style.setProperty('--tm-side-top', top + 'px');
-      // The same offset for "Fans’ trades" jumping to the list below the builder.
-      document.documentElement.style.setProperty('--tm-side-top', top + 'px');
     }
 
     // --- The fans' verdict, under the meter --------------------------------
@@ -4634,6 +4630,15 @@
             pill.className = 'tm-fans-pill';
             pill.href = '#tmFansToday';
             pill.textContent = 'Fans’ trades (' + trades.length + ')';
+            // On a wide screen the column is pinned with its own scroll: move
+            // the column to the list, not the page. On a phone, the jump.
+            pill.addEventListener('click', function (e) {
+              const col = document.getElementById('tmSide');
+              const list = document.getElementById('tmFansToday');
+              if (!col || !list || col.scrollHeight <= col.clientHeight || getComputedStyle(col).position !== 'sticky') return;
+              e.preventDefault();
+              col.scrollTo({ top: list.getBoundingClientRect().top - col.getBoundingClientRect().top + col.scrollTop - 8, behavior: 'smooth' });
+            });
             nav.insertBefore(pill, document.getElementById('tmChallengePill'));
           }
           const sec = document.createElement('section');
@@ -4663,13 +4668,9 @@
             list.appendChild(li);
           });
           sec.appendChild(list);
-          // Below the builder, above the Badge Glossary (Jorge, October 29,
-          // 2026); the column keeps the meter, publishing and the market.
-          const gloss = document.querySelector('.glossary-section');
-          const work = document.getElementById('tmWork');
-          if (gloss && gloss.parentNode) gloss.parentNode.insertBefore(sec, gloss);
-          else if (work && work.parentNode) work.parentNode.insertBefore(sec, work.nextSibling);
-          else side.appendChild(sec);
+          // The column's last part, under the Trade Market cards (Jorge,
+          // October 29, 2026).
+          side.appendChild(sec);
         }).catch(function () {});
     }
 
