@@ -2436,8 +2436,8 @@
     @media (min-width: 1200px) {
       .tm-work { display: flex; align-items: flex-start; gap: 1rem; }
       .tm-work > .trade-container { flex: 1 1 auto; min-width: 0; }
-      .tm-side { flex: 0 0 320px; width: 320px; margin-top: 0; position: sticky; top: var(--tm-side-top, 1rem);
-        max-height: calc(100vh - var(--tm-side-top, 1rem) - 1rem); overflow-y: auto; overscroll-behavior: contain; padding-bottom: 1rem; }
+      /* It scrolls with the page, not pinned (Jorge, October 29, 2026). */
+      .tm-side { flex: 0 0 320px; width: 320px; margin-top: 0; }
     }
     .tm-side-top { display: flex; flex-direction: column; gap: .5rem; }
     .tm-side .realistic-meter { margin-top: 0; }
@@ -4333,9 +4333,7 @@
         market.id = 'tmSideMarket';
         side.appendChild(market);
         work.appendChild(side);
-        window.addEventListener('resize', sideTop);
       }
-      sideTop();
       // The publish area shows only while the trade status does, as when it
       // sat inside it.
       const status = document.getElementById('tradeStatus');
@@ -4351,20 +4349,6 @@
       } else if (market && !container.querySelector('.mkt-panel') && !tradeTeams.some(function (t) { return (t.playersOut || []).length; })) {
         market.textContent = '';
       }
-    }
-
-    // On hoopsmatic.com the header (search and buttons) can stay pinned to
-    // the top while scrolling; the column then stays in view just below it.
-    function sideTop() {
-      const side = document.getElementById('tmSide');
-      if (!side) return;
-      let top = 16;
-      const h = document.querySelector('header');
-      try {
-        const cs = h && getComputedStyle(h);
-        if (cs && cs.position === 'sticky') top = Math.round((parseFloat(cs.top) || 0) + h.getBoundingClientRect().height) + 12;
-      } catch (e) { /* the default */ }
-      side.style.setProperty('--tm-side-top', top + 'px');
     }
 
     // --- The fans' verdict, under the meter --------------------------------
@@ -4630,14 +4614,17 @@
             pill.className = 'tm-fans-pill';
             pill.href = '#tmFansToday';
             pill.textContent = 'Fans’ trades (' + trades.length + ')';
-            // On a wide screen the column is pinned with its own scroll: move
-            // the column to the list, not the page. On a phone, the jump.
-            pill.addEventListener('click', function (e) {
-              const col = document.getElementById('tmSide');
+            // The jump lands just below the page header where it stays pinned
+            // (a wide screen); on a phone, at the top.
+            pill.addEventListener('click', function () {
               const list = document.getElementById('tmFansToday');
-              if (!col || !list || col.scrollHeight <= col.clientHeight || getComputedStyle(col).position !== 'sticky') return;
-              e.preventDefault();
-              col.scrollTo({ top: list.getBoundingClientRect().top - col.getBoundingClientRect().top + col.scrollTop - 8, behavior: 'smooth' });
+              const h = document.querySelector('header');
+              let top = 16;
+              try {
+                const cs = h && getComputedStyle(h);
+                if (cs && cs.position === 'sticky' && window.matchMedia('(min-width: 1200px)').matches) top = Math.round((parseFloat(cs.top) || 0) + h.getBoundingClientRect().height) + 12;
+              } catch (e) { /* the default */ }
+              if (list) list.style.scrollMarginTop = top + 'px';
             });
             nav.insertBefore(pill, document.getElementById('tmChallengePill'));
           }
