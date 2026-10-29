@@ -25,7 +25,9 @@ function page(answer) {
   const calls = [];
   const mk = (tag) => {
     const n = { tag, children: [], textContent: '', style: {}, className: '', href: '', listeners: {},
-      appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.listeners[t] = f; } };
+      appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.listeners[t] = f; },
+      // Only ".class" lookups among direct children, which is all the page asks.
+      querySelector(sel) { return this.children.find((c) => sel[0] === '.' && c.className === sel.slice(1)) || null; } };
     Object.defineProperty(n, 'innerHTML', { set() { this.children = []; }, get() { return ''; } });
     return n;
   };

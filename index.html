@@ -4093,6 +4093,8 @@
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
             if (!j || typeof j.message !== 'string' || !j.message) return;
+            // Once per publish, however often this is called.
+            if (host.querySelector('.tm-game-verdict')) return;
             const p = document.createElement('p');
             p.className = 'tm-game-verdict';
             p.style.margin = '.5rem 0 0';
@@ -4134,6 +4136,7 @@
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (me) {
             if (!me || me.profile !== true || me.autolink !== true) return;
+            if (host.querySelector('.tm-add-profile')) return;
             const p = document.createElement('p');
             p.className = 'tm-add-profile';
             p.style.margin = '.5rem 0 0';
@@ -4302,8 +4305,14 @@
     }
 
     // The profile chip (header) and "Fans are judging N trades today".
+    // The page draws itself more than once (from cached data, then again
+    // when fresh data arrives), so this runs once, and each piece also
+    // checks it isn't on the page already before adding itself.
+    let gameLinksStarted = false;
     function initGameLinks() {
       if (IS_RM_MODE) return;
+      if (gameLinksStarted) return;
+      gameLinksStarted = true;
       try { showProfileChip(); } catch (e) {}
       try { showTodaysTrades(); } catch (e) {}
     }
@@ -4315,6 +4324,7 @@
           if (!me || me.profile !== true) return null;
           const nav = document.querySelector('header .tm-tabs');
           if (!nav) return null;
+          if (document.getElementById('tmProfileChip')) return null;
           const chip = document.createElement('a');
           chip.className = 'tm-profile-chip';
           chip.id = 'tmProfileChip';
@@ -4367,6 +4377,7 @@
             return t && t.a && t.b && typeof t.fix === 'string' && t.fix.length > 1;
           });
           if (!trades.length) return;
+          if (document.getElementById('tmGameLine')) return;
           const p = document.createElement('p');
           p.className = 'tm-game-line';
           p.id = 'tmGameLine';
