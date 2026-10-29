@@ -11,9 +11,12 @@
 //   - the fans' verdict under the meter: only for a legal trade the game
 //     says fans judged, "Fans: BOS 71–29 →", the team linked to its page and
 //     the arrow to the trade in the game; nothing otherwise;
-//   - the side column: the meter and the publish area moved into it as they
-//     are, the "Fans are judging today" list (logos, faces, linked names,
-//     "Load"), the Trade Market panel; "Load" fills the builder in place;
+//   - the side column, top to bottom: the meter (with the fans' verdict) and
+//     the publish area moved into it as they are, then the Trade Market cards
+//     for the players in the trade, shown on a phone too (October 29, 2026);
+//   - the "Fans are judging today" list (logos, faces, linked names, "Load")
+//     below the builder, above the Badge Glossary; "Load" fills the builder
+//     in place; no fans' value line under the players in the builder;
 //   - the header: "Fans' trades (10)" as a third pill linking to the list;
 //     with a profile, one round avatar with the initial at the far right and
 //     a number when trades got verdicts; nothing without a profile;
@@ -55,7 +58,9 @@ if (!CHROME) {
 const css = html.slice(html.indexOf('    /* "Who wins the trade?" and profiles in the Trade Machine (additive). */'), html.indexOf('</style>'));
 // The real page's rules for the header and the tabs, so the avatar's place is the real one.
 const rule = (sel) => { const m = html.match(new RegExp('\\n    ' + sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{[\\s\\S]*?\\n    \\}')); if (!m) throw new Error('no CSS rule ' + sel); return m[0]; };
-const PAGE_CSS = rule('header') + rule('.header-actions') + html.match(/\n    \.tm-tabs \{[^}]*\}/)[0] + html.match(/\n    \.tm-tabs a \{[\s\S]*?\}/)[0];
+const PAGE_CSS = rule('header') + rule('.header-actions') + html.match(/\n    \.tm-tabs \{[^}]*\}/)[0] + html.match(/\n    \.tm-tabs a \{[\s\S]*?\}/)[0]
+  // The page's own rule that hides the Trade Market panel below 1200px.
+  + html.match(/\n    @media \(max-width: 1199px\) \{ \.mkt-panel \{ display: none; \} \}/)[0];
 const TEAMS = "const teamAbbreviations = { 'Boston': 'BOS', 'LA Lakers': 'LAL', 'Miami': 'MIA' };\n";
 // Stand-ins for the builder: render() redraws the team area from scratch
 // (with a Trade Market panel when players move), as the page does, then
@@ -91,7 +96,8 @@ const PAGE = (rm) => '<!DOCTYPE html><html><head><meta charset="utf-8"><meta nam
   + '<header><h1>NBA Trade Machine</h1><nav class="tm-tabs" aria-label="Trade Machine views"><a class="on" href="/">Build a trade</a><a href="/trade-market">Trade Market</a></nav>'
   + '<div class="header-actions"><div class="header-row"><button id="loopTradeBtn">Trade Loop</button><button id="generateImageBtn">Generate Image</button><button id="resetBtn">Reset Trade</button></div></div></header>'
   + '<div id="mainContent"><div class="trade-status" id="tradeStatus"><span>Trade is valid</span><span class="tm-publish" id="tmPublish"></span></div>'
-  + '<div class="realistic-meter" id="realisticMeter">Trade Balance</div><div class="trade-container" id="tradeContainer"></div></div>'
+  + '<div class="realistic-meter" id="realisticMeter">Trade Balance</div><div class="trade-container" id="tradeContainer"></div>'
+  + '<div class="glossary-section"><div class="glossary-header"><h3>Badge Glossary</h3></div></div></div>'
   + '<script src="/tm' + (rm ? '-rm' : '') + '.js"></script></body></html>';
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'";
 
@@ -228,6 +234,9 @@ try {
   ok('the meter and the publish area moved into the side column, as they are (same ids)',
     await page.js('!!document.querySelector("#tmSide #realisticMeter") && !!document.querySelector("#tmSide #tmPublish") && document.querySelectorAll("#realisticMeter, #tmPublish").length === 2'));
   ok('the team area is the same element, now beside (or above) the column', await page.js('document.getElementById("tradeContainer").parentNode.id === "tmWork" && document.getElementById("tmSide").parentNode.id === "tmWork"'));
+  ok('"Fans are judging today" sits below the builder, right above the Badge Glossary, outside the column',
+    await page.js('document.getElementById("tmFansToday").nextElementSibling.className === "glossary-section" && !document.querySelector("#tmSide #tmFansToday")'
+      + ' && !!(document.getElementById("tmWork").compareDocumentPosition(document.getElementById("tmFansToday")) & Node.DOCUMENT_POSITION_FOLLOWING)'));
   ok('"Fans are judging today" lists today\'s 10', await page.js(q('#tmFansToday h2')) === 'Fans are judging today' && await page.js('document.querySelectorAll("#tmFansToday .ft-trade").length') === 10);
   ok('each with both logos, the biggest name a side with a face, and the rest as "+N"',
     await page.js('document.querySelectorAll(".ft-trade")[0].querySelectorAll(".ft-logo").length') === 2
@@ -253,6 +262,16 @@ try {
   ok('after a load, the Trade Market panel is in the column (one only)', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
   await page.js('render(); render(); true');
   ok('redraws keep exactly one Trade Market panel, in the column', await page.js('document.querySelectorAll(".mkt-panel").length === 1 && !!document.querySelector("#tmSide .mkt-panel")'));
+  ok('the column, top to bottom: the meter with the fans\' verdict, the publish row, then the Trade Market cards',
+    await page.js('(() => { const t = document.getElementById("tmSideTop"), m = document.getElementById("tmSideMarket"); return t.nextElementSibling === m && t.firstElementChild.id === "realisticMeter" && [...t.children].map((c) => c.id).indexOf("tmPublish") > [...t.children].map((c) => c.id).indexOf("realisticMeter") && !!m.querySelector(".mkt-panel .mp-card"); })()'));
+  ok('on a phone (375px) the Trade Market cards show in the column, below the builder', await page.js('getComputedStyle(document.querySelector("#tmSide .mkt-panel")).display !== "none" && document.querySelector("#tmSide .mkt-panel").getBoundingClientRect().height > 0'));
+  // Players added or removed: the cards follow.
+  await page.js('window.__set([{ teamName: "Boston", playersOut: [{ player: "A", playerId: "9800003", destination: 1 }, { player: "B", playerId: "9800004", destination: 1 }], picksOut: [], rightsOut: [], cashOut: [] }, { teamName: "LA Lakers", playersOut: [], picksOut: [], rightsOut: [], cashOut: [] }]); render(); true');
+  const added = await page.js('[...document.querySelectorAll("#tmSide .mp-card")].map((c) => c.getAttribute("data-mp")).join(",")');
+  await page.js('window.__set([{ teamName: "Boston", playersOut: [{ player: "B", playerId: "9800004", destination: 1 }], picksOut: [], rightsOut: [], cashOut: [] }, { teamName: "LA Lakers", playersOut: [], picksOut: [], rightsOut: [], cashOut: [] }]); render(); true');
+  const removed = await page.js('[...document.querySelectorAll("#tmSide .mp-card")].map((c) => c.getAttribute("data-mp")).join(",")');
+  ok('the cards follow the players in the trade, added and removed', added === '9800003,9800004' && removed === '9800004', [added, removed]);
+  await page.js('window.__set(buildTradeFromUrl()); render(); true');
 
   // --- Fans' value per player, in the Trade Market panel (phase 2) --------
   await page.waitFor('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans") !== null', 'the fans\' value');
@@ -284,19 +303,12 @@ try {
   await settle();
   ok('and after more redraws, still one line per card', await page.js('[...document.querySelectorAll(".mp-card")].every((c) => c.querySelectorAll(".mp-fans").length <= 1)')
     && await page.js('document.querySelectorAll(".mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1);
-  // The same line under the player in the trade itself, at every width
-  // (the panel is hidden below 1200px), once, however often the page redraws.
-  const TRADE_LINE = '.player-chip:has(button[data-team="0"][data-player="0"]) .tm-trade-fans';
-  await page.waitFor('document.querySelector(' + json(TRADE_LINE) + ') !== null', 'the line in the trade');
-  for (let i = 0; i < 10; i++) await page.js('render(); true');
+  // No line under the players in the builder (Jorge, October 29, 2026: it
+  // made the page too long); the panel cards keep theirs.
+  for (let i = 0; i < 4; i++) await page.js('render(); true');
   await settle();
-  ok('in the trade: the line under the player, between his row and "To:", exactly once after 10 redraws',
-    await page.js('document.querySelectorAll(".tm-trade-fans").length') === 1
-    && await page.js(q(TRADE_LINE)) === 'Fans side with the team getting him in 78% of judged trades.'
-    && await page.js(q(TRADE_LINE, 'previousElementSibling.className')) === 'player-chip-row'
-    && await page.js(q(TRADE_LINE, 'nextElementSibling.className')) === 'player-destination');
-  ok('no line under a player without 5 decided trades', !(await page.js('!!document.querySelector(\'.player-chip:has(button[data-team="1"][data-player="0"]) .tm-trade-fans\')')));
-  ok('shown on a phone too (the line is in the trade, not the hidden panel)', await page.js('getComputedStyle(document.querySelector(' + json(TRADE_LINE) + ')).display') !== 'none');
+  ok('no fans\' value line in the builder; the panel card keeps its one line', await page.js('!document.querySelector("#tradeContainer .mp-fans, #tradeContainer .tm-trade-fans")')
+    && await page.js('document.querySelectorAll("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1);
 
   // No trades today: no list, no pill.
   state.stack = { day: '2026-10-28', trades: [] };
