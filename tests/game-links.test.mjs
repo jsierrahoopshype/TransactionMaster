@@ -382,6 +382,24 @@ try {
   await settle();
   ok('without a profile: no challenge button', !(await chipPage.js('!!document.querySelector(".tm-challenge")')));
 
+  // --- "Publish it and see what fans think →" (October 29, 2026) ------------
+  // Only while the trade is legal and its "Publish this trade" button is
+  // there; pressing it presses that button; gone once published.
+  await chipPage.js('(() => { window.__clicks = 0; window.__tmLastValid = true; const h = document.getElementById("tmPublish"); h.innerHTML = ""; h.style.display = ""; h.classList.remove("tm-side-off");'
+    + ' const b = document.createElement("button"); b.type = "button"; b.textContent = "Publish this trade"; b.addEventListener("click", function () { window.__clicks++; }); h.appendChild(b); return true; })()');
+  await chipPage.waitFor('document.getElementById("tmPublishNudge") && !document.getElementById("tmPublishNudge").hidden', 'the nudge');
+  ok('a legal trade not yet published: one slim line under the meter, "Publish it and see what fans think →", right above the publish row',
+    await chipPage.js(q('#tmPublishNudge button')) === 'Publish it and see what fans think \u2192' && await chipPage.js('document.getElementById("tmPublishNudge").nextElementSibling.id === "tmPublish" && document.querySelectorAll(".tm-publish-nudge").length === 1'));
+  await chipPage.js('document.querySelector("#tmPublishNudge button").click(), true');
+  ok('pressing it presses "Publish this trade" (nothing is published on its own)', await chipPage.js('window.__clicks') === 1);
+  await chipPage.js('for (let i = 0; i < 5; i++) { showPublishNudge(); render(); } true');
+  ok('one line, however often the page redraws', await chipPage.js('document.querySelectorAll(".tm-publish-nudge").length') === 1);
+  await chipPage.js('window.__tmLastValid = false; showPublishNudge(); true');
+  ok('not legal: no line', await chipPage.js('document.getElementById("tmPublishNudge").hidden') === true);
+  await chipPage.js('(() => { window.__tmLastValid = true; document.getElementById("tmPublish").innerHTML = \'<a href="/trade/t1">View</a>\'; return true; })()');
+  await settle();
+  ok('published: no line', await chipPage.js('document.getElementById("tmPublishNudge").hidden') === true);
+
   // --- Roster Manager mode: none of it --------------------------------------
   state.me = { profile: true, name: 'jajito' };
   await chipPage.goto(origin + '/rm.html');
@@ -389,7 +407,7 @@ try {
   await chipPage.js('window.__set(' + json(TRADE) + '), render(), showFansVerdict(true), true');
   await settle();
   ok('Roster Manager mode: no avatar, no pill, no column, no verdict; the meter stays where it was',
-    await chipPage.js('!document.getElementById("tmProfileChip") && !document.getElementById("tmFansPill") && !document.getElementById("tmChallengePill") && !document.getElementById("tmSide") && !document.getElementById("tmFansVerdict") && document.getElementById("realisticMeter").parentNode.id === "mainContent"'));
+    await chipPage.js('!document.getElementById("tmProfileChip") && !document.getElementById("tmFansPill") && !document.getElementById("tmChallengePill") && !document.getElementById("tmPublishNudge") && !document.getElementById("tmSide") && !document.getElementById("tmFansVerdict") && document.getElementById("realisticMeter").parentNode.id === "mainContent"'));
 
   ok('no script errors, nothing blocked by the CSP', page.problems.length === 0 && chipPage.problems.length === 0, page.problems.concat(chipPage.problems));
 } finally {

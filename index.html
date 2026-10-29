@@ -2461,6 +2461,11 @@
     .tm-side #tmPublish > p > span { white-space: normal; }
     .tm-side #tmPublish > button:not([disabled]) { cursor: pointer; }
     .tm-challenge { margin: .5rem 0 0; font-size: .9rem; white-space: normal; }
+    .tm-publish-nudge { margin: 0; }
+    .tm-publish-nudge button { font: inherit; font-size: .875rem; font-weight: 600; color: var(--accent, #3b82f6); background: none; border: 0; padding: .25rem 0; cursor: pointer; text-align: left; }
+    .tm-publish-nudge button:hover { text-decoration: underline; }
+    .tm-add-profile button { font: inherit; font-weight: 600; color: var(--accent, #3b82f6); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .tm-add-profile button[disabled] { opacity: .6; cursor: default; }
     /* With "Challenge" there are four pills: words stay whole and a pill that doesn't fit goes to a second row. */
     header .tm-tabs:has(#tmChallengePill) { flex-wrap: wrap; row-gap: .25rem; }
     header .tm-tabs:has(#tmChallengePill) a { white-space: nowrap; }
@@ -4154,22 +4159,25 @@
     }
 
     /*
-     * HOOPSMATIC PROFILES (hoopsmatic-accounts, profiles build step 14;
-     * changed by Jorge, October 28, 2026).
-     *
-     * After a successful publish, ask /profile/api/me whether this browser
-     * has a HoopsMatic profile with "Always add my published trades to my
-     * profile" turned on (in the profile's settings, off by default). Only
-     * then is the trade added, right away: the page sends the trade id and
-     * this browser's session id to /profile/api/trades, where the profiles
-     * Worker asks this Worker "did this session build the trade?", links it
-     * to the profile and drops the session id. It replaces the one-off "Add
-     * to my profile" button. The answer from /profile/api/me stays on this
-     * page; nothing about the profile is sent anywhere else.
-     *
-     * ADDITIVE ONLY: without a profile, with the setting off, or when the
-     * profiles Worker doesn't answer, nothing is added and the page looks
-     * exactly as before. Messages go in with textContent.
+     * HOOPSMATIC PROFILES after publishing (hoopsmatic-accounts; Jorge,
+     * October 28 and 29, 2026). One line in the publish row, no pop-up, after
+     * asking /profile/api/me about this browser:
+     *   - a profile with "Always add my published trades to my profile" on:
+     *     the trade is added right away, as before ("Added to your profile");
+     *   - a profile with it off (the default): "Add this trade to your
+     *     profile?  Yes, and future ones too · Just this one". "Yes, and
+     *     future ones too" turns the setting on (a consent record, day and
+     *     wording version, as on the settings page) and adds this trade;
+     *     "Just this one" adds only this trade;
+     *   - no profile: "Create a profile to see how fans judge this trade and
+     *     get your GM score →". The trade waits in this browser
+     *     (hm_pending_trade) and the profile page adds it once the profile
+     *     exists.
+     * Adding sends only the trade id and this browser's session id to
+     * /profile/api/trades, where the profiles Worker checks "did this session
+     * build the trade?", links it and drops the session id. When the profiles
+     * Worker doesn't answer, nothing is added and the page looks as before.
+     * Messages go in with textContent.
      */
     function showAddToProfile(tradeId, host) {
       try {
@@ -4177,7 +4185,7 @@
         fetch('/profile/api/me')
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (me) {
-            if (!me || me.profile !== true || me.autolink !== true) return;
+            if (!me || typeof me.profile !== 'boolean') return;
             if (host.querySelector('.tm-add-profile')) return;
             const p = document.createElement('p');
             p.className = 'tm-add-profile';
@@ -4186,31 +4194,67 @@
             p.style.whiteSpace = 'normal';
             const note = document.createElement('span');
             p.appendChild(note);
-            host.appendChild(p);
-            fetch('/profile/api/trades', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ trade: tradeId, tm: marketSession() }),
-            })
-              .then(function (r) {
-                return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: r.ok, status: r.status, j: null }; });
+            const added = function (msg) {
+              note.textContent = '';
+              const a = document.createElement('a');
+              a.href = '/profile/';
+              a.textContent = 'Added to your profile';
+              if (msg) a.title = msg;
+              note.appendChild(a);
+            };
+            const link = function () {
+              return fetch('/profile/api/trades', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trade: tradeId, tm: marketSession() }),
               })
-              .then(function (x) {
-                const msg = x.j && typeof x.j.message === 'string' ? x.j.message : '';
-                if (x.ok || x.status === 409) {
+                .then(function (r) {
+                  return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }, function () { return { ok: r.ok, status: r.status, j: null }; });
+                })
+                .then(function (x) {
+                  const msg = x.j && typeof x.j.message === 'string' ? x.j.message : '';
                   // Added, or already there: either way it's on the profile.
-                  // One link in the publish row (Jorge, October 29, 2026).
-                  const a = document.createElement('a');
-                  a.href = '/profile/';
-                  a.textContent = 'Added to your profile';
-                  if (msg) a.title = msg;
-                  note.appendChild(a);
-                } else {
+                  if (x.ok || x.status === 409) added(msg);
                   // Refused (not this browser's trade, not published): say why.
-                  note.textContent = msg || 'Adding to your profile did not work.';
-                }
-              })
-              .catch(function () { note.textContent = 'Adding to your profile did not work.'; });
+                  else note.textContent = msg || 'Adding to your profile did not work.';
+                })
+                .catch(function () { note.textContent = 'Adding to your profile did not work.'; });
+            };
+            if (me.profile !== true) {
+              // No profile: the invitation, and the trade kept in this browser.
+              try { localStorage.setItem('hm_pending_trade', JSON.stringify({ trade: tradeId, at: Date.now() })); } catch (e) {}
+              const a = document.createElement('a');
+              a.href = '/profile/create';
+              a.textContent = 'Create a profile to see how fans judge this trade and get your GM score \u2192';
+              note.appendChild(a);
+              host.appendChild(p);
+              return;
+            }
+            host.appendChild(p);
+            if (me.autolink === true) { link(); return; }
+            // The setting is off: ask, in the row.
+            note.appendChild(document.createTextNode('Add this trade to your profile? '));
+            const yes = document.createElement('button');
+            yes.type = 'button';
+            yes.className = 'tm-add-yes';
+            yes.textContent = 'Yes, and future ones too';
+            const one = document.createElement('button');
+            one.type = 'button';
+            one.className = 'tm-add-one';
+            one.textContent = 'Just this one';
+            note.appendChild(yes);
+            note.appendChild(document.createTextNode(' \u00b7 '));
+            note.appendChild(one);
+            yes.addEventListener('click', function () {
+              yes.disabled = one.disabled = true;
+              fetch('/profile/api/autolink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: true }) })
+                .then(function (r) { if (!r.ok) throw new Error('autolink'); return link(); })
+                .catch(function () { note.textContent = 'Adding to your profile did not work.'; });
+            });
+            one.addEventListener('click', function () {
+              yes.disabled = one.disabled = true;
+              link();
+            });
           }).catch(function () {});
       } catch (e) { /* never let profiles break publishing */ }
     }
@@ -4357,6 +4401,7 @@
 
     // Called after every render, with whether the trade on screen is legal.
     function showFansVerdict(isLegal) {
+      try { showPublishNudge(); } catch (e) {}
       try {
         if (IS_RM_MODE) return;
         const meter = document.getElementById('realisticMeter');
@@ -4424,6 +4469,45 @@
       try { showTodaysTrades(); } catch (e) {}
       try { loadFansValues(); } catch (e) {}
       try { showChallengeLink(); } catch (e) {}
+      try { watchPublishNudge(); } catch (e) {}
+    }
+
+    // "Publish it and see what fans think →" (Jorge, October 29, 2026): one
+    // slim line under the Trade Balance meter while the trade is legal and
+    // its "Publish this trade" button is there (not yet published). Pressing
+    // it is pressing that button; nothing is ever published on its own.
+    function showPublishNudge() {
+      if (IS_RM_MODE) return;
+      const pub = document.getElementById('tmPublish');
+      const meter = document.getElementById('realisticMeter');
+      if (!pub || !meter) return;
+      const btn = [].find.call(pub.querySelectorAll(':scope > button'), function (b) { return b.textContent === 'Publish this trade' && !b.disabled; });
+      const want = !!btn && window.__tmLastValid === true && pub.style.display !== 'none' && !pub.classList.contains('tm-side-off');
+      let line = document.getElementById('tmPublishNudge');
+      if (!want) { if (line) line.hidden = true; return; }
+      if (!line) {
+        line = document.createElement('p');
+        line.id = 'tmPublishNudge';
+        line.className = 'tm-publish-nudge';
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.textContent = 'Publish it and see what fans think \u2192';
+        go.addEventListener('click', function () {
+          const b = [].find.call(document.querySelectorAll('#tmPublish > button'), function (x) { return x.textContent === 'Publish this trade' && !x.disabled; });
+          if (b) b.click();
+        });
+        line.appendChild(go);
+        pub.parentNode.insertBefore(line, pub);
+      }
+      line.hidden = false;
+    }
+    let nudgeWatch = null;
+    function watchPublishNudge() {
+      const pub = document.getElementById('tmPublish');
+      if (nudgeWatch || !pub || typeof MutationObserver !== 'function') return;
+      nudgeWatch = new MutationObserver(function () { try { showPublishNudge(); } catch (e) {} });
+      nudgeWatch.observe(pub, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'disabled'] });
+      showPublishNudge();
     }
 
     // --- Fans' value per player, in the Trade Market panel -----------------

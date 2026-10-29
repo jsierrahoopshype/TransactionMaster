@@ -1,15 +1,18 @@
-// "Always add my published trades to my profile" after publishing
-// (hoopsmatic-accounts; Jorge, October 28, 2026; it replaced the one-off
-// "Add to my profile" button of profiles build step 14), in a real browser
+// After publishing, one line in the publish row about the profile
+// (hoopsmatic-accounts; Jorge, October 28 and 29, 2026), in a real browser
 // (headless Chrome). The page's own doPublish and showAddToProfile, cut out
 // of index.html, run on a local test page with a CSP like the real one
 // ('self' scripts only), against stand-ins for /api/publish,
-// /profile/api/me and /profile/api/trades:
-//   - without a profile, or with the setting off: nothing new appears, and
-//     nothing is sent to /profile/api/trades; no "Add to my profile" button;
-//   - with it on: right after the publish, only the trade id and this
-//     browser's session id are sent, then "Added to your profile." with a
-//     link to the profile;
+// /profile/api/me, /profile/api/trades and /profile/api/autolink:
+//   - no profile: "Create a profile to see how fans judge this trade and get
+//     your GM score →" to /profile/create; the trade waits in this browser
+//     (hm_pending_trade); nothing sent to /profile/api/trades;
+//   - a profile with "Always add" off (or an answer without it): "Add this
+//     trade to your profile?  Yes, and future ones too · Just this one";
+//     nothing sent until a choice. "Just this one": only the trade id and
+//     this browser's session id to /profile/api/trades. "Yes, and future
+//     ones too": /profile/api/autolink { on: true } first, then the same;
+//   - "Always add" on: added right after the publish, as before;
 //   - already on the profile, or refused: the profiles Worker's message;
 //   - the profiles Worker down: nothing appears, publishing is as before.
 // Run: node tests/add-to-profile.test.mjs (skipped without Chrome, except on CI).
@@ -60,6 +63,7 @@ const server = createServer(async (req, res) => {
   if (req.url === '/api/publish') return send(200, 'application/json', JSON.stringify({ ok: true, tradeId: 't-e2e', url: '/trade/t-e2e' }));
   if (req.url === '/profile/api/me') return state.me === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', JSON.stringify(state.me));
   if (req.url === '/profile/api/trades' && req.method === 'POST') return send(state.link.status, 'application/json', JSON.stringify(state.link.body));
+  if (req.url === '/profile/api/autolink' && req.method === 'POST') return send(200, 'application/json', JSON.stringify({ ok: true, autolink: true }));
   return send(404, 'text/plain', 'not found');
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -78,25 +82,42 @@ const posts = () => state.calls.filter((c) => c.url === '/profile/api/trades');
 
 try {
   const page = await browser.newPage();
-  const noButton = 'document.querySelectorAll("#tmPublish button").length === 1 && ![...document.querySelectorAll("#tmPublish button")].some((b) => b.textContent === "Add to my profile")';
+  const noButton = '![...document.querySelectorAll("#tmPublish button")].some((b) => b.textContent === "Add to my profile" || b.classList.contains("tm-add-yes"))';
 
-  // Without a profile.
+  // Without a profile: the invitation, the trade kept in this browser.
   state.me = { profile: false };
   await publish(page);
-  ok('without a profile: /profile/api/me is asked', state.calls.some((c) => c.url === '/profile/api/me'));
-  ok('without a profile: nothing added, the publish link and "Copy link" as before',
-    await page.js('!document.querySelector(".tm-add-profile") && document.querySelector("#tmPublish a").textContent === "View"') && await page.js(noButton));
-  ok('without a profile: nothing sent to /profile/api/trades', posts().length === 0);
+  await page.waitFor('document.querySelector(".tm-add-profile a")', 'the invitation');
+  ok('without a profile: "Create a profile to see how fans judge this trade and get your GM score →", to /profile/create',
+    await page.js('document.querySelector(".tm-add-profile a").textContent === "Create a profile to see how fans judge this trade and get your GM score \\u2192" && document.querySelector(".tm-add-profile a").getAttribute("href") === "/profile/create"'));
+  ok('without a profile: the trade waits in this browser for the new profile; nothing sent to /profile/api/trades',
+    await page.js('JSON.parse(localStorage.getItem("hm_pending_trade")).trade === "t-e2e"') && posts().length === 0);
+  ok('without a profile: the publish link and "Copy link" as before', await page.js('document.querySelector("#tmPublish a").textContent === "View" && document.querySelector("#tmPublish button").textContent === "Copy link"'));
 
-  // A profile with the setting off: the same.
-  state.me = { profile: true, name: 'Made Up Fan', leaderboard: false, is_public: false, team: null, autolink: false };
+  // A profile with "Always add" off: the question, nothing sent until a choice.
+  for (const [label, me] of [['setting off', { profile: true, name: 'Made Up Fan', leaderboard: false, is_public: false, team: null, autolink: false }],
+    ['no autolink in the answer (an older profiles Worker)', { profile: true, name: 'Made Up Fan', leaderboard: false, is_public: false }]]) {
+    state.me = me;
+    await publish(page);
+    await page.waitFor('document.querySelector(".tm-add-profile .tm-add-one")', 'the question');
+    ok(label + ': "Add this trade to your profile?  Yes, and future ones too · Just this one", nothing sent yet',
+      await page.js('document.querySelector(".tm-add-profile span").textContent === "Add this trade to your profile? Yes, and future ones too \\u00b7 Just this one"') && posts().length === 0);
+  }
+  // "Just this one": only this trade.
+  state.link = { status: 200, body: { ok: true, message: 'Added to your profile.' } };
+  await page.js('document.querySelector(".tm-add-one").click(), true');
+  await page.waitFor('document.querySelector(".tm-add-profile span a")', 'the answer');
+  ok('"Just this one": only the trade id and the session id, then "Added to your profile"; the setting untouched',
+    posts().length === 1 && posts()[0].body === JSON.stringify({ trade: 't-e2e', tm: 'tm-e2e-session' })
+    && !state.calls.some((c) => c.url === '/profile/api/autolink') && await page.js('document.querySelector(".tm-add-profile span a").textContent === "Added to your profile"'));
+  // "Yes, and future ones too": the setting on first, then this trade.
+  state.me = { profile: true, name: 'Made Up Fan', autolink: false };
   await publish(page);
-  ok('setting off: nothing added, no "Add to my profile" button, nothing sent', await page.js('!document.querySelector(".tm-add-profile")') && await page.js(noButton) && posts().length === 0);
-
-  // An older profiles Worker that doesn't say autolink: treated as off.
-  state.me = { profile: true, name: 'Made Up Fan', leaderboard: false, is_public: false };
-  await publish(page);
-  ok('no autolink in the answer: off', posts().length === 0 && await page.js('!document.querySelector(".tm-add-profile")'));
+  await page.waitFor('document.querySelector(".tm-add-profile .tm-add-yes")', 'the question');
+  await page.js('document.querySelector(".tm-add-yes").click(), true');
+  await page.waitFor('document.querySelector(".tm-add-profile span a")', 'the answer');
+  const order = state.calls.filter((c) => c.url === '/profile/api/autolink' || c.url === '/profile/api/trades').map((c) => c.url + ' ' + c.body);
+  ok('"Yes, and future ones too": the setting turned on ({ on: true }), then this trade added', JSON.stringify(order) === JSON.stringify(['/profile/api/autolink {"on":true}', '/profile/api/trades {"trade":"t-e2e","tm":"tm-e2e-session"}']), order);
 
   // The setting on.
   state.me = { profile: true, name: 'Made Up Fan', leaderboard: false, is_public: false, team: null, autolink: true };
