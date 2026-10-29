@@ -257,6 +257,24 @@ try {
   await settle();
   ok('cards already drawn get the line once, under Trade Heat and People this week', await page.js('document.querySelectorAll(".mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1
     && await page.js('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans").previousElementSibling.textContent') === 'People this week');
+  // On the live site hoopsmatic-worker swaps in its own card and redraws it
+  // (outerHTML) when the player's data arrives, without the line: the line
+  // comes back, once, after the share line (October 29, 2026: live, no card
+  // showed it).
+  const WORKER_CARD = '<div class="mp-card" data-mp="9800003"><div class="mp-head"><a class="mp-name" href="/trade-market/made-up-filler-3/">Made Up Filler 3</a></div><div class="mp-body">'
+    + '<div class="salary-row mp-heat"><span class="salary-label">Trade Heat</span><span class="salary-value">65/100</span></div><div class="mp-note">How actively fans are trading him this week.</div>'
+    + '<div class="mp-share">In 1.7% of trades</div><div class="mp-group"><div class="section-label">Most sent to</div><div class="salary-row"><span class="salary-label">Utah</span><span class="salary-value">20%</span></div></div></div></div>';
+  for (let i = 0; i < 4; i++) {
+    await page.js('document.querySelector(".mp-card[data-mp=\\"9800003\\"]").outerHTML = ' + json(WORKER_CARD) + '; true');
+    await settle();
+  }
+  ok('a card redrawn by the Worker\'s panel gets the line back once, after the share line',
+    await page.js('document.querySelectorAll(".mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1
+    && await page.js('document.querySelector(".mp-card[data-mp=\\"9800003\\"] .mp-fans").previousElementSibling.className') === 'mp-share');
+  await page.js('render(); render(); true');
+  await settle();
+  ok('and after more redraws, still one line per card', await page.js('[...document.querySelectorAll(".mp-card")].every((c) => c.querySelectorAll(".mp-fans").length <= 1)')
+    && await page.js('document.querySelectorAll(".mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1);
 
   // No trades today: no list, no pill.
   state.stack = { day: '2026-10-28', trades: [] };

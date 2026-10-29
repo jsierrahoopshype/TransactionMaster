@@ -4452,18 +4452,42 @@
         .then(function (j) {
           if (!j || !j.players || typeof j.players !== 'object') return;
           FANS_VALUES = j.players;
-          // Cards already on the page get their line now; later ones are drawn with it.
-          document.querySelectorAll('.mp-card[data-mp]').forEach(function (card) {
-            const body = card.querySelector('.mp-body');
-            const html = fansValueHtml(card.getAttribute('data-mp'));
-            if (!body || !html || card.querySelector('.mp-fans')) return;
-            const heat = body.querySelectorAll('.salary-row');
-            const after = heat.length ? heat[heat.length > 1 ? 1 : 0] : null;
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            body.insertBefore(tmp.firstChild, after ? after.nextSibling : body.firstChild);
-          });
+          addFansValues();
+          watchFansValues();
         }).catch(function () {});
+    }
+    // Every card in the panel without the line gets it, once. On the live
+    // site hoopsmatic-worker swaps in its own panelCard and redraws each card
+    // when its data arrives (without this line), so cards are checked again
+    // after every change to the builder, not only when they are first drawn.
+    function addFansValues() {
+      if (!FANS_VALUES) return;
+      document.querySelectorAll('.mp-card[data-mp]').forEach(function (card) {
+        if (card.querySelector('.mp-fans')) return;
+        const body = card.querySelector('.mp-body');
+        const html = fansValueHtml(card.getAttribute('data-mp'));
+        if (!body || !html) return;
+        // After the share line or the note (the Worker's card), else after
+        // Trade Heat and People this week (the page's own card).
+        const rows = body.querySelectorAll('.salary-row');
+        const after = body.querySelector(':scope > .mp-share') || body.querySelector(':scope > .mp-note')
+          || (rows.length ? rows[rows.length > 1 ? 1 : 0] : null);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        if (after && after.parentNode === body) body.insertBefore(tmp.firstChild, after.nextSibling);
+        else body.insertBefore(tmp.firstChild, body.firstChild);
+      });
+    }
+    let fansWatch = null;
+    function watchFansValues() {
+      if (fansWatch || typeof MutationObserver !== 'function') return;
+      let queued = false;
+      fansWatch = new MutationObserver(function () {
+        if (queued) return;
+        queued = true;
+        setTimeout(function () { queued = false; try { addFansValues(); } catch (e) {} }, 0);
+      });
+      fansWatch.observe(document.getElementById('tmWork') || document.body, { childList: true, subtree: true });
     }
 
     function showProfileChip() {
