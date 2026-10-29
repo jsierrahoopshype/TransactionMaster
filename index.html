@@ -4614,7 +4614,14 @@
     // Fills the builder with a trade from its own Trade Machine address, in
     // place: the same steps the page takes when it opens with that address.
     function loadTradeInPlace(fix) {
-      const q = String(fix || '').replace(/^\?/, '');
+      // The game already sends the public address (hoopsmatic-accounts,
+      // src/wwtt/links.js tradeMachineQuery, October 29, 2026); the same rule
+      // here, in case an older answer still carries the Roster Manager's
+      // embed mode (rm=) or its display flags.
+      const q = String(fix || '').replace(/^[?&]+/, '').split('&').filter(function (part) {
+        const k = part.split('=')[0].toLowerCase();
+        return part && k !== 'rm' && k !== 'noseasons' && k !== 'lockseason';
+      }).join('&');
       if (!q) return;
       try { if (typeof stopLoop === 'function') stopLoop(); } catch (e) {}
       try {
