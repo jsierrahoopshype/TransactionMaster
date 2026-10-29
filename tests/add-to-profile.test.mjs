@@ -85,7 +85,7 @@ try {
   await publish(page);
   ok('without a profile: /profile/api/me is asked', state.calls.some((c) => c.url === '/profile/api/me'));
   ok('without a profile: nothing added, the publish link and "Copy link" as before',
-    await page.js('!document.querySelector(".tm-add-profile") && document.querySelector("#tmPublish a").textContent === "View published trade"') && await page.js(noButton));
+    await page.js('!document.querySelector(".tm-add-profile") && document.querySelector("#tmPublish a").textContent === "View"') && await page.js(noButton));
   ok('without a profile: nothing sent to /profile/api/trades', posts().length === 0);
 
   // A profile with the setting off: the same.
@@ -106,7 +106,7 @@ try {
   const sent = posts();
   ok('setting on: the trade is added right after the publish, sending only the trade id and the session id', sent.length === 1 && sent[0].body === JSON.stringify({ trade: 't-e2e', tm: 'tm-e2e-session' }), sent);
   ok('then says it was added, with a link to the profile, after the publish link',
-    await page.js('document.querySelector(".tm-add-profile span").textContent === "Added to your profile. View your profile" && document.querySelector(".tm-add-profile span a").getAttribute("href") === "/profile/"')
+    await page.js('document.querySelector(".tm-add-profile span").textContent === "Added to your profile" && document.querySelector(".tm-add-profile span a").getAttribute("href") === "/profile/"')
     && await page.js('document.querySelector("#tmPublish .tm-add-profile").previousElementSibling.textContent === "Copy link"'));
   ok('and there is no button to press', await page.js(noButton));
 
@@ -114,7 +114,7 @@ try {
   state.link = { status: 409, body: { ok: false, message: 'This trade is already on your profile.' } };
   await publish(page);
   await page.waitFor('document.querySelector(".tm-add-profile span") && document.querySelector(".tm-add-profile span").textContent.length > 0', 'the answer');
-  ok('already linked: says so, with the profile link', await page.js('document.querySelector(".tm-add-profile span").textContent === "This trade is already on your profile. View your profile"'));
+  ok('already linked: the same link, the profiles Worker\'s words as its title', await page.js('document.querySelector(".tm-add-profile span").textContent === "Added to your profile" && document.querySelector(".tm-add-profile span a").title === "This trade is already on your profile."'));
 
   // Refused: the reason.
   state.link = { status: 403, body: { ok: false, message: 'Only the browser that built this trade can add it to a profile.' } };
@@ -125,7 +125,7 @@ try {
   // The profiles Worker down: nothing appears.
   state.me = 'down';
   await publish(page);
-  ok('profiles Worker down: nothing added, publishing as before', await page.js('!document.querySelector(".tm-add-profile") && document.querySelector("#tmPublish a").textContent === "View published trade"'));
+  ok('profiles Worker down: nothing added, publishing as before', await page.js('!document.querySelector(".tm-add-profile") && document.querySelector("#tmPublish a").textContent === "View"'));
 
   ok('no script errors, nothing blocked by the CSP', page.problems.length === 0, page.problems);
 } finally {

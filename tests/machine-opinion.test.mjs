@@ -71,13 +71,13 @@ const tick = () => new Promise((r) => setTimeout(r, 10));
   ok('publish still goes to /api/publish first, as before', p.calls[0].url === '/api/publish' && p.calls[0].body.tradeId === 't1' && p.calls[0].body.sessionId === 'tm-session-1');
   ok('then the score and lean go to the game', p.calls[1] && p.calls[1].url === '/who-wins-the-trade/api/machine', p.calls);
   ok('with the trade id, the session id, the score and the team that gains more', JSON.stringify(p.calls[1].body) === JSON.stringify({ trade: 't1', tm: 'tm-session-1', score: 71, lean: 'LA Lakers' }), p.calls[1].body);
-  ok('the page shows what it showed before: the link and "Copy link"', p.host.children.length === 2 && p.host.children[0].textContent === 'View published trade' && p.host.children[1].textContent === 'Copy link');
+  ok('the page shows what it showed before: the link and "Copy link"', p.host.children.length === 2 && p.host.children[0].textContent === 'View' && p.host.children[1].textContent === 'Copy link');
 }
 {
   const p = page({ machineFails: true });
   await p.ctx.doPublish(btn());
   await tick();
-  ok('if the game is unreachable, publishing still finishes as before', p.host.children[0] && p.host.children[0].textContent === 'View published trade');
+  ok('if the game is unreachable, publishing still finishes as before', p.host.children[0] && p.host.children[0].textContent === 'View');
 }
 {
   const p = page({ valid: false });
@@ -106,15 +106,24 @@ const tick = () => new Promise((r) => setTimeout(r, 10));
 }
 
 // Additive only: against main, the page gains lines and loses none.
-// One named exception (Jorge, October 28, 2026): showAddToProfile, whose
-// one-off "Add to my profile" button he asked to replace with the opt-in
-// "Always add my published trades to my profile". Lines inside that one
-// function (and its comment) on main may change; anything else may not.
-const REPLACEABLE = ['showAddToProfile'];
+// Named exceptions, each one Jorge asked for; lines inside them on main may
+// change, anything else may not:
+// - showAddToProfile (October 28, 2026): the one-off "Add to my profile"
+//   button became the opt-in "Always add my published trades to my profile";
+// - October 29, 2026, the new layout: showGameVerdict (the publish status as
+//   one slim row), the "Who wins the trade?" and profiles block and its CSS
+//   (the "load one" line and its picker removed; the side column), and the
+//   publish link's text ("View").
+const REPLACEABLE = ['showAddToProfile', 'showGameVerdict'];
+const REPLACEABLE_BLOCKS = [
+  ['    /*', '     * "WHO WINS THE TRADE?" AND PROFILES IN THE TRADE MACHINE', '     * A session is a random id in this browser'],
+  [null, '    /* "Who wins the trade?" and profiles in the Trade Machine (additive). */', '</style>'],
+];
+const REPLACEABLE_LINES = ["        a.textContent = 'View published trade';"];
 function replaceableLines(lines) {
   const out = new Set();
   for (const name of REPLACEABLE) {
-    const start = lines.findIndex((l) => l === '    function ' + name + '(tradeId, host) {');
+    const start = lines.findIndex((l) => l.startsWith('    function ' + name + '(') || l.startsWith('    async function ' + name + '('));
     if (start < 0) continue;
     let from = start;
     while (from > 0 && lines[from - 1].trim() !== '' && /^\s*(\/\*|\*)/.test(lines[from - 1])) from--;
@@ -122,6 +131,16 @@ function replaceableLines(lines) {
     while (to < lines.length && lines[to] !== '    }') to++;
     for (let k = from; k <= to; k++) out.add(k);
   }
+  for (const [opener, first, stop] of REPLACEABLE_BLOCKS) {
+    let from = lines.findIndex((l) => l.startsWith(first));
+    if (from < 0) continue;
+    if (opener && lines[from - 1] === opener) from--;
+    let to = lines.findIndex((l, k) => k > from && l.startsWith(stop));
+    if (to < 0) continue;
+    if (lines[to - 1] === '    /*') to--;
+    for (let k = from; k < to; k++) out.add(k);
+  }
+  lines.forEach((l, k) => { if (REPLACEABLE_LINES.includes(l)) out.add(k); });
   return out;
 }
 try {
@@ -133,7 +152,7 @@ try {
     const kept = before.filter((l, k) => !skip.has(k));
     let j = 0;
     for (const line of after) if (j < kept.length && line === kept[j]) j++;
-    ok('index.html only gains lines compared with main (nothing removed or changed outside showAddToProfile)', j === kept.length, { matched: j, of: kept.length });
+    ok('index.html only gains lines compared with main (nothing removed or changed outside the named exceptions)', j === kept.length, { matched: j, of: kept.length });
   } else {
     console.log('SKIP  additive check: main already has this change');
   }
