@@ -2492,6 +2492,9 @@
     .ft-load:hover { background: var(--accent); color: #fff; }
     .mkt-panel .mp-fans { margin: .5rem 0 .25rem; font-size: .8125rem; line-height: 1.4; color: var(--text-secondary); }
     .mkt-panel .mp-fans b { color: var(--text); font-weight: 700; }
+    .mkt-panel .mp-move { margin: 0 0 .25rem; font-size: .8125rem; line-height: 1.4; color: var(--text-secondary); }
+    .mkt-panel .mp-move b { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text); }
+    .mkt-panel .mp-move a { font-weight: 600; white-space: nowrap; }
     body.rm-mode .tm-avatar, body.rm-mode .tm-fans-pill, body.rm-mode .tm-fans-verdict, body.rm-mode .tm-side { display: none !important; }
 </style>
 </head>
@@ -4550,6 +4553,40 @@
         tmp.innerHTML = html;
         if (after && after.parentNode === body) body.insertBefore(tmp.firstChild, after.nextSibling);
         else body.insertBefore(tmp.firstChild, body.firstChild);
+      });
+      addMoversLines();
+    }
+    // --- Market movers, under the fans' value line -------------------------
+    // (Jorge, October 31, 2026.) "+6 pts this week" (or "−4 pts") and a link
+    // to this week's movers, from hoopsmatic-accounts'
+    // /who-wins-the-trade/api/player-movers?id=<nba id>, asked once per player.
+    // A failed answer, a player who isn't there or no change: nothing.
+    const MOVERS = {};
+    function moverHtml(m) {
+      if (!m || !Number.isInteger(m.change) || m.change === 0 || Math.abs(m.change) > 100) return '';
+      const pts = (m.change > 0 ? '+' + m.change : '\u2212' + Math.abs(m.change)) + ' pts this week';
+      return '<p class="mp-move"><b>' + pts + '</b> <a href="/who-wins-the-trade/movers">See this week\u2019s movers \u2192</a></p>';
+    }
+    function addMoversLines() {
+      document.querySelectorAll('.mp-card[data-mp] .mp-fans').forEach(function (line) {
+        const card = line.closest('.mp-card[data-mp]');
+        const id = card && card.getAttribute('data-mp');
+        if (!id || !/^\d{1,12}$/.test(id)) return;
+        const next = line.nextElementSibling;
+        if (next && next.classList.contains('mp-move')) return;
+        if (!(id in MOVERS)) {
+          MOVERS[id] = 'asking';
+          fetch('/who-wins-the-trade/api/player-movers?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) { MOVERS[id] = j && String(j.id) === id ? j : null; addMoversLines(); })
+            .catch(function () { MOVERS[id] = null; });
+          return;
+        }
+        const html = moverHtml(MOVERS[id]);
+        if (!html) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        line.parentNode.insertBefore(tmp.firstChild, line.nextSibling);
       });
     }
     let fansWatch = null;
