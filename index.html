@@ -2495,6 +2495,14 @@
     .mkt-panel .mp-move { margin: 0 0 .25rem; font-size: .8125rem; line-height: 1.4; color: var(--text-secondary); }
     .mkt-panel .mp-move b { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text); }
     .mkt-panel .mp-move a { font-weight: 600; white-space: nowrap; }
+    /* "Fans' favourite <Team> trade this week" (Your team first). */
+    .tm-team-week { margin-top: 1rem; }
+    .tm-team-week h2 { font-size: 1rem; font-weight: 700; margin: 0 0 .5rem; color: var(--text); }
+    .tm-team-week .tw-card { background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 12px; padding: .75rem .875rem; }
+    .tm-team-week .tw-side { margin: 0 0 .35rem; font-size: .875rem; line-height: 1.4; color: var(--text-secondary); }
+    .tm-team-week .tw-side a, .tm-team-week .tw-team { color: var(--text); font-weight: 600; }
+    .tm-team-week .tw-foot { margin: .5rem 0 0; font-size: .8125rem; color: var(--text-secondary); }
+    .tm-team-week .tw-foot a { font-weight: 600; }
     body.rm-mode .tm-avatar, body.rm-mode .tm-fans-pill, body.rm-mode .tm-fans-verdict, body.rm-mode .tm-side { display: none !important; }
 </style>
 </head>
@@ -2741,6 +2749,9 @@
     const IS_RM_MODE = INITIAL_URL_PARAMS.has('rm');
     if (IS_RM_MODE) document.body.classList.add('rm-mode');
     const RM_TEAM = INITIAL_URL_PARAMS.get('rm') || '';
+    // "Your team first" (October 31, 2026): on a plain load, ask about the
+    // profile now so its team is known when the rosters arrive.
+    var TEAM_FIRST = startTeamFirst();
     const IS_OFFSEASON = true; // 2026-27 only — 2025-26 mode removed entirely
     const renouncedPlayers = new Set(); // Track renounced cap holds
     let capHoldsExpanded = false; // Keep cap holds panel open across re-renders
@@ -4826,6 +4837,137 @@
             });
           }).catch(function () {});
       } catch (e) { /* never let the challenge break publishing */ }
+    }
+
+    // --- "Your team first" (Jorge, October 31, 2026) -------------------------
+    // When the Trade Machine opens plain (no trade, no teams, no other
+    // parameters in the address, not the Roster Manager's rm= embed mode) on
+    // a device whose profile has a favourite team and "Open the Trade Machine
+    // with my team" on, it starts on that team and a random other one,
+    // instead of two random teams. The profile is read as the header's chip
+    // reads it (/profile/api/me). Every shared link and parameter works as
+    // before. Then "Fans' favourite <Team> trade this week" in the column,
+    // from /who-wins-the-trade/api/team-week.
+    function isPlainLoad(params, rm, loop) {
+      if (rm || loop) return false;
+      return Array.from(params.keys()).length === 0;
+    }
+    function startTeamFirst() {
+      const st = { me: null, applied: false, dealt: null, team: null };
+      if (!isPlainLoad(INITIAL_URL_PARAMS, IS_RM_MODE, IS_LOOP_URL)) return st;
+      st.ready = fetch('/profile/api/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (me) { st.me = me || null; try { teamFirstLate(); } catch (e) {} })
+        .catch(function () { st.me = null; });
+      return st;
+    }
+    // The city name the builder uses for a profile's team ("NYK" -> "New York").
+    function teamFirstCity(me, list) {
+      if (!me || me.profile !== true || me.team_first === false || typeof me.team !== 'string') return null;
+      for (const city in teamAbbreviations) {
+        if (teamAbbreviations[city] === me.team && (!list || list.indexOf(city) >= 0)) return city;
+      }
+      return null;
+    }
+    function teamFirstPair(city, list) {
+      const others = list.filter(function (t) { return t !== city; });
+      if (!others.length) return null;
+      const other = typeof selectWeightedTeam === 'function' ? selectWeightedTeam(others) : others[Math.floor(Math.random() * others.length)];
+      return [city, other || others[0]];
+    }
+    function teamFirstSet(pair) {
+      tradeTeams = pair.map(function (t) { return { teamName: t, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }; });
+      TEAM_FIRST.applied = true;
+      TEAM_FIRST.team = teamAbbreviations[pair[0]];
+      showTeamWeek(TEAM_FIRST.team);
+    }
+    // At the data load, right after the random pair (still in the load step,
+    // so the page draws the profile's team first).
+    function teamFirstOnLoad() {
+      if (!TEAM_FIRST || TEAM_FIRST.applied || !TEAM_FIRST.ready) return;
+      TEAM_FIRST.dealt = tradeTeams.map(function (t) { return t.teamName; });
+      const city = teamFirstCity(TEAM_FIRST.me, teams);
+      if (!city) return;
+      const pair = teamFirstPair(city, teams);
+      if (pair) teamFirstSet(pair);
+    }
+    // /profile/api/me answered after the load: only while the builder still
+    // shows the two random teams it opened with, untouched.
+    function teamFirstLate() {
+      if (!TEAM_FIRST || TEAM_FIRST.applied || !TEAM_FIRST.dealt) return;
+      const same = tradeTeams.length === 2 && tradeTeams.every(function (t, i) {
+        return t.teamName === TEAM_FIRST.dealt[i] && !(t.playersOut || []).length && !(t.picksOut || []).length && !(t.cashOut || []).length && !(t.rightsOut || []).length;
+      });
+      if (!same || location.search.replace(/^\?/, '') && !/^t=[^&]*$/.test(location.search.replace(/^\?/, ''))) return;
+      const city = teamFirstCity(TEAM_FIRST.me, teams);
+      if (!city) return;
+      const pair = teamFirstPair(city, teams);
+      if (!pair) return;
+      teamFirstSet(pair);
+      try { redistributePlayers(); } catch (e) {}
+      render();
+    }
+    function showTeamWeek(abbr) {
+      if (!abbr || IS_RM_MODE || document.getElementById('tmTeamWeek')) return;
+      fetch('/who-wins-the-trade/api/team-week?team=' + encodeURIComponent(abbr), { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          const t = j && j.trade;
+          if (!t || typeof t.href !== 'string' || !/^\/trade\//.test(t.href) || !Array.isArray(t.sides) || t.sides.length !== 2) return;
+          if (document.getElementById('tmTeamWeek')) return;
+          placeSide();
+          const side = document.getElementById('tmSide');
+          if (!side) return;
+          let city = null;
+          for (const c in teamAbbreviations) if (teamAbbreviations[c] === abbr) city = c;
+          const nick = (city && teamNicknames[city] && teamNicknames[city][0]) || city || abbr;
+          const sec = document.createElement('section');
+          sec.className = 'tm-team-week';
+          sec.id = 'tmTeamWeek';
+          const h = document.createElement('h2');
+          h.textContent = 'Fans’ favourite ' + nick + ' trade this week';
+          sec.appendChild(h);
+          const card = document.createElement('div');
+          card.className = 'tw-card';
+          t.sides.forEach(function (s) {
+            const row = document.createElement('p');
+            row.className = 'tw-side';
+            const team = document.createElement(s.href ? 'a' : 'b');
+            if (s.href) team.href = s.href;
+            team.className = 'tw-team';
+            team.textContent = s.team;
+            row.appendChild(team);
+            row.appendChild(document.createTextNode(' gets '));
+            const names = (s.players || []).slice(0, 4);
+            names.forEach(function (p, i) {
+              if (i) row.appendChild(document.createTextNode(', '));
+              const a = document.createElement(p.href ? 'a' : 'span');
+              if (p.href) a.href = p.href;
+              a.textContent = p.name;
+              row.appendChild(a);
+            });
+            const extra = (s.players || []).length - names.length + (s.picks || []).length;
+            if (!names.length && !(s.picks || []).length) row.appendChild(document.createTextNode('nothing'));
+            else if (extra > 0) row.appendChild(document.createTextNode((names.length ? ' + ' : '') + extra + ' more'));
+            card.appendChild(row);
+          });
+          const foot = document.createElement('p');
+          foot.className = 'tw-foot';
+          foot.appendChild(document.createTextNode('Fans gave it to ' + abbr + ', ' + Number(t.pct) + '%. '));
+          const go = document.createElement('a');
+          go.href = t.href;
+          go.textContent = 'See the trade →';
+          foot.appendChild(go);
+          card.appendChild(foot);
+          sec.appendChild(card);
+          // Under "Fans are judging today" (which may come after it).
+          const keepLast = function () {
+            const today = document.getElementById('tmFansToday');
+            if (today && today.parentNode === side && (today.compareDocumentPosition(sec) & Node.DOCUMENT_POSITION_PRECEDING)) side.appendChild(sec);
+          };
+          side.appendChild(sec);
+          if (typeof MutationObserver === 'function') new MutationObserver(keepLast).observe(side, { childList: true });
+        }).catch(function () {});
     }
 
     /*
@@ -12121,6 +12263,9 @@
             { teamName: team1 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] },
             { teamName: team2 || '', playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] }
           ];
+          // "Your team first": the profile's team instead, when it is known
+          // already (else once /profile/api/me answers, if nothing changed).
+          teamFirstOnLoad();
         }
       } else {
         // For loop URLs, start with default teams - setupTradeLoopFromUrl will handle the rest
