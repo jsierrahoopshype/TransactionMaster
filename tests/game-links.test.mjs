@@ -133,6 +133,13 @@ const server = createServer((req, res) => {
   if (path === '/tm-rm.js') return send(200, 'text/javascript; charset=utf-8', SCRIPT(true));
   if (path === '/who-wins-the-trade/api/exact') return state.exact === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.exact));
   if (path === '/who-wins-the-trade/api/player-values') return send(200, 'application/json', json(state.values));
+  // Market movers (hoopsmatic-accounts /api/player-movers): 404 for a player who isn't there.
+  if (path === '/who-wins-the-trade/api/player-movers') {
+    const id = new URL(req.url, 'http://x').searchParams.get('id');
+    state.moverAsks = (state.moverAsks || 0) + 1;
+    if (state.movers === 'down') return send(500, 'text/plain', 'error');
+    return state.movers && state.movers[id] ? send(200, 'application/json', json(state.movers[id])) : send(404, 'application/json', json({ id: null }));
+  }
   if (path === '/who-wins-the-trade/api/stack') return state.stack === 'down' ? send(500, 'text/plain', 'error') : send(200, 'application/json', json(state.stack));
   if (path === '/profile/api/me') return send(200, 'application/json', json(state.me));
   if (path === '/profile/api/game/challenge' && req.method === 'POST') {
@@ -310,6 +317,48 @@ try {
   await settle();
   ok('no fans\' value line in the builder; the panel card keeps its one line', await page.js('!document.querySelector("#tradeContainer .mp-fans, #tradeContainer .tm-trade-fans")')
     && await page.js('document.querySelectorAll("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-fans").length') === 1);
+
+  // Market movers (Jorge, October 31, 2026): under the fans' value line,
+  // "+6 pts this week" and a link to the movers page; nothing when the API
+  // fails, the player isn't there, or there's no change. Asked once per player.
+  const MOVER_TRADE = [{ teamName: 'Boston', playersOut: [{ player: 'Made Up Filler 3', playerId: '9800003', destination: 1 }], picksOut: [], rightsOut: [], cashOut: [] },
+    { teamName: 'LA Lakers', playersOut: [{ player: 'Made Up Guard 3', playerId: '9830003', destination: 0 }], picksOut: [], rightsOut: [], cashOut: [] }];
+  const moverLine = () => page.js('(() => { const f = document.querySelector("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-fans"); const n = f && f.nextElementSibling; return n && n.className === "mp-move" ? n.textContent + "|" + n.querySelector("a").getAttribute("href") : null; })()');
+  state.movers = { 9800003: { id: '9800003', value: 78, change: 6, day: '2026-11-07' } };
+  state.moverAsks = 0;
+  await page.goto(origin + '/tm.html');
+  await page.js('window.__set(' + json(MOVER_TRADE) + '); render(); true');
+  await page.waitFor('document.querySelector("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-move") !== null', 'the movers line');
+  ok('movers: "+6 pts this week" and "See this week\'s movers →" right under the fans\' value line', await moverLine() === '+6 pts this week See this week\u2019s movers \u2192|/who-wins-the-trade/movers');
+  // HM_SHOTS=<folder>: the panel with the line, at 390px and 1440px.
+  if (process.env.HM_SHOTS) {
+    const { writeFileSync } = await import('node:fs');
+    for (const [width, mobile] of [[390, true], [1440, false]]) {
+      await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile });
+      await settle();
+      const r = await page.js('(() => { const b = document.querySelector("#tmSide .mp-card[data-mp=\\"9800003\\"]").getBoundingClientRect(); return { x: Math.max(0, b.left - 16 + scrollX), y: Math.max(0, b.top - 16 + scrollY), width: Math.min(document.documentElement.clientWidth, b.width + 32), height: b.height + 32 }; })()');
+      const { data } = await page.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { ...r, scale: 1 } });
+      writeFileSync(process.env.HM_SHOTS + '/tm-movers-line-' + width + '.png', Buffer.from(data, 'base64'));
+    }
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: true });
+  }
+  for (let i = 0; i < 3; i++) { await page.js('render(); true'); await settle(); }
+  ok('movers: one line per card after redraws, asked once per player', await page.js('document.querySelectorAll("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-move").length') === 1
+    && state.moverAsks === 1);
+  state.movers = { 9800003: { id: '9800003', value: 70, change: -4, day: '2026-11-07' } };
+  await page.goto(origin + '/tm.html');
+  await page.js('window.__set(' + json(MOVER_TRADE) + '); render(); true');
+  await page.waitFor('document.querySelector("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-move") !== null', 'the falling line');
+  ok('movers: a fall reads "\u22124 pts this week"', (await moverLine()).startsWith('\u22124 pts this week'));
+  for (const [what, movers] of [['the API fails', 'down'], ['the player isn\'t there', {}], ['no change', { 9800003: { id: '9800003', value: 78, change: 0 } }], ['no 7-day change yet', { 9800003: { id: '9800003', value: 78, change: null } }]]) {
+    state.movers = movers;
+    await page.goto(origin + '/tm.html');
+    await page.js('window.__set(' + json(MOVER_TRADE) + '); render(); true');
+    await page.waitFor('document.querySelector("#tmSide .mp-card[data-mp=\\"9800003\\"] .mp-fans") !== null', 'the fans\' value');
+    await settle(); await settle();
+    ok('movers: nothing when ' + what, await page.js('!document.querySelector(".mp-move")'));
+  }
+  state.movers = null;
 
   // No trades today: no list, no pill.
   state.stack = { day: '2026-10-28', trades: [] };
