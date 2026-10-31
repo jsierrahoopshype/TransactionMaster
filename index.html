@@ -2495,6 +2495,9 @@
     .mkt-panel .mp-move { margin: 0 0 .25rem; font-size: .8125rem; line-height: 1.4; color: var(--text-secondary); }
     .mkt-panel .mp-move b { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text); }
     .mkt-panel .mp-move a { font-weight: 600; white-space: nowrap; }
+    /* "Share your trade" under the publish message. */
+    .tm-share { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: .5rem 0 0; font-size: .9rem; }
+    .tm-share a { font-weight: 600; white-space: nowrap; }
     /* "Fans' favourite <Team> trade this week" (Your team first). */
     .tm-team-week { margin-top: 1rem; }
     .tm-team-week h2 { font-size: 1rem; font-weight: 700; margin: 0 0 .5rem; color: var(--text); }
@@ -4168,8 +4171,64 @@
               p.appendChild(document.createTextNode(words));
             }
             host.appendChild(p);
+            showShareRow(tradeId, host);
           }).catch(function () {});
       } catch (e) { /* never let the game break publishing */ }
+    }
+
+    // "Share your trade" (Jorge, October 31, 2026; hoopsmatic-accounts
+    // src/wwtt/share.js): under the publish message, whether fans have judged
+    // it or not. Inline links, never a pop-up: "Share on X", "Share on
+    // Bluesky" (each that site's own share page, in a new tab) and "Copy
+    // link", which says "Copied" in place. The words and links come from
+    // /who-wins-the-trade/api/share; nothing is stored or counted.
+    function showShareRow(tradeId, host) {
+      try {
+        if (!tradeId || !host || host.querySelector('.tm-share')) return;
+        fetch('/who-wins-the-trade/api/share?trade=' + encodeURIComponent(tradeId), { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (!j || typeof j.url !== 'string' || !/^https:\/\/hoopsmatic\.com\//.test(j.url) || host.querySelector('.tm-share')) return;
+            if (!/^https:\/\/x\.com\//.test(j.x || '') || !/^https:\/\/bsky\.app\//.test(j.bsky || '')) return;
+            const p = document.createElement('p');
+            p.className = 'tm-share';
+            const link = function (href, text) {
+              const a = document.createElement('a');
+              a.href = href;
+              a.target = '_blank';
+              a.rel = 'noopener';
+              a.textContent = text;
+              return a;
+            };
+            p.appendChild(link(j.x, 'Share on X'));
+            p.appendChild(link(j.bsky, 'Share on Bluesky'));
+            const copy = document.createElement('a');
+            copy.href = j.url;
+            copy.className = 'tm-share-copy';
+            copy.textContent = 'Copy link';
+            copy.addEventListener('click', function (e) {
+              e.preventDefault();
+              const done = function () { copy.textContent = 'Copied'; };
+              const old = function () {
+                const t = document.createElement('textarea');
+                t.value = j.url;
+                t.setAttribute('readonly', '');
+                t.style.position = 'fixed';
+                t.style.opacity = '0';
+                document.body.appendChild(t);
+                t.select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+                document.body.removeChild(t);
+                if (ok) done(); else copy.textContent = j.url;
+              };
+              if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(j.url).then(done, old);
+              else old();
+            });
+            p.appendChild(copy);
+            host.appendChild(p);
+          }).catch(function () {});
+      } catch (e) { /* never let sharing break publishing */ }
     }
 
     /*
