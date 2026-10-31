@@ -256,6 +256,9 @@ try {
     && await page.js(q('#tmChallengePill')) === 'Challenge' && await page.js(q('#tmChallengePill', 'getAttribute("href")')) === '/who-wins-the-trade/#challenge');
   ok('"Fans\' trades (10)": a third pill, a plain link to the list', await page.js(q('.tm-tabs #tmFansPill')) === 'Fans\u2019 trades (10)' && await page.js(q('#tmFansPill', 'getAttribute("href")')) === '#tmFansToday'
     && await page.js('document.querySelectorAll(".tm-tabs a").length') === 4);
+  // November 1, 2026: both stay in the page but leave the row (Build a trade,
+  // Trade Market, Who wins the trade?, Movers and the avatar).
+  ok('"Fans\' trades" and "Challenge" are hidden from the row', await page.js('getComputedStyle(document.getElementById("tmFansPill")).display === "none" && getComputedStyle(document.getElementById("tmChallengePill")).display === "none"'));
   ok('no pop-ups: no "load one" line, no picker, no dialog', await page.js('!document.querySelector(".tm-game-line, .tm-picker, [role=dialog]")'));
   ok('the list fits a phone', await page.js('document.documentElement.scrollWidth <= innerWidth'));
   // "Load" fills the builder in place: no new page.
