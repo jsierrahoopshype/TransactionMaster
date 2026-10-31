@@ -2498,6 +2498,14 @@
     /* "Share your trade" under the publish message. */
     .tm-share { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: .5rem 0 0; font-size: .9rem; }
     .tm-share a { font-weight: 600; white-space: nowrap; }
+    /* "Publish this trade" as visible as Generate (Jorge, October 31, 2026):
+       the same filled blue button (.btn .btn-primary). Added lines only. */
+    #tmPublish > button:not([disabled]) { display: inline-flex; align-items: center; justify-content: center; padding: .625rem 1.25rem;
+      font-family: inherit; font-size: .875rem; font-weight: 500; line-height: 1.2; border-radius: 8px; border: none;
+      background: var(--accent); color: #fff; text-decoration: none; cursor: pointer; transition: all .15s; min-height: 40px; }
+    #tmPublish > button:not([disabled]):hover { background: #2563eb; }
+    #tmPublish > button:not([disabled]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .tm-side #tmPublish > button:not([disabled]) { width: 100%; }
     /* "Fans' favourite <Team> trade this week" (Your team first). */
     .tm-team-week { margin-top: 1rem; }
     .tm-team-week h2 { font-size: 1rem; font-weight: 700; margin: 0 0 .5rem; color: var(--text); }
