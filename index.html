@@ -2464,6 +2464,18 @@
     .tm-publish-nudge { margin: 0; }
     .tm-publish-nudge button { font: inherit; font-size: .875rem; font-weight: 600; color: var(--accent, #3b82f6); background: none; border: 0; padding: .25rem 0; cursor: pointer; text-align: left; }
     .tm-publish-nudge button:hover { text-decoration: underline; }
+    /* Profile invite (November 2, 2026): the line under Publish, "Publish
+       and share", and "Your published trades". */
+    .tm-publish-hint { margin: .375rem 0 0; font-size: .8125rem; color: var(--text-muted, #9ca3af); line-height: 1.35; }
+    .tm-publish-hint[hidden] { display: none; }
+    .tm-pub-share { margin-left: .5rem; }
+    .tm-pub-link { display: block; margin-top: .375rem; font-size: .8125rem; overflow-wrap: anywhere; }
+    .tm-my-published .mp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .375rem; }
+    .tm-my-published .mp-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; font-size: .875rem; }
+    .tm-my-published .mp-list a { color: var(--text, inherit); font-weight: 600; overflow-wrap: anywhere; }
+    .tm-my-published .mp-verdict { color: var(--text-muted, #9ca3af); white-space: nowrap; }
+    .tm-my-published .mp-create { margin: .625rem 0 0; font-size: .875rem; }
+    .tm-my-published .mp-create a { color: var(--accent, #3b82f6); font-weight: 600; }
     .tm-add-profile button { font: inherit; font-weight: 600; color: var(--accent, #3b82f6); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
     .tm-add-profile button[disabled] { opacity: .6; cursor: default; }
     /* With "Challenge" there are four pills: words stay whole and a pill that doesn't fit goes to a second row. */
@@ -4046,6 +4058,7 @@
       // Only a legal trade is publishable, and the worker enforces that too.
       // A pending trade is legal later, not now.
       const legal = (typeof window.__tmLastValid !== 'undefined') ? window.__tmLastValid : false;
+      try { tidyPublishShare(); } catch (e) {}
       if (!lastTradeId || !legal) { host.style.display = 'none'; return; }
       host.style.display = '';
       if (lastPublishedId === lastTradeId) return;
@@ -4093,6 +4106,7 @@
         host.appendChild(copy);
         showGameVerdict(lastPublishedId, host);
         showAddToProfile(lastPublishedId, host);
+        try { rememberPublished(lastPublishedId); showMyPublished(); } catch (e) { /* never let the list break publishing */ }
         showChallengeEntry(lastPublishedId, host);
       } catch (e) {
         // Say what happened, in the interface's voice, and let them retry.
@@ -4242,6 +4256,232 @@
             host.appendChild(p);
           }).catch(function () {});
       } catch (e) { /* never let sharing break publishing */ }
+    }
+
+    /*
+     * PUBLISHING PAYS OFF (hoopsmatic-accounts profile invite; Jorge,
+     * November 2, 2026). Added alongside what was there; nothing above
+     * changes. No pop-ups, nothing published on its own.
+     *  - Under the Publish button, while the trade is legal and not yet
+     *    published: "Publish it and fans judge it in Who wins the trade?
+     *    (410 picks today)", with today's total of all picks in the game
+     *    (/who-wins-the-trade/api/picks-today, rounded down to 10). Hidden
+     *    when the number isn't there.
+     *  - After "Generate Image" or "Copy to Clipboard" on a legal trade not
+     *    yet published: a second button next to it, "Publish and share". It
+     *    presses "Publish this trade", then shares the trade's page
+     *    (https://hoopsmatic.com/trade/<id>) with the phone's share sheet, or
+     *    copies it. The image actions work exactly as before.
+     *  - This browser keeps the trades it publishes (hm_tm_published: the
+     *    trade ID, when, and its teams, the latest 200). Privacy policy
+     *    section 5: "When you create a profile, the picks and published
+     *    trades saved on this device are added to it". Without a profile,
+     *    the side column shows "Your published trades", each with the fans'
+     *    verdict ("Fans: BOS 64%", "Fans: too close to call", or "Fans are
+     *    judging it" before 20 picks; never a count), and "Create a profile
+     *    to keep these and get your GM score →".
+     * Text goes in with textContent; links only to hoopsmatic.com's own pages.
+     */
+    const TM_PUBLISHED_KEY = 'hm_tm_published';
+    function publishedList() {
+      try {
+        const v = JSON.parse(localStorage.getItem(TM_PUBLISHED_KEY) || '[]');
+        return Array.isArray(v) ? v.filter(function (x) { return x && typeof x.id === 'string' && x.id; }) : [];
+      } catch (e) { return []; }
+    }
+    function rememberPublished(tradeId) {
+      try {
+        if (!tradeId) return;
+        const teams = (typeof tradeTeams !== 'undefined' ? tradeTeams : [])
+          .filter(function (t) { return t && t.teamName && ((t.playersOut || []).length || (t.playersIn || []).length || (t.picksOut || []).length); })
+          .map(function (t) { return String(t.teamName); });
+        const list = publishedList().filter(function (x) { return x.id !== tradeId; });
+        list.push({ id: tradeId, at: Date.now(), t: teams.join(' · ') });
+        localStorage.setItem(TM_PUBLISHED_KEY, JSON.stringify(list.slice(-200)));
+      } catch (e) { /* not kept: private mode or storage full */ }
+    }
+    function publishableButton() {
+      return [].find.call(document.querySelectorAll('#tmPublish > button'), function (x) { return x.textContent === 'Publish this trade' && !x.disabled; }) || null;
+    }
+
+    // The line under the Publish button.
+    let picksTodayAsked = null;
+    function showPublishHint() {
+      if (typeof IS_RM_MODE !== 'undefined' && IS_RM_MODE) return;
+      const pub = document.getElementById('tmPublish');
+      if (!pub || !pub.parentNode) return;
+      const want = !!publishableButton() && window.__tmLastValid === true && pub.style.display !== 'none' && !pub.classList.contains('tm-side-off');
+      let line = document.getElementById('tmPublishHint');
+      if (!want) { if (line) line.hidden = true; return; }
+      if (!picksTodayAsked) {
+        picksTodayAsked = fetch('/who-wins-the-trade/api/picks-today', { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { return j && Number.isInteger(j.picks) && j.picks >= 10 ? j.picks : null; })
+          .catch(function () { return null; });
+      }
+      picksTodayAsked.then(function (n) {
+        if (n === null) return;
+        let l = document.getElementById('tmPublishHint');
+        if (!l) {
+          l = document.createElement('p');
+          l.id = 'tmPublishHint';
+          l.className = 'tm-publish-hint';
+          pub.parentNode.insertBefore(l, pub.nextSibling);
+        }
+        l.textContent = 'Publish it and fans judge it in Who wins the trade? (' + n.toLocaleString('en-US') + ' picks today)';
+        const still = !!publishableButton() && window.__tmLastValid === true && pub.style.display !== 'none' && !pub.classList.contains('tm-side-off');
+        l.hidden = !still;
+      });
+    }
+    let hintWatch = null;
+    function watchPublishHint() {
+      const pub = document.getElementById('tmPublish');
+      if (hintWatch || !pub || typeof MutationObserver !== 'function') return;
+      hintWatch = new MutationObserver(function () { try { showPublishHint(); } catch (e) {} });
+      hintWatch.observe(pub, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'disabled'] });
+      showPublishHint();
+    }
+
+    // "Publish and share", next to an image action.
+    function offerPublishAndShare(next) {
+      try {
+        if (!next || !next.parentNode || !lastTradeId || lastPublishedId === lastTradeId) return;
+        if (window.__tmLastValid !== true || !publishableButton()) return;
+        const sib = next.nextElementSibling;
+        if (sib && sib.classList.contains('tm-pub-share') && sib.getAttribute('data-trade') === lastTradeId) return;
+        if (sib && sib.classList.contains('tm-pub-share')) sib.parentNode.removeChild(sib);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-success tm-pub-share';
+        b.setAttribute('data-trade', lastTradeId);
+        b.textContent = 'Publish and share';
+        b.addEventListener('click', function () { publishAndShare(b); });
+        next.parentNode.insertBefore(b, next.nextSibling);
+      } catch (e) { /* the image actions stand on their own */ }
+    }
+    // A share button left from an earlier trade goes once the trade changes.
+    function tidyPublishShare() {
+      [].forEach.call(document.querySelectorAll('.tm-pub-share'), function (b) {
+        if (b.getAttribute('data-trade') !== lastTradeId && !b.disabled) b.parentNode.removeChild(b);
+      });
+    }
+    function shareTradeLink(url, b) {
+      const copied = function () { b.textContent = 'Published · link copied'; };
+      const show = function () {
+        b.textContent = 'Published';
+        if (b.nextElementSibling && b.nextElementSibling.classList.contains('tm-pub-link')) return;
+        const a = document.createElement('a');
+        a.className = 'tm-pub-link';
+        a.href = url;
+        a.textContent = url;
+        b.parentNode.insertBefore(a, b.nextSibling);
+      };
+      const copy = function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(url).then(copied, show);
+        show();
+        return null;
+      };
+      if (navigator.share) {
+        navigator.share({ title: 'Who wins this trade?', text: 'Who wins this trade? Vote here:', url: url })
+          .then(function () { b.textContent = 'Published · shared'; }, function (e) {
+            // Closed by the person: published, nothing more. Refused: copy.
+            if (e && e.name === 'AbortError') b.textContent = 'Published';
+            else copy();
+          });
+        return;
+      }
+      copy();
+    }
+    function publishAndShare(b) {
+      const pubBtn = publishableButton();
+      const id = lastTradeId;
+      if (!pubBtn || !id || typeof doPublish !== 'function') return;
+      [].forEach.call(document.querySelectorAll('.tm-pub-share'), function (x) { x.disabled = true; });
+      b.textContent = 'Publishing…';
+      Promise.resolve(doPublish(pubBtn)).then(function () {
+        if (lastPublishedId !== id) {
+          [].forEach.call(document.querySelectorAll('.tm-pub-share'), function (x) { x.disabled = false; });
+          b.textContent = 'Publishing did not work — try again';
+          return;
+        }
+        [].forEach.call(document.querySelectorAll('.tm-pub-share'), function (x) { if (x !== b) x.textContent = 'Published'; });
+        // One more on the day's total, for the admin numbers. A number only.
+        try {
+          fetch('/who-wins-the-trade/api/count', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'publish_share' }) }).catch(function () {});
+        } catch (e) {}
+        shareTradeLink('https://hoopsmatic.com/trade/' + encodeURIComponent(id), b);
+      });
+    }
+    function watchImageActions() {
+      ['generateImageBtn', 'copyImageBtn'].forEach(function (key) {
+        const el = document.getElementById(key);
+        if (!el || el.getAttribute('data-pub-share') === '1') return;
+        el.setAttribute('data-pub-share', '1');
+        el.addEventListener('click', function () {
+          offerPublishAndShare(el);
+          // The image opens in its own window: the button is there too.
+          if (key === 'generateImageBtn') offerPublishAndShare(document.getElementById('copyImageBtn'));
+        });
+      });
+    }
+
+    // "Your published trades", without a profile.
+    function verdictWords(v) {
+      if (!v || !Array.isArray(v.teams) || v.teams.length !== 2) return 'Fans are judging it';
+      if (!v.winner) return 'Fans: too close to call';
+      const w = v.teams.find(function (t) { return t.team === v.winner; });
+      return w ? 'Fans: ' + w.team + ' ' + Number(w.pct) + '%' : 'Fans are judging it';
+    }
+    function showMyPublished() {
+      if (typeof IS_RM_MODE !== 'undefined' && IS_RM_MODE) return;
+      const mine = publishedList().slice(-10).reverse();
+      if (!mine.length) return;
+      fetch('/profile/api/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (me) {
+          if (!me || me.profile === true) return null;
+          return fetch('/who-wins-the-trade/api/verdicts?ids=' + mine.map(function (x) { return encodeURIComponent(x.id); }).join(','), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; }, function () { return null; })
+            .then(function (j) {
+              const v = (j && j.verdicts) || {};
+              try { placeSide(); } catch (e) {}
+              const side = document.getElementById('tmSide');
+              if (!side) return;
+              let sec = document.getElementById('tmMyPublished');
+              if (!sec) {
+                sec = document.createElement('section');
+                sec.className = 'tm-fans-today tm-my-published';
+                sec.id = 'tmMyPublished';
+                side.insertBefore(sec, document.getElementById('tmSideMarket'));
+              }
+              sec.textContent = '';
+              const h = document.createElement('h2');
+              h.textContent = 'Your published trades';
+              sec.appendChild(h);
+              const list = document.createElement('ul');
+              list.className = 'mp-list';
+              mine.forEach(function (x) {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '/trade/' + encodeURIComponent(x.id);
+                a.textContent = typeof x.t === 'string' && x.t ? x.t : 'Your trade';
+                li.appendChild(a);
+                const s = document.createElement('span');
+                s.className = 'mp-verdict';
+                s.textContent = verdictWords(v[x.id]);
+                li.appendChild(s);
+                list.appendChild(li);
+              });
+              sec.appendChild(list);
+              const p = document.createElement('p');
+              p.className = 'mp-create';
+              const go = document.createElement('a');
+              go.href = '/profile/create';
+              go.textContent = 'Create a profile to keep these and get your GM score →';
+              p.appendChild(go);
+              sec.appendChild(p);
+            });
+        }).catch(function () {});
     }
 
     /*
@@ -4556,6 +4796,9 @@
       try { loadFansValues(); } catch (e) {}
       try { showChallengeLink(); } catch (e) {}
       try { watchPublishNudge(); } catch (e) {}
+      try { watchPublishHint(); } catch (e) {}
+      try { watchImageActions(); } catch (e) {}
+      try { showMyPublished(); } catch (e) {}
     }
 
     // "Publish it and see what fans think →" (Jorge, October 29, 2026): one
