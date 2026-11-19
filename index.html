@@ -2765,9 +2765,6 @@
     // Capture URL params immediately before anything can modify them
     const INITIAL_URL_PARAMS = new URLSearchParams(window.location.search);
     
-    // Version indicator - check browser console to verify deployment
-    console.log('%c🏀 NBA Trade Machine v17.22 - stronger best-player premium (45% cap, maxes at $55M TV) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');
-    console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');
     const IS_LOOP_URL = INITIAL_URL_PARAMS.has('loop') || INITIAL_URL_PARAMS.has('player') || 
                         (INITIAL_URL_PARAMS.has('from') && !INITIAL_URL_PARAMS.has('players')) || 
                         (INITIAL_URL_PARAMS.has('to') && !INITIAL_URL_PARAMS.has('players')) ||
@@ -2902,7 +2899,6 @@
       .then(csvText => {
         if (!csvText) return;
         signingDateMap = parseSigningDates(csvText);
-        console.log('[TM signings] loaded ' + signingDateMap.size + ' signing dates for auto cooling-period derivation');
         if (typeof renderTradeStatus === 'function') renderTradeStatus();
       })
       .catch(() => {});
@@ -2930,7 +2926,6 @@
         const find = re => fields.find(h => re.test((h || '').trim()));
         const pCol = find(/^player\s*rest$/i) || find(/player.*rest|rest.*player/i) || find(/^player$/i);
         const dCol = find(/^trade\s*date$/i) || find(/trade\s*date|date\s*of\s*trade|traded\s*on|acquir/i);
-        console.log('[TM trade-date] tab cols: player="' + (pCol || 'NONE') + '" date="' + (dCol || 'NONE') + '"');
         if (pCol && dCol) {
           for (const row of (parsed.data || [])) {
             const pr = (row[pCol] || '').toString().trim();
@@ -2948,7 +2943,6 @@
         for (const p of players) {
           if (p && p.player && isRecentTrade(tradeDateMap.get(normPlayerName(p.player)))) { p.notAggregated = true; n++; }
         }
-        console.log('[TM trade-date] applied no-aggregation to ' + n + ' players');
       } catch (e) {}
     }
     const REST_PUB_URL = `https://docs.google.com/spreadsheets/d/e/${TV_SHEET_ID}/pub?gid=1889032294&single=true&output=csv`;
@@ -2961,7 +2955,6 @@
           const m = parseTradeDateTable(csvText);
           if (m.size) {
             tradeDateMap = m;
-            console.log('[TM trade-date] loaded ' + m.size + ' trade dates (' + tag + ')');
             applyTradeDateRestrictions();
             if (typeof renderTradeStatus === 'function') renderTradeStatus();
             return true;
@@ -6157,18 +6150,13 @@
       tradeTeam.playersOut.forEach(p => {
         // Sign-and-Trade players bypass expiring/availability restrictions
         if (p.isSignAndTrade) return;
-        console.log(`[TM player] ${tradeTeam.teamName} sends ${p.player}: RESTRICTIONS="${p.tradeAvailable||''}", notAggregated=${!!p.notAggregated}, expiring=${!!p.isExpiring}`);
         // Check for expiring contracts
         if (p.isExpiring) {
           restrictions.push(`${p.player} has an expiring contract (not tradeable)`);
         } else if (p.tradeAvailable && p.tradeAvailable.toLowerCase() === 'not available') {
           restrictions.push(`${p.player} cannot be traded`);
         } else if (p.tradeAvailable) {
-          const _elig = tradeEligibleDate(p);
           const _cooling = isInCoolingPeriod(p);
-          console.log(`[TM cooling] ${p.player}: RESTRICTIONS="${p.tradeAvailable}" → `
-            + (_elig ? 'eligible ' + _elig.toISOString().slice(0,10) : 'NO parseable date/token')
-            + ` → ${_cooling ? 'IN COOLING — trade BLOCKED' : 'tradeable (eligibility not in the future)'}`);
           if (_cooling) coolingPlayers.push(p);
         }
         // Check for options
@@ -6786,7 +6774,6 @@
         
         if (usableTPE) {
           team.tpeUsed = usableTPE;
-          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to absorb an incoming contract`);
         }
       });
     }
@@ -8156,7 +8143,6 @@
         draftPicks.push({ team:fn, round:p.pick<=30?'1st':'2nd', year:'2026', surePick:'YES', notes:'#'+p.pick+' pick'+(ch?' · $'+(ch/1e6).toFixed(1)+'M cap hold':''), linkedTo:'' });
       }
       draftPicks.sort((a,b) => (parseInt(a.year)||9999)-(parseInt(b.year)||9999) || (a.round==='1st'?-1:1)-(b.round==='1st'?-1:1));
-      console.log('[TM] Applied RM picks:', rmPicks.length);
       addDraftPickPlayers();
     }
 
@@ -8166,7 +8152,6 @@
         resetRMTrade();
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_PICKS') {
-        console.log('[TM] Got PICKS message:', e.data.picks?.length, 'picks');
         applyRMPicks(e.data.picks);
         // Check for draftpick URL param — auto-select after picks are applied
         const ap = parseInt(INITIAL_URL_PARAMS.get('draftpick')) || 0;
@@ -8180,7 +8165,6 @@
             if (!tradeTeams[1].picksOut.some(pk => pk.notes && pk.notes.includes('#' + ap))) {
               const pk = tp[pi];
               tradeTeams[1].picksOut.push({ team:pk.team, round:pk.round, year:pk.year, notes:pk.notes, surePick:pk.surePick, linkedTo:pk.linkedTo, pickIndex:pi, destination:0 });
-              console.log('[TM] Auto-selected pick #' + ap + ' from URL param after PICKS');
             }
           }
         }
@@ -8195,7 +8179,6 @@
           btn.classList.add('ready');
           btn.disabled = false;
         }
-        console.log('[TM] Trade rejected by RM — Send button re-enabled');
       }
       if (e.data && e.data.type === 'ROSTER_MANAGER_TRADES') {
         // Swap players between teams to reflect RM trades
@@ -8213,7 +8196,6 @@
           }
           if (swapped) {
             teams = getUniqueTeams();
-            console.log('[TM] Applied', swapped, 'player swaps from RM trades');
             setTimeout(render, 150);
           }
         }
@@ -8226,18 +8208,15 @@
         window._lastDraftTrade = pf + '_' + pn;
         // Apply picks first if included
         if (e.data.picks) applyRMPicks(e.data.picks);
-        console.log('[TM] DRAFT_TRADE: partner=' + pf + ' pickNum=' + pn + ' draftPicks2026=' + draftPicks.filter(p=>p.year==='2026').length);
         if (pf && tradeTeams.length >= 2) {
           tradeTeams[1] = { teamName: pf, playersOut: [], playersIn: [], tpeUsed: null, picksOut: [], rightsOut: [], cashOut: [] };
           if (pn > 0) {
             const tp = getTeamDraftPicks(pf);
-            console.log('[TM] Team picks for ' + pf + ':', tp.map(p => p.year + ' ' + p.round + ' ' + (p.notes||'')).join(', '));
             let pi = tp.findIndex(p => p.year === '2026' && p.notes && p.notes.indexOf('#' + pn + ' ') >= 0);
             if (pi < 0) pi = tp.findIndex(p => p.year === '2026' && p.round === (pn <= 30 ? '1st' : '2nd') && p.notes && p.notes.includes('#' + pn));
             if (pi >= 0) {
               const pk = tp[pi];
               tradeTeams[1].picksOut.push({ team:pk.team, round:pk.round, year:pk.year, notes:pk.notes, surePick:pk.surePick, linkedTo:pk.linkedTo, pickIndex:pi, destination:0 });
-              console.log('[TM] Auto-selected pick #' + pn + ' at index ' + pi);
             } else {
               console.warn('[TM] Could not find pick #' + pn + ' for ' + pf);
             }
@@ -12269,15 +12248,6 @@
     }
 
     function processCSVData(results) {
-      // DIAGNOSTIC: does the RESTRICTIONS / NOT AGGREGATED data reach the engine?
-      try {
-        const _hdrs = (results.data && results.data[0]) ? Object.keys(results.data[0]) : [];
-        console.log('[TM CSV] RESTRICTIONS column present:', _hdrs.includes('RESTRICTIONS'),
-                    '| NOT AGGREGATED column present:', _hdrs.includes('NOT AGGREGATED'));
-        const _cw = (results.data || []).find(r => (r.PLAYER || '').toLowerCase().includes('coby white'));
-        if (_cw) console.log('[TM CSV] Coby White → TEAM="' + (_cw.TEAM || '') + '", RESTRICTIONS="' + (_cw['RESTRICTIONS'] || '') + '", NOT AGGREGATED="' + (_cw['NOT AGGREGATED'] || '') + '"');
-        else console.log('[TM CSV] Coby White NOT found among CSV rows');
-      } catch (e) { console.log('[TM CSV] diagnostic error', e); }
 
       // Build 2026-27 team financial data lookup (cols 94-118 are a separate team list, NOT per-player)
       const team2627Data = {};
@@ -12305,16 +12275,12 @@
                       || _findCH(/cap\s*hold/i)
                       || _findCH(/^ch\b/i)
                       || null;
-      console.log('[TM capholds] cap-hold column = "' + (capHoldCol || 'NONE') + '" (blank cell = no cap hold / waived)');
 
       players = results.data
         .filter(row => row.PLAYER && row.PLAYER.trim())
         .filter(row => row.TEAM && row.TEAM.trim())
         .map(row => {
           const otherNotes = row['OTHER NOTES']?.trim() || '';
-          if ((row.PLAYER || '').trim() === 'Jonathan Isaac') {
-            console.log('[TM capholds] Jonathan Isaac: col="' + (capHoldCol || 'NONE') + '" raw="' + (capHoldCol ? (row[capHoldCol] || '') : '') + '" hasCapHold=' + (capHoldCol ? (row[capHoldCol] || '').toString().trim() !== '' : true));
-          }
           const contractStatus = row['ST 25-26']?.trim() || '';
           const is10Day = contractStatus.toLowerCase().includes('10-day');
           const tradeKickerValue = parseFloat(row['TRADE KICKER'] || 0) || 0;
@@ -12414,8 +12380,6 @@
         if (withSalary.length > 50) {
           // Identify expiring players to convert to cap holds
           const expiringFAs = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player && p.dataHasCapHold);
-          const _excludedWaived = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player && !p.dataHasCapHold);
-          console.log('[TM capholds] excluded ' + _excludedWaived.length + ' blank-cap-hold (waived) players' + (_excludedWaived.length ? ': ' + _excludedWaived.slice(0, 10).map(p => p.player).join(', ') : ''));
           
           // NBA CBA cap hold formula (matches Roster Manager)
           const CAP_2627 = 165000000;
@@ -12598,7 +12562,6 @@
       
       // Signal to RM that TM is ready to receive picks
       if (IS_RM_MODE && window.parent && window.parent !== window) {
-        console.log('[TM] Sending TM_READY to RM. IS_OFFSEASON=' + IS_OFFSEASON + ' draftPicks2026=' + draftPicks.filter(p=>p.year==='2026').length + ' players=' + players.length);
         window.parent.postMessage({ type: 'ROSTER_MANAGER_TM_READY', isOffseason: IS_OFFSEASON, playerCount: players.length }, '*');
       }
       
