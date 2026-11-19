@@ -120,6 +120,48 @@ const REPLACEABLE_BLOCKS = [
   [null, '    /* "Who wins the trade?" and profiles in the Trade Machine (additive). */', '</style>'],
 ];
 const REPLACEABLE_LINES = ["        a.textContent = 'View published trade';"];
+// November 19, 2026: the 25 routine console.log calls were removed from the Trade Machine, with
+// the lines that only fed them (a "check the console" comment, a diagnostic try/catch, a debug
+// if-block and two log-only variables). These exact 37 lines may be gone; nothing else may.
+const REMOVED_DEBUG_LINES = [
+  "    // Version indicator - check browser console to verify deployment",
+  "    console.log('%c🏀 NBA Trade Machine v17.22 - stronger best-player premium (45% cap, maxes at $55M TV) - Jun 27 2026', 'color: #22c55e; font-weight: bold; font-size: 14px');",
+  "    console.log('Features: Pick Swaps, TPE multi-player, NA decomposition, Offseason mode, Sign-and-Trade');",
+  "        console.log('[TM signings] loaded ' + signingDateMap.size + ' signing dates for auto cooling-period derivation');",
+  "        console.log('[TM trade-date] tab cols: player=\"' + (pCol || 'NONE') + '\" date=\"' + (dCol || 'NONE') + '\"');",
+  "        console.log('[TM trade-date] applied no-aggregation to ' + n + ' players');",
+  "            console.log('[TM trade-date] loaded ' + m.size + ' trade dates (' + tag + ')');",
+  "        console.log(`[TM player] ${tradeTeam.teamName} sends ${p.player}: RESTRICTIONS=\"${p.tradeAvailable||''}\", notAggregated=${!!p.notAggregated}, expiring=${!!p.isExpiring}`);",
+  "          const _elig = tradeEligibleDate(p);",
+  "          console.log(`[TM cooling] ${p.player}: RESTRICTIONS=\"${p.tradeAvailable}\" → `",
+  "            + (_elig ? 'eligible ' + _elig.toISOString().slice(0,10) : 'NO parseable date/token')",
+  "            + ` → ${_cooling ? 'IN COOLING — trade BLOCKED' : 'tradeable (eligibility not in the future)'}`);",
+  "          console.log(`🔄 Auto-added TPE: ${team.teamName} using $${(usableTPE.value/1000000).toFixed(1)}M TPE to absorb an incoming contract`);",
+  "      console.log('[TM] Applied RM picks:', rmPicks.length);",
+  "        console.log('[TM] Got PICKS message:', e.data.picks?.length, 'picks');",
+  "              console.log('[TM] Auto-selected pick #' + ap + ' from URL param after PICKS');",
+  "        console.log('[TM] Trade rejected by RM — Send button re-enabled');",
+  "            console.log('[TM] Applied', swapped, 'player swaps from RM trades');",
+  "        console.log('[TM] DRAFT_TRADE: partner=' + pf + ' pickNum=' + pn + ' draftPicks2026=' + draftPicks.filter(p=>p.year==='2026').length);",
+  "            console.log('[TM] Team picks for ' + pf + ':', tp.map(p => p.year + ' ' + p.round + ' ' + (p.notes||'')).join(', '));",
+  "              console.log('[TM] Auto-selected pick #' + pn + ' at index ' + pi);",
+  "      // DIAGNOSTIC: does the RESTRICTIONS / NOT AGGREGATED data reach the engine?",
+  "      try {",
+  "        const _hdrs = (results.data && results.data[0]) ? Object.keys(results.data[0]) : [];",
+  "        console.log('[TM CSV] RESTRICTIONS column present:', _hdrs.includes('RESTRICTIONS'),",
+  "                    '| NOT AGGREGATED column present:', _hdrs.includes('NOT AGGREGATED'));",
+  "        const _cw = (results.data || []).find(r => (r.PLAYER || '').toLowerCase().includes('coby white'));",
+  "        if (_cw) console.log('[TM CSV] Coby White → TEAM=\"' + (_cw.TEAM || '') + '\", RESTRICTIONS=\"' + (_cw['RESTRICTIONS'] || '') + '\", NOT AGGREGATED=\"' + (_cw['NOT AGGREGATED'] || '') + '\"');",
+  "        else console.log('[TM CSV] Coby White NOT found among CSV rows');",
+  "      } catch (e) { console.log('[TM CSV] diagnostic error', e); }",
+  "      console.log('[TM capholds] cap-hold column = \"' + (capHoldCol || 'NONE') + '\" (blank cell = no cap hold / waived)');",
+  "          if ((row.PLAYER || '').trim() === 'Jonathan Isaac') {",
+  "            console.log('[TM capholds] Jonathan Isaac: col=\"' + (capHoldCol || 'NONE') + '\" raw=\"' + (capHoldCol ? (row[capHoldCol] || '') : '') + '\" hasCapHold=' + (capHoldCol ? (row[capHoldCol] || '').toString().trim() !== '' : true));",
+  "          }",
+  "          const _excludedWaived = players.filter(p => p.salary2627 <= 0 && p.salary > 0 && !p.is10Day && p.player && !p.dataHasCapHold);",
+  "          console.log('[TM capholds] excluded ' + _excludedWaived.length + ' blank-cap-hold (waived) players' + (_excludedWaived.length ? ': ' + _excludedWaived.slice(0, 10).map(p => p.player).join(', ') : ''));",
+  "        console.log('[TM] Sending TM_READY to RM. IS_OFFSEASON=' + IS_OFFSEASON + ' draftPicks2026=' + draftPicks.filter(p=>p.year==='2026').length + ' players=' + players.length);"
+];
 function replaceableLines(lines) {
   const out = new Set();
   for (const name of REPLACEABLE) {
@@ -140,7 +182,7 @@ function replaceableLines(lines) {
     if (lines[to - 1] === '    /*') to--;
     for (let k = from; k < to; k++) out.add(k);
   }
-  lines.forEach((l, k) => { if (REPLACEABLE_LINES.includes(l)) out.add(k); });
+  lines.forEach((l, k) => { if (REPLACEABLE_LINES.includes(l) || REMOVED_DEBUG_LINES.includes(l)) out.add(k); });
   return out;
 }
 try {
